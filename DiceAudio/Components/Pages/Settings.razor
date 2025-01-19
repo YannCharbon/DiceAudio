@@ -1,0 +1,86 @@
+﻿@page "/settings"
+
+@inject DiceAudioService AudioService
+
+<style>
+    .settings-group-name {
+        border-radius: 60px;
+        padding: 0px 20px 0px 0px;
+        margin:10px;
+        background-image: linear-gradient(-45deg, rgba(238, 119, 82, 0.2), rgba(231, 60, 126, 0.6), rgba(35, 166, 213, 0.9), rgba(35, 166, 171, 1.0));
+        display: flex;
+        align-items: center;
+    }
+
+    .settings-group {
+        margin:10px;
+        padding:10px;
+        border-radius:10px;
+        background-color:#505050;
+        box-shadow: 0 2px 10px rgba(255, 255, 255, 0.2);
+    }
+</style>
+
+
+<div class="settings-group">
+    <div style="display:flex;">
+        <div class="settings-group-name">
+            <MudIcon Icon="@Icons.Material.Filled.Settings" Size="@Size.Large" style="color:white;margin:10px;" Title="Settings" />
+            <h3>About</h3>
+        </div>
+    </div>
+    
+    <div>
+        <MudStack Row="true" AlignItems="AlignItems.Center">
+            <MudItem>
+                <h5>Current software: DiceAudio @AudioService.GetVersion()</h5>
+            </MudItem>
+            <MudItem>
+                <h6>&copy; Copyright Yann Charbon</h6>
+            </MudItem>
+        </MudStack>
+        <WelcomeMessage SettingsView="true" NewVersion="true" />
+    </div>
+</div>
+
+<div class="settings-group">
+    <div style="display:flex;">
+        <div class="settings-group-name">
+            <MudIcon Icon="@Icons.Material.Filled.Settings" Size="@Size.Large" style="color:white;margin:10px;" Title="Settings" />
+            <h3>Updates</h3>
+        </div>
+    </div>
+
+    @if (_updateAvailable)
+    {
+        <h5>DiceAudio <b>@_updateInfos?.tag_name</b> is available.</h5>
+        <br />
+        <h5>Visit <a style="color:darkcyan;" href="@_updateInfos?.html_url">@_updateInfos?.html_url</a> to download the update.</h5>
+    } else
+    {
+        <h5>DiceAudio is up to date.</h5>
+    }
+</div>
+
+@code {
+    private GenericModal<WelcomeMessage>? WelcomeMessageModalRef;
+
+    private bool _updateAvailable = false;
+    private GitHubRelease? _updateInfos = null;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+
+        }
+
+        _updateInfos = await AudioService.CheckUpdate();
+        if (_updateInfos != null)
+        {
+            _updateAvailable = (AudioService.GetVersion() != _updateInfos?.tag_name);
+        }
+
+        StateHasChanged();
+    }
+}

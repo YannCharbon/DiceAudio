@@ -1,0 +1,83 @@
+﻿@page "/"
+
+@inject NavigationManager Navigation
+@inject DiceAudioService AudioService
+
+<style>
+    .favorite-container {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+</style>
+
+<GenericModal TContent="WelcomeMessage" OnClose="HandleWelcomeMessageModalClose" @ref="WelcomeMessageModalRef">
+    <WelcomeMessage NewVersion="_newVersion" UpdateAvailable="_updateAvailable" UpdateInfos="_updateInfos" />
+</GenericModal>
+
+<div style="justify-content:center;text-align:center;padding-top:50px">
+    <h3>Welcome to DiceAudio !</h3>
+    
+    <p>This TTRPG tool to help you managing advanced audio scenarios.</p>
+</div>
+
+<div style="justify-content:center;text-align:center;padding-top:50px">
+    <h3>Your favorite scenarios</h3>
+
+    
+
+    <MudDivider Style="margin-top:50px;margin-bottom:30px;"></MudDivider>
+
+    <a href="https://github.com/YannCharbon/DiceAudio" target="_blank" style="color:white;margin:10px;"><MudIcon Icon="@Icons.Custom.Brands.GitHub" Size="@Size.Large" Title="GitHub" /></a>
+    <MudIcon Icon="@Icons.Material.Filled.Settings" Size="@Size.Large" style="color:white;margin:10px;cursor:pointer;" Title="Settings" @onclick="@(() => Navigation.NavigateTo("/settings"))" />
+
+
+</div>
+
+@code {
+    private GenericModal<WelcomeMessage>? WelcomeMessageModalRef;
+
+    private bool _newVersion = false;
+    private bool _updateAvailable = false;
+    private GitHubRelease? _updateInfos = null;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            string lastKnownVersion = Preferences.Get("LastKnownVersion", "-1");
+
+            // Fetch update information
+            _updateInfos = await AudioService.CheckUpdate();
+            if (_updateInfos != null)
+            {
+                if (Preferences.Get("LastShowedNewVersion", "-1") != _updateInfos?.tag_name && Preferences.Get("LastShowedNewVersion", "-1") != "-1")
+                {
+                    _updateAvailable = (AudioService.GetVersion() != _updateInfos?.tag_name);
+                }
+            }
+
+            if (lastKnownVersion != AudioService.GetVersion())
+            {
+                _newVersion = true;
+            }
+
+            // Show the modal if necessary
+            if (lastKnownVersion == "-1" || _newVersion || _updateAvailable)
+            {
+                WelcomeMessageModalRef?.Show();
+            }
+
+            StateHasChanged();
+        }
+    }
+
+    private void HandleWelcomeMessageModalClose(bool result)
+    {
+        Preferences.Set("LastKnownVersion", AudioService.GetVersion());
+        if (_updateInfos != null)
+        {
+            Preferences.Set("LastShowedNewVersion", _updateInfos.tag_name);
+        }
+    }
+}

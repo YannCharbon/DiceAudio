@@ -1,0 +1,109 @@
+﻿@typeparam TContent
+
+<style>
+    .generic-modal {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.5);
+        z-index: 2000;
+        transition: opacity 1.0s ease;
+    }
+
+    .generic-modal-content {
+        position: relative;
+        padding-top: 60px;
+        padding-left: 20px;
+        padding-right: 20px;
+        padding-bottom: 20px;
+        background-color: #2D2D2D;
+        box-shadow: 0 2px 10px rgba(255, 255, 255, 0.2);
+        border-radius: 10px;
+        z-index: 2010;
+    }
+
+    .generic-modal-content-margins {
+        margin: 7% auto;
+        max-width: 90%;
+        max-height: 86%;
+        overflow-y: auto;
+        overflow-x: hidden;
+    }
+
+    @@media screen and (max-width: 768px) {
+        .generic-modal-content-margins {
+            margin: 0;
+            width: 100%;
+            height:100%;
+            max-width: 100%;
+            max-height: 100%;
+            zoom: 0.85;
+            overflow-y: auto;
+            overflow-x: hidden;
+        }
+    }
+
+    .generic-modal-close {
+        position: absolute;
+        top: 10px;
+        right: 15px;
+        border: none;
+        background: none;
+        font-size: 28px;
+        cursor: pointer;
+    }
+</style>
+
+<div class="generic-modal @ModalClass" style="@ModalStyle" @onclick="OnBackgroundClick">
+    <div class="generic-modal-content generic-modal-content-margins" @onclick:stopPropagation="true">
+        <button class="generic-modal-close" @onclick="() => CloseModal(false)">×</button>
+        <div>
+            @if (ChildContent != null)
+            {
+                @ChildContent(ChildContentInstance!)
+            }
+        </div>
+        <div style="display: flex; justify-content: flex-end; padding-top: 15px;">
+            <MudButton OnClick="() => CloseModal(true)" Variant="Variant.Filled" StartIcon="@Icons.Material.Filled.Check" IconColor="Color.Success" Size="Size.Large">OK</MudButton>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public RenderFragment<TContent>? ChildContent { get; set; }
+    [Parameter] public EventCallback<bool> OnClose { get; set; }
+
+    private TContent? ChildContentInstance { get; set; }
+
+    private string ModalClass { get; set; } = "hide";
+    private string ModalStyle { get; set; } = "display: none;";
+
+    public void Show()
+    {
+        ChildContentInstance = Activator.CreateInstance<TContent>();
+        ModalStyle = "display: block;";
+        ModalClass = "";
+        StateHasChanged();
+    }
+
+    public void Hide()
+    {
+        ModalStyle = "display: none;";
+        ModalClass = "hide";
+        StateHasChanged();
+    }
+
+    private async Task CloseModal(bool success)
+    {
+        await OnClose.InvokeAsync(success);
+        Hide();
+    }
+
+    private async Task OnBackgroundClick(MouseEventArgs e)
+    {
+        // Close the modal only if the background is clicked
+        await CloseModal(false);
+    }
+}

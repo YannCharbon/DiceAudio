@@ -1,0 +1,100 @@
+﻿@inject PopupNotificationService PopupNotificationService
+
+@using System.Timers
+
+<style>
+    .popup-frame {
+        position: absolute;
+        margin-top: 50px;
+        margin-left: auto;
+        margin-right: auto;
+        left: 0;
+        right: 0;
+        z-index: 10050;
+        height: 150px;
+        background-color:#0D0D0D;
+        box-shadow: 0 2px 10px rgba(255, 255, 255, 0.1);
+        color: white;
+        padding:10px;
+        border-radius:5px;
+        text-align: center;
+    }
+
+    .popup-frame-width {
+        width: 350px;
+    }
+
+    @@media screen and (max-width: 768px) {
+        .popup-frame-width {
+            width: 90%;
+        }
+    }
+
+    .popup-title {
+        font-size: 28px;
+        font-weight:600;
+        margin-bottom: 10px;
+    }
+
+    .popup-message {
+        font-size: 20px;
+    }
+</style>
+
+<div class="popup-frame popup-frame-width" style="@(_showModal ? "display:block;" : "display:none;")">
+    @if (Type == PopupNotificationService.Type.FAILURE) {
+        <div class="popup-title"><MudIcon Icon="@Icons.Material.Filled.Error" Color="Color.Error" Title="Favorite" />&nbsp;@Title</div>
+    } else {
+        <div class="popup-title"><MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" Title="Favorite" />&nbsp;@Title</div>
+    }
+    <div class="popup-message">@Message</div>
+</div>
+
+@code {
+    private bool _showModal = false;
+    private string Title { get; set; }
+    private string Message { get; set; }
+    private PopupNotificationService.Type Type { get; set; }
+    private Timer _timer = new Timer(3000);
+
+    protected override void OnInitialized()
+    {
+        PopupNotificationService.OnShow += Show;
+        PopupNotificationService.OnClose += Hide;
+    }
+
+    private void Show(string title, string message, PopupNotificationService.Type type, int durationMs)
+    {
+        Title = title;
+        Message = message;
+        Type = type;
+        _showModal = true;
+        _timer = new Timer(durationMs);
+        _timer.Elapsed += OnTimerEvent;
+        _timer.Enabled = true;
+        StateHasChanged();
+    }
+
+    private void OnTimerEvent(Object source, ElapsedEventArgs e)
+    {
+        _timer.Enabled = false;
+        Hide();
+    }
+
+    private void Hide()
+    {
+        _showModal = false;
+        InvokeAsync(() => StateHasChanged());
+    }
+
+    private void Close()
+    {
+        PopupNotificationService.Close();
+    }
+
+    public void Dispose()
+    {
+        PopupNotificationService.OnShow -= Show;
+        PopupNotificationService.OnClose -= Hide;
+    }
+}

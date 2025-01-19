@@ -1,0 +1,35 @@
+﻿@inherits LayoutComponentBase
+
+@inject DiceAudioService AudioService
+
+<PopupNotification></PopupNotification>
+
+<div class="page">
+    <!--<div class="sidebar">
+        <NavMenu />
+    </div>-->
+    <DCNavMenu />
+
+
+    <main>
+        <MudThemeProvider IsDarkMode="true" Theme="DCTheme" />
+        <MudPopoverProvider />
+        <MudDialogProvider />
+        <MudSnackbarProvider />
+
+        <article class="content px-4" style="padding-top:70px;" id="mainpagebody">
+            @Body
+        </article>
+    </main>
+</div>
+
+@code {
+    MudTheme DCTheme = new MudTheme()
+    {
+        PaletteDark = new PaletteDark()
+            {
+                Primary = "#e73c7e",
+                Secondary = "#23a6ab",
+            },
+    };
+}

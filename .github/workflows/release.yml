@@ -1,0 +1,111 @@
+name: Build and Release DiceAudio
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'  # Trigger on version tags like v1.0.0
+  workflow_dispatch:  # Allow manual triggering
+
+permissions:
+  contents: write  # Ensure write permissions for releases
+
+jobs:
+  release:
+    name: Build and Release
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    - name: Setup .NET SDK
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: '8.0.x'
+
+    - name: Install .NET MAUI Workloads
+      run: |
+        dotnet workload install maui-android maui-windows maui-ios
+
+    - name: Determine AssemblyVersion
+      id: version
+      shell: bash
+      run: |
+        if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+          TAG_VERSION="${GITHUB_REF##*/}"
+          echo "Tag version detected: $TAG_VERSION"
+          ASSEMBLY_VERSION="${TAG_VERSION#v}.0"
+          echo "assembly_version=$ASSEMBLY_VERSION" >> $GITHUB_ENV
+          TAG_VERSION="${TAG_VERSION#v}"
+          echo "tag_version=$TAG_VERSION" >> $GITHUB_ENV
+        else
+          echo "Manual trigger detected. Setting AssemblyVersion to 999.999.999.0"
+          echo "assembly_version=999.999.999.0" >> $GITHUB_ENV
+        fi
+
+    - name: Update AssemblyVersion
+      run: |
+        sed -i "s|<AssemblyVersion>.*</AssemblyVersion>|<AssemblyVersion>${{ env.assembly_version }}</AssemblyVersion>|g" DiceAudio/DiceAudio.csproj
+        git config user.name "github-actions"
+        git config user.email "actions@github.com"
+        git commit -a -m "Set AssemblyVersion to ${{ env.assembly_version }}"
+
+    - name: Copy RELEASE_NOTES.md to wwwroot
+      run: |
+        cp -force RELEASE_NOTES.md DiceAudio/wwwroot/
+
+    - name: Build for Windows
+      run: |
+        dotnet publish DiceAudio.sln -f net8.0-windows10.0.19041.0 -c Release -p:RuntimeIdentifierOverride=win10-x64 -p:WindowsPackageType=None -p:IncludeAllContentForSelfExtract=true -p:PublishReadyToRun=true -p:IncludeNativeLibrariesForSelfExtract=true -o ./publish/windows
+
+    - name: Build for Android
+      run: |
+        dotnet publish DiceAudio/DiceAudio.csproj -f net8.0-android -c Release -o ./publish/android
+
+    - name: Find APK File
+      id: find_apk
+      shell: bash
+      run: |
+        APK_FILE=$(find ./publish/android -name "*.apk" | head -n 1)
+        echo "Found APK File: $APK_FILE"
+        echo "apk_file=$APK_FILE" >> $GITHUB_ENV
+
+    - name: Create Directory for Release
+      run: |
+        mkdir -p ./publish/release
+
+    - name: Create Zip of Windows Builds
+      run: |
+        $tagVersion = "${{ env.assembly_version }}"
+        $zipPath = "./publish/release/DiceAudio-$tagVersion-Windows.zip"
+        Compress-Archive -Path ./publish/windows/* -DestinationPath $zipPath
+        echo "zip_path=$zipPath" >> $env:GITHUB_ENV
+        Write-Host "Created zip file: $zipPath"
+      shell: pwsh
+
+    - name: Upload Build Artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: DiceAudio-Builds
+        path: ./publish/release
+
+    - name: Read Release Notes
+      id: notes
+      run: |
+        $releaseNotes = Get-Content RELEASE_NOTES.md -Raw
+        echo "release_notes<<EOF" >> $env:GITHUB_ENV
+        echo "$releaseNotes" >> $env:GITHUB_ENV
+        echo "EOF" >> $env:GITHUB_ENV
+      shell: pwsh
+
+    - name: Create GitHub Release
+      uses: ncipollo/release-action@v1
+      with:
+        tag: ${{ env.tag_version }}
+        name: DiceAudio ${{ env.tag_version }}
+        body: ${{ env.release_notes }}
+        token: ${{ secrets.GITHUB_TOKEN }}
+        artifacts: |
+          ${{ env.zip_path }}
+          ${{ env.apk_file }}
+

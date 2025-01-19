@@ -1,0 +1,135 @@
+﻿@using Markdig
+@using System.Reflection
+
+@inject DiceAudioService AudioService
+
+<style>
+    .welcome-header {
+        font-size: 30px;
+        text-align: center;
+    }
+
+    .welcome-body {
+        list-style-type: circle;
+    }
+
+    .welcome-release-notes {
+        margin:5px;
+        margin-top: 15px;
+        margin-bottom: 15px;
+        padding:10px;
+        border-radius:10px;
+        background-color:#0F0F0F;
+        box-shadow: 0 2px 10px rgba(255, 255, 255, 0.2);
+    }
+
+    ul {
+        list-style-type: disc;
+        padding: 10px 0 !important;
+        padding-left: 20px !important;
+    }
+</style>
+
+@if (!SettingsView)
+{
+    <div class="welcome-header">
+        @if (UpdateAvailable)
+        {
+            <h2>New update available</h2>
+        }
+        else
+        {
+            @if (!NewVersion)
+            {
+                <h2>Thank you for choosing DiceAudio!</h2>
+            }
+            else
+            {
+                <h2>New version - v@_version</h2>
+            }
+        }
+    </div>
+}
+
+<div class="welcome-body">
+    @if (UpdateAvailable)
+    {
+        <h5>DiceAudio <b>@UpdateInfos?.tag_name</b> is available.</h5>
+        <br />
+        <h5>Visit <a style="color:darkcyan;" href="@UpdateInfos?.html_url">@UpdateInfos?.html_url</a> to download the update or go to app settings if you want to do it later.</h5>
+    } else
+    {
+        @if (!NewVersion)
+        {
+            <h3>Key Features</h3>
+            <p>DiceAudio is a tabletop RPG audio manager, designed to make your game mastering smooth and enjoyable.</p>
+            <ul>
+                <li><strong>Feature 1:</strong> Lorem ipsum</li>
+                <li><strong>Feature 2:</strong> Lorem ipsum</li>
+                <li><strong>Feature 3:</strong> Lorem ipsum.</li>
+                <li><strong>Feature 4:</strong> Lorem ipsum</li>
+            </ul>
+        }
+        else
+        {
+            <div class="welcome-release-notes">
+                @((MarkupString)_releaseNotes)
+            </div>
+        }
+        <h3>License</h3>
+        <p>DiceAudio is open-source software licensed under the <b>Apache 2.0 license</b>. For details, visit <a href="https://github.com/YannCharbon/DiceAudio" style="color:white;" target="_blank"><MudIcon Icon="@Icons.Custom.Brands.GitHub" Title="GitHub" />&nbsp;GitHub</a>.</p>
+        <h3>Support the project</h3>
+        <p>
+            Feel free to suggest any new feature, improvements and bug fixes on <a href="https://github.com/YannCharbon/DiceAudio" style="color:white;" target="_blank"><MudIcon Icon="@Icons.Custom.Brands.GitHub" Title="GitHub" />&nbsp;GitHub</a>.
+            As I am developing this software on my free time, please consider that updating/bug fixing might be slow.
+        </p>
+        <p>If you enjoy using DiceAudio and want to support its development, a donation on Paypal is really appreciated.</p>
+        <span>
+            <a href="https://www.paypal.com/donate/?hosted_button_id=4X9ZURL5T4E6N" title="PayPal - The safer, easier way to pay online!" alt="Donate with PayPal button">
+                <img alt="" border="0" src="https://www.paypalobjects.com/en_US/i/btn/btn_donate_LG.gif" />
+            </a>
+        </span>
+        <br />
+        <br />
+        @if (!SettingsView)
+        {
+            <h4>Thanks a lot and good game!</h4>
+        }
+    }
+</div>
+
+@code {
+    [Parameter]
+    public bool NewVersion { get; set; } = false;
+    [Parameter]
+    public bool UpdateAvailable { get; set; } = false;
+    [Parameter]
+    public GitHubRelease? UpdateInfos { get; set; } = null;
+    [Parameter]
+    public bool SettingsView { get; set; } = false;
+
+    private string _version = "";
+    private string _releaseNotes = "";
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+
+        _version = AudioService.GetVersion();
+
+        string releaseNotesPath = Path.Combine(FileSystem.AppDataDirectory, "wwwroot/RELEASE_NOTES.md");
+
+        if (File.Exists(releaseNotesPath))
+        {
+            // File exists in AppDataDirectory
+            _releaseNotes = Markdown.ToHtml(File.ReadAllText(releaseNotesPath));
+        }
+        else
+        {
+            // If the file is not in AppDataDirectory, load it directly from the assembly
+            using var stream = Task.Run(() => FileSystem.OpenAppPackageFileAsync("wwwroot/RELEASE_NOTES.md")).Result;
+            using var reader = new StreamReader(stream);
+            _releaseNotes = Markdown.ToHtml(reader.ReadToEnd());
+        }
+    }
+}

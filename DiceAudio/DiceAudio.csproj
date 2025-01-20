@@ -2,8 +2,8 @@
 
     <PropertyGroup>
         <!-- Specify target frameworks -->
-        <TargetFrameworks>net8.0-android;net8.0-ios;net8.0-maccatalyst</TargetFrameworks>
-        <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">$(TargetFrameworks);net8.0-windows10.0.19041.0</TargetFrameworks>
+        <TargetFrameworks>net9.0-android;net9.0-ios;net9.0-maccatalyst</TargetFrameworks>
+        <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">$(TargetFrameworks);net9.0-windows10.0.19041.0</TargetFrameworks>
 
         <!-- General project settings -->
         <OutputType>Exe</OutputType>
@@ -37,7 +37,7 @@
     <!-- Assets -->
     <ItemGroup>
         <MauiIcon Include="Resources\\AppIcon\\diceaudio_logo.svg" />
-        <MauiSplashScreen Include="Resources\\Splash\\splash.svg" Color="#202020" BaseSize="128,128" />
+		<MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#512BD4" BaseSize="128,128" />
         <MauiImage Include="Resources\\Images\\*" />
         <MauiFont Include="Resources\\Fonts\\*" />
         <MauiAsset Include="Resources\\Raw\\**" LogicalName="%(RecursiveDir)%(Filename)%(Extension)" />
@@ -49,13 +49,13 @@
 
     <!-- NuGet packages -->
     <ItemGroup>
-        <PackageReference Include="BootstrapBlazor" Version="8.7.3" />
-        <PackageReference Include="HtmlAgilityPack" Version="1.11.61" />
-        <PackageReference Include="Markdig" Version="0.39.1" />
-        <PackageReference Include="Microsoft.Maui.Controls" Version="$(MauiVersion)" />
-        <PackageReference Include="Microsoft.Maui.Controls.Compatibility" Version="$(MauiVersion)" />
-        <PackageReference Include="Microsoft.AspNetCore.Components.WebView.Maui" Version="$(MauiVersion)" />
-        <PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="8.0.0" />
-        <PackageReference Include="MudBlazor" Version="7.3.0" />
+        <PackageReference Include="BootstrapBlazor" Version="9.2.8" />
+        <PackageReference Include="HtmlAgilityPack" Version="1.11.72" />
+        <PackageReference Include="Markdig" Version="0.40.0" />
+        <PackageReference Include="Microsoft.Maui.Controls" Version="9.0.30" />
+        <PackageReference Include="Microsoft.Maui.Controls.Compatibility" Version="9.0.30" />
+        <PackageReference Include="Microsoft.AspNetCore.Components.WebView.Maui" Version="9.0.30" />
+        <PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="9.0.1" />
+        <PackageReference Include="MudBlazor" Version="8.0.0" />
     </ItemGroup>
 </Project>

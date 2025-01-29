@@ -1,0 +1,28 @@
+﻿@page "/audioexplorer"
+
+@inject DiceAudioService DAService
+
+<GenericModal TContent="AudioDownloader" OnClose="HandleAudioDownloaderModalClose" @ref="AudioDownloaderModalRef">
+    <AudioDownloader></AudioDownloader>
+</GenericModal>
+
+<h3>Explorer</h3>
+
+<MudButton Variant="Variant.Filled" StartIcon="@Icons.Material.Filled.Download" Color="Color.Primary" OnClick="() => AudioDownloaderModalRef.Show()">Audio downloader</MudButton>
+
+<div>
+    @foreach (DAAudioItem item in DAService.AudioItems)
+    {
+        <p>@item.Name</p>
+        <p>&nbsp;@item.LocalFileName</p>
+    }
+</div>
+
+@code {
+    private GenericModal<AudioDownloader>? AudioDownloaderModalRef;
+
+    private void HandleAudioDownloaderModalClose(bool result)
+    {
+        
+    }
+}

@@ -13,7 +13,12 @@ namespace DiceAudio
 {
     public class DiceAudioService
     {
-        
+        public List<DAAudioItem> AudioItems { get; set; } = new List<DAAudioItem>();
+
+        public void AddAudioItem(DAAudioItem audioItem)
+        {
+            AudioItems.Add(audioItem);
+        }
 
         // Generic management
 

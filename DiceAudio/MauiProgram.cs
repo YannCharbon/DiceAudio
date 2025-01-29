@@ -91,6 +91,8 @@ namespace DiceAudio
 
             builder.Services.AddScoped<PopupNotificationService>();
 
+            builder.Services.AddSingleton<YtDlpService>();
+
             var app = builder.Build();
             ServiceProvider = app.Services; // Assign the root service provider
             return app;

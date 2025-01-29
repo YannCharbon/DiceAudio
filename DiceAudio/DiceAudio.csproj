@@ -42,14 +42,24 @@
         <MauiFont Include="Resources\\Fonts\\*" />
         <MauiAsset Include="Resources\\Raw\\**" LogicalName="%(RecursiveDir)%(Filename)%(Extension)" />
     </ItemGroup>
+    <ItemGroup>
+      <None Remove="Resources\ffmpeg.exe" />
+    </ItemGroup>
 
     <ItemGroup>
         <AndroidResource Include="Platforms\\Android\\Resources\\xml\\file_paths.xml" />
     </ItemGroup>
 
+    <ItemGroup>
+      <Content Include="Resources\ffmpeg.exe">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </Content>
+    </ItemGroup>
+
     <!-- NuGet packages -->
     <ItemGroup>
         <PackageReference Include="BootstrapBlazor" Version="9.2.8" />
+        <PackageReference Include="FFmpeg.Native" Version="4.4.0.2386" />
         <PackageReference Include="HtmlAgilityPack" Version="1.11.72" />
         <PackageReference Include="Markdig" Version="0.40.0" />
         <PackageReference Include="Microsoft.Maui.Controls" Version="9.0.30" />
@@ -57,5 +67,11 @@
         <PackageReference Include="Microsoft.AspNetCore.Components.WebView.Maui" Version="9.0.30" />
         <PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="9.0.1" />
         <PackageReference Include="MudBlazor" Version="8.0.0" />
+        <PackageReference Include="Soenneker.Libraries.ytdlp" Version="3.0.417" />
+    </ItemGroup>
+    <ItemGroup>
+      <Content Update="C:\Users\yannc\.nuget\packages\soenneker.libraries.ytdlp\3.0.417\contentFiles\any\net9.0\Resources\yt-dlp.exe">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </Content>
     </ItemGroup>
 </Project>

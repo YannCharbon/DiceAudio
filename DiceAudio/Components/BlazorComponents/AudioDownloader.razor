@@ -1,0 +1,174 @@
+﻿@page "/ytptest"
+@using System.Globalization
+
+@inject YtDlpService YtDlpService
+@inject DiceAudioService DAService
+
+<style>
+    .progress-spinner {
+    display: block;
+    margin: auto;
+    text-align: center;
+    }
+</style>
+
+<MudCard>
+    <MudCardContent>
+        <MudText Typo="Typo.h6">Audio Downloader</MudText>
+        <MudText Typo="Typo.body2">This downloader allows you to download the audio from thousands of websites (including YouTube, SoundCloud, etc.)</MudText>
+        <MudStack Row="true">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Download" Disabled="isDownloading" @onclick="StartDownload">Start Download &nbsp;<MudProgressCircular Indeterminate="true" Class="progress-spinner" Size="Size.Small" Style="@GetGlobalSpinnerStyle()" /></MudButton>
+            <MudButton Variant="Variant.Outlined" Color="Color.Secondary" StartIcon="@Icons.Material.Filled.Stop" Disabled="!isDownloading" @onclick="AbortDownload">Abort Download</MudButton>
+            <MudButton Variant="Variant.Outlined" Color="Color.Secondary" StartIcon="@Icons.Material.Filled.Delete" Disabled="isDownloading" @onclick="() => stagedAudios.Clear()">Clear staged</MudButton>
+        </MudStack>
+    </MudCardContent>
+
+    <MudCardContent>
+        <MudStack Row="true">
+            <MudTextField Variant="Variant.Filled" @bind-Value="urlToStage" Label="Stage URL"></MudTextField>
+            <MudText Typo="Typo.body2">@stageErrorMessage</MudText>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" Disabled="isStaging" @onclick="StageURL">Stage&nbsp;<MudProgressCircular Indeterminate="true" Class="progress-spinner" Size="Size.Small" Style="@GetStageSpinnerStyle()" /></MudButton>
+        </MudStack>
+    </MudCardContent>
+
+    @foreach (DAAudioItem item in stagedAudios)
+    {
+        <MudCardContent>
+            <MudStack Row="true">
+                <MudTextField Variant="Variant.Filled" @bind-Value="item.Name" Label="Name"></MudTextField>
+                <MudProgressCircular Indeterminate="true" Class="progress-spinner" Style="@GetSpinnerStyle(item)" />
+                @if (item.IsLocallyAvailable)
+                {
+                    <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="@Color.Success" Size="Size.Large" />
+                }
+                <MudButton Variant="Variant.Outlined" Color="Color.Secondary" StartIcon="@Icons.Material.Filled.Remove" Disabled="isDownloading" @onclick="() => Unstage(item)">Unstage</MudButton>
+            </MudStack>
+
+            <MudProgressLinear Value="@item.SourceDownloadProgress" Max="100" Style="margin-top:10px;" />
+            <MudText Typo="Typo.body2">@item.SourceDownloadStatusMessage</MudText>
+        </MudCardContent>
+    }
+</MudCard>
+
+@code {
+
+
+
+    private string statusMessage = string.Empty;
+    private bool isDownloading = false;
+    private int progress = 0;
+
+    private string urlToStage = "";
+    private string stageErrorMessage = "";
+    private bool isStaging = false;
+
+    private List<DAAudioItem> stagedAudios = new List<DAAudioItem>();
+
+    private async Task StageURL()
+    {
+        if (urlToStage == "")
+        {
+            stageErrorMessage = "Please provide a valid YouTube video/playlist URL";
+            return;
+        }
+        isStaging = true;
+        stageErrorMessage = "";
+        if (stagedAudios.Find(x => x.SourceURL == urlToStage) == null)
+        {
+            if (urlToStage.Contains("list="))
+            {
+                var (titles, urls) = await YtDlpService.GetPlaylistVideoTitlesAndUrlsAsync(urlToStage);
+
+                for (int i = 0; i < titles.Count; i++)
+                {
+                    DAAudioItem item = new DAAudioItem(titles[i]);
+                    item.SourceURL = urls[i];
+                    stagedAudios.Add(item);
+                }
+                urlToStage = "";
+            } else
+            {
+                DAAudioItem item = new DAAudioItem("Default");
+                item.SourceURL = urlToStage;
+                item.Name = await YtDlpService.GetVideoTitleAsync(urlToStage);
+                if (!item.Name.Contains("YtDLP Error"))
+                {
+                    stagedAudios.Add(item);
+                    urlToStage = "";
+                } else
+                {
+                    stageErrorMessage = item.Name;
+                }
+            }
+
+        }
+        isStaging = false;
+    }
+
+    private void Unstage(DAAudioItem item)
+    {
+        stagedAudios.Remove(item);
+    }
+
+    private string GetStageSpinnerStyle()
+    {
+        return isStaging ? "display: block; margin: auto;" : "display: none;";
+    }
+
+    private string GetGlobalSpinnerStyle()
+    {
+        return isDownloading ? "display: block;" : "display: none;";
+    }
+
+    private async Task StartDownload()
+    {
+        isDownloading = true;
+        progress = 0;
+        statusMessage = "Starting download...";
+
+        foreach (DAAudioItem item in stagedAudios)
+        {
+            @if (isDownloading == false)
+            {
+                // Manual abort
+                break;
+            }
+            if (item.IsLocallyAvailable)
+            {
+                // Already downloaded
+                continue;
+            }
+            await YtDlpService.RunYtDlpAsync(item, UpdateStatus);
+            if (item.IsLocallyAvailable)
+            {
+                item.SourceDownloadProgress = 100;
+                DAService.AddAudioItem(item);
+            }
+        }        
+
+        progress = 100;
+
+        isDownloading = false;
+    }
+
+    private void AbortDownload()
+    {
+        YtDlpService.AbortDownload(UpdateStatus);
+        isDownloading = false;
+
+        progress = 0;
+    }
+
+    private string GetSpinnerStyle(DAAudioItem item)
+    {
+        return item.SourceIsDownloading ? "display: block; margin: auto;" : "display: none;";
+    }
+
+    private void UpdateStatus(string message)
+    {
+        InvokeAsync(() =>
+        {
+            StateHasChanged();
+        });
+    }
+}

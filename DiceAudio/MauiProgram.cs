@@ -1,6 +1,7 @@
 ﻿using Microsoft.Extensions.Logging;
 using Microsoft.Maui.LifecycleEvents;
 using MudBlazor.Services;
+using Plugin.Maui.Audio;
 
 #if WINDOWS
 using Microsoft.UI;
@@ -51,6 +52,8 @@ namespace DiceAudio
                                 if (diceService != null)
                                 {
                                     // @todo : e.g. save files, etc.
+                                    diceService.SaveAudioItemListAsync();
+                                    diceService.SaveAudioVirtualFoldersAsync();
                                 }
                             };
                         });
@@ -79,6 +82,8 @@ namespace DiceAudio
             builder.Services.AddBlazorWebViewDeveloperTools();
             builder.Logging.AddDebug();
 #endif
+
+            builder.AddAudio();
 
             builder.Services.AddMudServices();
             builder.Services.AddSingleton<DiceAudioService>();

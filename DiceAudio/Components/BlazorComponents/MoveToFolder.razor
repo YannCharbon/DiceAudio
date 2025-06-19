@@ -1,0 +1,140 @@
+﻿@using DiceAudio
+@inject DiceAudioService DAService
+
+<style>
+    .tree-indent   { border-left: 2px solid #ccc; margin-left: 20px; padding-left: 12px; margin-top: 5px; }
+    .folder-block  { margin-top: 10px; }
+
+    .action-row    { display: flex; align-items: center; gap: 10px; padding-top: 10px; }
+    .action-input  { width: 300px; flex: 0 0 auto; }
+    .action-btn    { flex: 0 0 auto; }
+</style>
+
+<h3>Move to folder</h3>
+
+<MudSwitch @bind-Value="_showCreateFields"
+           Color="Color.Primary"
+           Label="Enable folder creation" />
+
+@if (AudioItem is not null)
+{
+    <div style="padding-left:10px;">
+        @foreach (var root in _folderTree)
+        {
+            @RenderFolderTree(root)
+        }
+
+        @if (_showCreateFields)
+        {
+            <div style="margin-top:20px;" class="action-row">
+                <MudTextField Variant="Variant.Filled"
+                              @bind-Value="_newRootFolderName"
+                              Label="New root folder name"
+                              Class="action-input" />
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.Add"
+                           Class="action-btn"
+                           OnClick="CreateRootFolder">
+                    Create root folder
+                </MudButton>
+            </div>
+        }
+
+        @if (_folderExists)
+        {
+            <MudText Color="Color.Error">Folder already exists at this level</MudText>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public DAAudioItem? AudioItem { get; set; }
+
+    private List<DAVirtualAudioFolder> _folderTree = new();
+    private readonly Dictionary<Guid, string> _newSubfolderNames = new();
+    private string _newRootFolderName = "New Root";
+    private bool _folderExists;
+    private bool _showCreateFields = false;
+
+    protected override void OnInitialized() => BuildFolderTree();
+
+    private void BuildFolderTree()
+    {
+        var all = DAService.AudioVirtualFolders.ToDictionary(f => f.Id);
+        _folderTree.Clear();
+
+        foreach (var folder in all.Values)
+        {
+            folder.VirtualAudioSubFolders.Clear();
+            _newSubfolderNames.TryAdd(folder.Id, "New Subfolder");
+
+            if (folder.ParentFolderId != Guid.Empty && all.ContainsKey(folder.ParentFolderId))
+                all[folder.ParentFolderId].VirtualAudioSubFolders.Add(folder);
+            else
+                _folderTree.Add(folder);
+        }
+    }
+
+    private RenderFragment RenderFolderTree(DAVirtualAudioFolder folder) => __builder =>
+    {
+        <div class="folder-block">
+            <MudButton Variant="@(AudioItem?.Folder.Name == folder.Name ? Variant.Filled : Variant.Outlined)"
+                       Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.Folder"
+                       OnClick="@(() => AudioItem!.Folder.Name = folder.Name)">
+                @folder.Name
+            </MudButton>
+
+            <div class="tree-indent">
+                @foreach (var sub in folder.VirtualAudioSubFolders)
+                {
+                    @RenderFolderTree(sub)
+                }
+
+                @if (_showCreateFields)
+                {
+                    <div class="action-row">
+                        <MudTextField Variant="Variant.Filled"
+                                      @bind-Value="_newSubfolderNames[folder.Id]"
+                                      Label="Subfolder name"
+                                      Class="action-input" />
+
+                        <MudButton Variant="Variant.Filled"
+                                   Color="Color.Primary"
+                                   StartIcon="@Icons.Material.Filled.Add"
+                                   Class="action-btn"
+                                   OnClick="@(() => CreateSubFolder(folder))">
+                            Create sub folder
+                        </MudButton>
+                    </div>
+                }
+            </div>
+        </div>;
+    };
+
+    private void CreateSubFolder(DAVirtualAudioFolder parent)
+    {
+        var name = _newSubfolderNames[parent.Id].Trim();
+        if (string.IsNullOrWhiteSpace(name)) return;
+
+        _folderExists = DAService.AudioVirtualFolders.Any(f => f.Name == name && f.ParentFolderId == parent.Id);
+        if (_folderExists) return;
+
+        DAService.AudioVirtualFolders.Add(new DAVirtualAudioFolder(name) { ParentFolderId = parent.Id });
+        BuildFolderTree();
+    }
+
+    private void CreateRootFolder()
+    {
+        var name = _newRootFolderName.Trim();
+        if (string.IsNullOrWhiteSpace(name)) return;
+
+        _folderExists = DAService.AudioVirtualFolders.Any(f => f.Name == name && f.ParentFolderId == Guid.Empty);
+        if (_folderExists) return;
+
+        DAService.AudioVirtualFolders.Add(new DAVirtualAudioFolder(name) { ParentFolderId = Guid.Empty });
+        _newRootFolderName = "New Root";
+        BuildFolderTree();
+    }
+}

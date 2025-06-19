@@ -8,16 +8,97 @@ using System.Diagnostics;
 using static MudBlazor.FilterOperator;
 using System.Reflection;
 using System.Net.Http.Headers;
+using Plugin.Maui.Audio;
 
 namespace DiceAudio
 {
     public class DiceAudioService
     {
         public List<DAAudioItem> AudioItems { get; set; } = new List<DAAudioItem>();
+        public List<DAVirtualAudioFolder> AudioVirtualFolders { get; set; } = new List<DAVirtualAudioFolder>();
+        public List<DAScene> Scenes { get; set; } = new List<DAScene>();
+
+        readonly IAudioManager audioManager;
+
+        public DiceAudioService(IAudioManager audioManage)
+        {
+            this.audioManager = audioManager;
+
+            LoadAudioItemListAsync();
+            LoadAudioVirtualFoldersListAsync();
+        }
 
         public void AddAudioItem(DAAudioItem audioItem)
         {
             AudioItems.Add(audioItem);
+            if (AudioVirtualFolders.FindIndex(x => x.Name == audioItem.Folder.Name) == -1)
+            {
+                AudioVirtualFolders.Add(new DAVirtualAudioFolder(audioItem.Folder.Name));
+            }
+        }
+
+        private static string audioItemsFilePath = Path.Combine(FileSystem.AppDataDirectory, "audioItems.json");
+
+        public async Task SaveAudioItemListAsync()
+        {
+            var options = new JsonSerializerOptions
+            {
+                WriteIndented = true,
+                DefaultBufferSize = 15 * 1024 * 1024 // 15MiB
+            };
+            string json = JsonSerializer.Serialize(AudioItems, options);
+            await File.WriteAllTextAsync(audioItemsFilePath, json);
+            Debug.WriteLine($"Write file to {audioItemsFilePath}");
+        }
+
+        public async Task LoadAudioItemListAsync()
+        {
+            if (File.Exists(audioItemsFilePath))
+            {
+                Debug.WriteLine("File exists");
+                string json = await File.ReadAllTextAsync(audioItemsFilePath);
+                var options = new JsonSerializerOptions
+                {
+                    DefaultBufferSize = 15 * 1024 * 1024 // 15MiB
+                };
+                var temp = JsonSerializer.Deserialize<List<DAAudioItem>>(json, options);
+                if (temp != null)
+                {
+                    AudioItems = temp;
+                }
+            }
+        }
+
+        private static string audioVirtualFoldersFilePath = Path.Combine(FileSystem.AppDataDirectory, "audioVirtualFolders.json");
+
+        public async Task SaveAudioVirtualFoldersAsync()
+        {
+            var options = new JsonSerializerOptions
+            {
+                WriteIndented = true,
+                DefaultBufferSize = 15 * 1024 * 1024 // 15MiB
+            };
+            string json = JsonSerializer.Serialize(AudioVirtualFolders, options);
+            await File.WriteAllTextAsync(audioVirtualFoldersFilePath, json);
+            Debug.WriteLine($"Write file to {audioVirtualFoldersFilePath}");
+        }
+
+        public async Task LoadAudioVirtualFoldersListAsync()
+        {
+            if (File.Exists(audioVirtualFoldersFilePath))
+            {
+                Debug.WriteLine("File exists");
+                string json = await File.ReadAllTextAsync(audioVirtualFoldersFilePath);
+                var options = new JsonSerializerOptions
+                {
+                    DefaultBufferSize = 15 * 1024 * 1024 // 15MiB
+                };
+                var temp = JsonSerializer.Deserialize<List<DAVirtualAudioFolder>>(json, options);
+                if (temp != null)
+                {
+                    AudioVirtualFolders = temp;
+                }
+            }
         }
 
         // Generic management

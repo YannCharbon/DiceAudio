@@ -1,0 +1,136 @@
+﻿
+<style>
+	.audio-tag-editor-item {
+	padding: 10px;
+	margin: 5px;
+	background-color: #303030;
+	}
+
+	.audio-tag-editor-tag-name {
+	color: black;
+	background-color: #a0a0a0;
+	border-color: #040020;
+	border-width: 3px;
+	border-style: solid;
+	border-radius: 3px;
+	padding: 3px;
+	}
+
+	.audio-tag-editor-tag {
+	color: black;
+	background-color: #e73c7e;
+	border-color: #040020;
+	border-width: 3px;
+	border-style: solid;
+	border-radius: 3px;
+	padding: 3px;
+	cursor: pointer;
+	}
+
+	.audio-tag-editor-tag-selected {
+	color: black;
+	background-color: #3ce77e;
+	border-color: #040020;
+	border-width: 3px;
+	border-style: solid;
+	border-radius: 3px;
+	padding: 3px;
+	cursor: pointer;
+	}
+
+	.audio-item-tag {
+	color: black;
+	background-color: #e73c7e;
+	border-color: #040020;
+	border-width: 3px;
+	border-style: solid;
+	border-radius: 3px;
+	padding: 3px;
+	}
+
+	.audio-tag-filter-flex-container {
+	display: flex;
+	flex-direction: row;
+	flex-wrap: wrap;
+	justify-content: flex-start;
+	align-items: baseline
+	}
+</style>
+
+@if (AudioItem != null)
+{
+	<MudStack Row="true">
+		<MudItem><h4>Tags picker&nbsp;</h4></MudItem>
+		<MudItem><MudButton Variant="Variant.Outlined" Color="Color.Secondary" StartIcon="@Icons.Material.Filled.Delete" @onclick="() => AudioItem.Tags.Clear()">Remove all tags</MudButton></MudItem>
+	</MudStack>
+	<div style="height: 500px;">
+		<div style="padding:5px;">
+		</div>
+		<div sstyle="padding:5px;">
+			<h4>Audio tags</h4>
+			@foreach (DAAudioTag tag in AudioItem.Tags)
+			{
+				<span class="audio-tag-editor-tag-name">@tag.Name</span>
+			}
+		</div>
+		<div style="padding:5px;">
+			<h4>Add/Remove tags</h4>
+			<div style="padding:5px;">
+				<p>Type</p>
+				<div class="audio-tag-filter-flex-container">
+					@foreach (string tagName in DAAudioTagsProvider.Instance.CategoryTypes)
+					{
+						@if (AudioItem.Tags.Contains(new DAAudioTag(tagName)))
+						{
+							<span class="audio-tag-editor-tag-selected" @onclick="() => AudioItem.Tags.Remove(new DAAudioTag(tagName))">@tagName.ToString()</span>
+						}
+						else
+						{
+							<span class="audio-tag-editor-tag" @onclick="() => AudioItem.Tags.Add(new DAAudioTag(tagName))">@tagName.ToString()</span>
+						}
+					}
+				</div>
+			</div>
+			<div style="padding:5px;">
+				<p>Location</p>
+				<div class="audio-tag-filter-flex-container">
+					@foreach (string tagName in DAAudioTagsProvider.Instance.CategoryLocations)
+					{
+						@if (AudioItem.Tags.Contains(new DAAudioTag(tagName)))
+						{
+							<span class="audio-tag-editor-tag-selected" @onclick="() => AudioItem.Tags.Remove(new DAAudioTag(tagName))">@tagName.ToString()</span>
+						}
+						else
+						{
+							<span class="audio-tag-editor-tag" @onclick="() => AudioItem.Tags.Add(new DAAudioTag(tagName))">@tagName.ToString()</span>
+						}
+					}
+				</div>
+			</div>
+			<div style="padding:5px;">
+				<p>Expression</p>
+				<div class="audio-tag-filter-flex-container">
+					@foreach (string tagName in DAAudioTagsProvider.Instance.CategoryExpressions)
+					{
+						@if (AudioItem.Tags.Contains(new DAAudioTag(tagName)))
+						{
+							<span class="audio-tag-editor-tag-selected" @onclick="() => AudioItem.Tags.Remove(new DAAudioTag(tagName))">@tagName.ToString()</span>
+						}
+						else
+						{
+							<span class="audio-tag-editor-tag" @onclick="() => AudioItem.Tags.Add(new DAAudioTag(tagName))">@tagName.ToString()</span>
+						}
+					}
+				</div>
+			</div>
+		</div>
+	</div>
+} else
+{
+	<p>No AudioItem provided.</p>
+}
+
+
+@code {
+	[Parameter] public DAAudioItem? AudioItem { get; set; } = default!;
+}

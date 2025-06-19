@@ -142,6 +142,7 @@
             if (item.IsLocallyAvailable)
             {
                 item.SourceDownloadProgress = 100;
+                item.Folder.Name = "Untriaged";
                 DAService.AddAudioItem(item);
             }
         }        

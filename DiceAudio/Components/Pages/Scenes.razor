@@ -1,0 +1,187 @@
+﻿@page "/scenarios"
+
+<style>
+    .audio-item-top {
+    background-repeat: no-repeat;
+    background-size: 100%;
+    border-top-left-radius: 10px;
+    border-top-right-radius: 10px;
+    padding: 10px;
+    margin-top: 10px;
+    margin-left: 10px;
+    margin-right: 10px;
+    height: 100px;
+    }
+
+    .audio-item-bottom {
+    font-size: small;
+    color: white;
+    background-color: #040020;
+    border-bottom-left-radius: 10px;
+    border-bottom-right-radius: 10px;
+    padding: 10px;
+    margin-left: 10px;
+    margin-right: 10px;
+    margin-bottom: 10px;
+    }
+
+    .scene-item-edit {
+    width: 600px;
+    background-color: #303050;
+    border-radius: 10px;
+    margin: 10px;
+    padding: 10px;
+    }
+
+    .scene-item-action-edit {
+    background-color: #505050;
+    border-radius: 10px;
+    margin: 10px;
+    padding: 10px;
+    }
+
+    .scene-item-action-name {
+    background-repeat: no-repeat;
+    background-size: 100%;
+    padding: 10px;
+    border-radius:10px;
+    font-size:18px;
+    border-width: 2px;
+    border-color: rgba(5, 136, 141, 1.0)
+    }
+
+    .scene-item-action-item {
+    background-repeat: no-repeat;
+    background-size: 100%;
+    padding: 10px;
+    border-radius: 10px;
+    font-size: 12px;
+    background-image: linear-gradient(-45deg, rgba(200, 90, 50, 0.2), rgba(200, 30, 96, 0.6), rgba(5, 136, 183, 0.9), rgba(5, 136, 141, 1.0));
+    }
+</style>
+
+@inject DiceAudioService DAService
+
+<GenericModal TContent="AudioItemPicker" OnClose="HandleAudioPickerModalClose" @ref="_audioModalPickerModalRef">
+    <AudioItemPicker SceneAction="_currentPickerSceneAction" SingleSelect="false"></AudioItemPicker>
+</GenericModal>
+
+
+<h3>Scenes</h3>
+
+<MudButton Variant="Variant.Filled" StartIcon="@Icons.Material.Filled.Add" Color="Color.Primary" OnClick="() => DAService.Scenes.Add(new DAScene(DAService))">New scene</MudButton>
+
+<div style="display:flex;">
+    @foreach (DAScene scene in DAService.Scenes) {
+        <div class="scene-item-edit">
+            <h4>@scene.Name</h4>
+
+            @foreach (DASceneAction sceneAction in scene.SceneActions)
+            {
+                <div class="scene-item-action-edit">
+                    @if (sceneAction.ActionType == DASceneAction.Type.Play)
+                    {
+                        var playAction = (DASceneActionPlay)sceneAction;
+                        <h5 class="scene-item-action-name">Play</h5>
+                        @if (playAction.AudioItems.Count > 0)
+                        {
+                            foreach (var item in playAction.AudioItems)
+                            {
+                                <p class="scene-item-action-item">@(item.Name)</p>
+                                <MudStack Row="true" Style="margin-bottom:10px;">
+                                    <MudNumericField Variant="Variant.Filled" Label="Volume" Format="F1" @bind-Value="item.Volume" Max="1.0" Min="0.0" />
+                                    <MudNumericField Variant="Variant.Filled" Label="Start after (s)" @bind-Value="item.StartDelay" Min="0" />
+                                    <MudNumericField Variant="Variant.Filled" Label="Fade-in duration (s)" @bind-Value="item.FadeInDuration" Min="0" />
+                                    <MudCheckBox Label="Loop" @bind-Value="item.Loop" />
+                                </MudStack>
+                            }
+                        } else
+                        {
+                            <p>Please choose an audio item to play</p>
+                        }
+                        <MudButton Variant="Variant.Filled" StartIcon="@Icons.Material.Filled.MusicNote" Color="Color.Primary" OnClick="() => OpenAudioPickerModal(sceneAction)">Choose audio</MudButton>
+                    } else if (sceneAction.ActionType == DASceneAction.Type.Stop)
+                    {
+                        var stopAction = ((DASceneActionStop)sceneAction);
+                        <h5 class="scene-item-action-name">Stop</h5>
+                        @if (!stopAction.StopAll)
+                        {
+                            @if (scene.PreviousScene != null)
+                            {
+                                <MudSelect Style="min-width: 200px;" T="string" Label="Audio to stop" Variant="Variant.Outlined" AnchorOrigin="Origin.BottomCenter" @bind-Value="stopAction.SelectedAudioItemName">
+                                    @foreach (DASceneAction action in scene.PreviousScene.SceneActions)
+                                    {
+                                        @if (action.ActionType == DASceneAction.Type.Play)
+                                        {
+                                            var playAction = ((DASceneActionPlay)action);
+                                            @foreach (var item in playAction.AudioItems)
+                                            {
+                                                <MudSelectItem T="string" Value="@(item.Name)" />
+                                            }
+                                        }
+                                    }
+                                </MudSelect>
+                            } else
+                            {
+                                <p>No audio is playing at this stage.</p>
+                            }
+                        }
+
+                        <MudStack Row="true" Style="margin-bottom:10px;">
+                            <MudNumericField Variant="Variant.Filled" Label="Fade-out duration (s)" @bind-Value="stopAction.FadeOutDuration" Min="0" />
+                            <MudCheckBox Label="Stop all" @bind-Value="stopAction.StopAll" />
+                        </MudStack>
+                    }
+                </div>
+            }
+
+            <MudStack Row="true">
+                <MudItem>
+                    <MudSelect Style="min-width: 200px;" T="string" Label="Action" Variant="Variant.Outlined" AnchorOrigin="Origin.BottomLeft" @bind-Value="_newActionName">
+                        <MudSelectItem T="string" Value="@("Play")" />
+                        <MudSelectItem T="string" Value="@("Stop")" />
+                        <MudSelectItem T="string" Value="@("SetVolume")" />
+                    </MudSelect>
+                </MudItem>
+                <MudButton Variant="Variant.Filled" StartIcon="@Icons.Material.Filled.Add" Color="Color.Primary" OnClick="() => AddNewAction(scene)">Add action</MudButton>
+            </MudStack>
+
+        </div>
+    }
+</div>
+
+
+@code {
+    private GenericModal<AudioItemPicker>? _audioModalPickerModalRef;
+    private DASceneAction? _currentPickerSceneAction = null;
+
+    string _newActionName = "Play";
+
+    private void AddNewAction(DAScene scene)
+    {
+        switch (_newActionName)
+        {
+            case "Play":
+                scene.SceneActions.Add(new DASceneActionPlay());
+                break;
+            case "Stop":
+                scene.SceneActions.Add(new DASceneActionStop());
+                break;
+            default:
+                break;
+        }
+    }
+
+
+    private void OpenAudioPickerModal(DASceneAction sceneAction)
+    {
+        _currentPickerSceneAction = sceneAction;
+        _audioModalPickerModalRef?.Show();
+    }
+
+    private void HandleAudioPickerModalClose(bool result)
+    {
+
+    }
+
+}

@@ -1,28 +1,222 @@
 ﻿@page "/audioexplorer"
-
 @inject DiceAudioService DAService
 
-<GenericModal TContent="AudioDownloader" OnClose="HandleAudioDownloaderModalClose" @ref="AudioDownloaderModalRef">
-    <AudioDownloader></AudioDownloader>
-</GenericModal>
+<style>
+  /*  cards ---------------------------------------------------------- */
+  .audio-item-top    { background-repeat:no-repeat; background-size:100%;
+                       border-top-left-radius:10px;  border-top-right-radius:10px;
+                       padding:10px; height:100px; margin:10px 10px 0 10px; }
+  .audio-item-bottom { font-size:small; color:white; background:#040020;
+                       border-bottom-left-radius:10px; border-bottom-right-radius:10px;
+                       padding:10px; margin:0 10px 10px 10px; }
+  .audio-item-tag    { color:black; background:#e73c7e; border:3px solid #040020;
+                       border-radius:3px; padding:3px; margin-right:4px; }
 
+  /*  breadcrumbs + nav buttons ------------------------------------ */
+  .nav-bar     { display:flex; align-items:center; gap:8px; margin:14px 0; flex-wrap:wrap; }
+  .crumb-link  { cursor:pointer; color:#90caf9; }
+  .crumb-link:hover { text-decoration:underline; }
+  .crumb-sep   { color:#888; }
+</style>
+
+<!-- ─────────────────────  MODALS  ───────────────────── -->
+<GenericModal TContent="AudioDownloader"  @ref="AudioDownloaderModalRef"  OnClose="HandleAudioDownloaderModalClose"><AudioDownloader /></GenericModal>
+<GenericModal TContent="AudioTagsPicker"  @ref="AudioTagsPickerModalRef"  OnClose="HandleAudioTagsPickerModalClose"><AudioTagsPicker AudioItem="_currentAudioItemForTagsPicker" /></GenericModal>
+<GenericModal TContent="MoveToFolder"     @ref="MoveToFolderModalRef"     OnClose="HandleMoveToFolderModalClose"><MoveToFolder AudioItem="_currentAudioItemForMoveToFolder" /></GenericModal>
+<GenericModal TContent="AudioTagsEditor"  @ref="AudioTagsEditorModalRef"  OnClose="HandleAudioTagsEditorModalClose"><AudioTagsEditor /></GenericModal>
+
+<!-- ─────────────────────  TOOLBAR  ───────────────────── -->
 <h3>Explorer</h3>
+<MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Download"
+           OnClick="@(() => AudioDownloaderModalRef.Show())">Audio downloader</MudButton>
+<MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Label"
+           OnClick="@(() => AudioTagsEditorModalRef.Show())">Add/Remove tags</MudButton>
 
-<MudButton Variant="Variant.Filled" StartIcon="@Icons.Material.Filled.Download" Color="Color.Primary" OnClick="() => AudioDownloaderModalRef.Show()">Audio downloader</MudButton>
+<!-- ────────────────────  NAV + BREADCRUMBS ─────────────────── -->
+@if (_breadcrumb.Any())
+{
+    <div class="nav-bar">
+        <MudIconButton Icon="@Icons.Material.Filled.ArrowBack"
+                       Color="Color.Primary"
+                       Disabled="!CanGoBack"
+                       OnClick="GoBack" Size="Size.Medium" />
+        <MudIconButton Icon="@Icons.Material.Filled.ArrowForward"
+                       Color="Color.Primary"
+                       Disabled="!CanGoForward"
+                       OnClick="GoForward" Size="Size.Medium" />
 
-<div>
-    @foreach (DAAudioItem item in DAService.AudioItems)
+        @for (var i = 0; i < _breadcrumb.Count; i++)
+        {
+            var crumb = _breadcrumb[i];
+            bool isLast   = i == _breadcrumb.Count - 1;
+
+            if (!isLast)
+            {
+                <span class="crumb-link" @onclick="@(() => NavigateToFolder(crumb))">
+                    @(crumb == _rootFolder ? "Root" : crumb.Name)
+                </span>
+                <span class="crumb-sep">/</span>
+            }
+            else
+            {
+                <span>@(crumb == _rootFolder ? "Root" : crumb.Name)</span>
+            }
+        }
+    </div>
+}
+
+<!-- ─────────────────────  MAIN GRID  ───────────────────── -->
+<div class="row">
+    @foreach (var folder in (IsRoot ? _folderTree : _currentFolder.VirtualAudioSubFolders))
     {
-        <p>@item.Name</p>
-        <p>&nbsp;@item.LocalFileName</p>
+        @RenderFolderCard(folder)
+    }
+
+    @foreach (var item in DAService.AudioItems.Where(ai => ai.Folder.Name == _currentFolder.Name))
+    {
+        <div class="col col-md-3">
+            <div class="audio-item-top"
+                 style="background-image:linear-gradient(-45deg,rgba(238,119,82,.2),rgba(231,60,126,.6),
+                                                        rgba(35,166,213,.9),rgba(35,166,171,1));">
+            </div>
+            <div class="audio-item-bottom">
+                <b>@item.Name</b>
+                <MudStack Row="true" Style="padding:5px;">
+                    @foreach (var tag in item.Tags)
+                    { <MudItem><span class="audio-item-tag">@tag.Name</span></MudItem> }
+                </MudStack>
+                <MudStack Row="true">
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Tag"
+                               OnClick="@(() => OpenAudioTagsPicker(item))">Edit tags</MudButton>
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Folder"
+                               OnClick="@(() => OpenMoveToFolderPicker(item))">Move</MudButton>
+                </MudStack>
+                <p>Player comes here</p>
+            </div>
+        </div>
     }
 </div>
 
 @code {
+    // modal refs
     private GenericModal<AudioDownloader>? AudioDownloaderModalRef;
+    private GenericModal<AudioTagsPicker>?  AudioTagsPickerModalRef;
+    private GenericModal<AudioTagsEditor>?  AudioTagsEditorModalRef;
+    private GenericModal<MoveToFolder>?     MoveToFolderModalRef;
 
-    private void HandleAudioDownloaderModalClose(bool result)
+    // tree + navigation state
+    private readonly DAVirtualAudioFolder _rootFolder = new() { Name = "." };
+    private DAVirtualAudioFolder _currentFolder = default!;
+    private List<DAVirtualAudioFolder> _folderTree = new();
+    private List<DAVirtualAudioFolder> _breadcrumb = new();
+
+    private List<DAVirtualAudioFolder> _history = new();
+    private int _historyIndex = -1;
+
+    private bool IsRoot => _currentFolder == _rootFolder || _currentFolder.Name == ".";
+
+    private bool CanGoBack    => _historyIndex > 0;
+    private bool CanGoForward => _historyIndex < _history.Count - 1;
+
+    protected override void OnInitialized()
     {
-        
+        BuildFolderTree();
+        // initialize navigation at root
+        _currentFolder = _rootFolder;
+        _history.Clear();
+        _historyIndex = -1;
+        NavigateToFolder(_rootFolder);
     }
+
+    void BuildFolderTree()
+    {
+        var map = DAService.AudioVirtualFolders.ToDictionary(f => f.Id);
+        _folderTree.Clear();
+
+        foreach (var f in map.Values)
+        {
+            f.VirtualAudioSubFolders.Clear();
+            if (f.ParentFolderId != Guid.Empty && map.TryGetValue(f.ParentFolderId, out var p))
+                p.VirtualAudioSubFolders.Add(f);
+            else
+                _folderTree.Add(f);
+        }
+    }
+
+    void NavigateToFolder(DAVirtualAudioFolder folder)
+    {
+        // manage history
+        if (_historyIndex < 0 || _history[_historyIndex] != folder)
+        {
+            // drop forward entries
+            if (_historyIndex < _history.Count - 1)
+                _history.RemoveRange(_historyIndex + 1, _history.Count - _historyIndex - 1);
+
+            _history.Add(folder);
+            _historyIndex = _history.Count - 1;
+        }
+
+        _currentFolder = folder;
+        UpdateBreadcrumb();
+    }
+
+    void GoBack()
+    {
+        if (!CanGoBack) return;
+        _historyIndex--;
+        _currentFolder = _history[_historyIndex];
+        UpdateBreadcrumb();
+    }
+
+    void GoForward()
+    {
+        if (!CanGoForward) return;
+        _historyIndex++;
+        _currentFolder = _history[_historyIndex];
+        UpdateBreadcrumb();
+    }
+
+    void UpdateBreadcrumb()
+    {
+        _breadcrumb.Clear();
+        var ptr = _currentFolder;
+        while (ptr != null)
+        {
+            _breadcrumb.Insert(0, ptr);
+            if (ptr == _rootFolder) break;
+            ptr = ptr.ParentFolderId == Guid.Empty
+                  ? _rootFolder
+                  : DAService.AudioVirtualFolders.FirstOrDefault(f => f.Id == ptr.ParentFolderId);
+        }
+    }
+
+    RenderFragment RenderFolderCard(DAVirtualAudioFolder folder) => __builder =>
+    {
+        <div class="col col-md-3" style="cursor:pointer;">
+            <div class="audio-item-top" @onclick="@(() => NavigateToFolder(folder))"
+                 style="background-image:linear-gradient(-45deg,rgba(238,119,82,.2),rgba(231,60,126,.6),
+                                                        rgba(35,166,213,.9),rgba(35,166,171,1));">
+                <div style="font-size:60px; text-align:center;">
+                    <MudIcon Icon="@Icons.Material.Filled.Folder" />
+                </div>
+            </div>
+            <div class="audio-item-bottom">
+                <b @onclick="@(() => NavigateToFolder(folder))">@folder.Name</b>
+            </div>
+        </div>;
+    };
+
+    // modal helpers
+    void OpenAudioTagsPicker(DAAudioItem item) { _currentAudioItemForTagsPicker = item;  AudioTagsPickerModalRef?.Show(); }
+    void OpenMoveToFolderPicker(DAAudioItem item){ _currentAudioItemForMoveToFolder = item; MoveToFolderModalRef?.Show(); }
+
+    // modal callbacks
+    void HandleAudioDownloaderModalClose(bool _) { }
+    void HandleAudioTagsPickerModalClose(bool _) { }
+    void HandleMoveToFolderModalClose(bool _) { }
+    void HandleAudioTagsEditorModalClose(bool saved) { if (saved) DAAudioTagsProvider.Instance.SaveTags(); }
+
+    // misc
+    private DAAudioItem _currentAudioItemForTagsPicker = default!;
+    private DAAudioItem _currentAudioItemForMoveToFolder = default!;
 }

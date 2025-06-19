@@ -1,0 +1,148 @@
+﻿@inject DiceAudioService DAService
+
+<h3>Choose an audio element</h3>
+
+<style>
+    .picker-audio-item-top {
+    background-repeat: no-repeat;
+    background-size: 100%;
+    border-top-left-radius: 10px;
+    border-top-right-radius: 10px;
+    padding: 10px;
+    margin-top: 10px;
+    margin-left: 10px;
+    margin-right: 10px;
+    height: 100px;
+    background-image: linear-gradient(-45deg, rgba(200, 90, 50, 0.2), rgba(200, 30, 96, 0.6), rgba(5, 136, 183, 0.9), rgba(5, 136, 141, 1.0));
+    }
+
+    .picker-audio-item-top-selected {
+    background-repeat: no-repeat;
+    background-size: 100%;
+    border-top-left-radius: 10px;
+    border-top-right-radius: 10px;
+    padding: 10px;
+    margin-top: 10px;
+    margin-left: 10px;
+    margin-right: 10px;
+    height: 100px;
+    background-image: linear-gradient(-45deg, rgba(255, 170, 120, 0.6), rgba(255, 90, 150, 0.6), rgba(60, 255, 250, 0.9), rgba(60, 255, 220, 1.0));
+    box-shadow: 0 2px 10px rgba(255, 255, 255, 0.5);
+    }
+
+    .picker-audio-item-bottom {
+    font-size: small;
+    color: white;
+    background-color: #040020;
+    border-bottom-left-radius: 10px;
+    border-bottom-right-radius: 10px;
+    padding: 10px;
+    margin-left: 10px;
+    margin-right: 10px;
+    margin-bottom: 10px;
+    }
+</style>
+
+<div class="row">
+    @if (_currentFolder.Name == ".")
+    {
+        @foreach (DAVirtualAudioFolder folder in DAService.AudioVirtualFolders)
+        {
+            @if (folder.Name != ".")
+            {
+                <div class="col col-md-3" style="cursor:pointer;">
+                    <div class="picker-audio-item-top" @onclick="() => _currentFolder.Name = folder.Name">
+                        <div style="font-size:60px;text-align:center;">
+                            <MudIcon Icon="@Icons.Material.Filled.Folder" />
+                        </div>
+                    </div>
+                    <div class="picker-audio-item-bottom" style="cursor:pointer;">
+                        <div style="font-weight:bold;" @onclick="() => _currentFolder.Name = folder.Name">
+                            @folder.Name
+                        </div>
+                    </div>
+                </div>
+            }
+        }
+    }
+    else
+    {
+        <div class="col col-md-3" style="cursor:pointer;">
+            <div class="picker-audio-item-top" @onclick="() => _currentFolder.Name = '.'.ToString()">
+                <div style="font-size:60px;text-align:center;">
+                    <MudIcon Icon="@Icons.Material.Filled.ArrowCircleLeft" Size="Size.Large" />
+                </div>
+            </div>
+            <div class="picker-audio-item-bottom" style="cursor:pointer;">
+                <div style="font-weight:bold;" @onclick="() => _currentFolder.Name = '.'.ToString()">
+                    <span>Back to root directory</span>
+                </div>
+            </div>
+        </div>
+    }
+
+    @foreach (DAAudioItem item in DAService.AudioItems.FindAll(x => x.Folder.Name == _currentFolder.Name))
+    {
+        <div class="col col-md-3">
+            @if (_currentSelectedAudioitems.Find(x => x.Id == item.Id) != null)
+            {
+                <div class="picker-audio-item-top-selected" @onclick="() => Select(item)">
+                </div>
+            }
+            else
+            {
+                <div class="picker-audio-item-top" @onclick="() => Select(item)">
+                </div>
+            }
+
+            <div class="audio-item-bottom">
+                <div style="font-weight:bold;">
+                    @item.Name
+                </div>
+                <div>
+                    <MudStack Row="true" style="padding:5px;">
+                        @foreach (DAAudioTag tag in item.Tags)
+                        {
+                            <MudItem>
+                                <span class="audio-item-tag">@tag.Name.ToString()</span>
+                            </MudItem>
+                        }
+                    </MudStack>
+                </div>
+                <div>
+                    <p>Player comes here</p>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+
+@code {
+    [Parameter] public DASceneAction? SceneAction { get; set; } = default!;
+    [Parameter] public bool SingleSelect { get; set; } = true;
+
+    private DAVirtualAudioFolder _currentFolder = new DAVirtualAudioFolder();
+    private List<DAAudioItem> _currentSelectedAudioitems = new List<DAAudioItem>();
+
+    private void Select(DAAudioItem item)
+    {
+        if (SingleSelect)
+        {
+            _currentSelectedAudioitems.Clear();
+            _currentSelectedAudioitems.Add(item);
+        } else
+        {
+            var idx = _currentSelectedAudioitems.IndexOf(item);
+            if (idx >= 0)
+            {
+                _currentSelectedAudioitems.RemoveAt(idx);
+            } else
+            {
+                _currentSelectedAudioitems.Add(item);
+            }
+        }
+
+        SceneAction?.SetAudioItems(_currentSelectedAudioitems);
+    }
+}

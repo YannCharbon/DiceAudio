@@ -5,9 +5,9 @@
 
 <style>
     .favorite-container {
-        display: flex;
-        align-items: center;
-        justify-content: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     }
 </style>
 
@@ -17,14 +17,12 @@
 
 <div style="justify-content:center;text-align:center;padding-top:50px">
     <h3>Welcome to DiceAudio !</h3>
-    
+
     <p>This TTRPG tool to help you managing advanced audio scenarios.</p>
 </div>
 
 <div style="justify-content:center;text-align:center;padding-top:50px">
     <h3>Your favorite scenarios</h3>
-
-    
 
     <MudDivider Style="margin-top:50px;margin-bottom:30px;"></MudDivider>
 
@@ -70,6 +68,8 @@
 
             StateHasChanged();
         }
+
+        AudioService.SaveAudioItemListAsync();
     }
 
     private void HandleWelcomeMessageModalClose(bool result)

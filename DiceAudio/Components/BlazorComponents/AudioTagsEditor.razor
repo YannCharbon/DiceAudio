@@ -1,0 +1,140 @@
+﻿<style>
+	.audio-tag-editor-item {
+		padding: 10px;
+		margin: 5px;
+		background-color: #303030;
+	}
+
+	.audio-tag-editor-tag-name {
+		color: black;
+		background-color: #a0a0a0;
+		border-color: #040020;
+		border-width: 3px;
+		border-style: solid;
+		border-radius: 3px;
+		padding: 3px;
+	}
+
+	.audio-tag-editor-tag {
+		color: black;
+		background-color: #e73c7e;
+		border-color: #040020;
+		border-width: 3px;
+		border-style: solid;
+		border-radius: 3px;
+		padding: 3px;
+		cursor: pointer;
+	}
+
+	.audio-tag-editor-tag-selected {
+		color: black;
+		background-color: #3ce77e;
+		border-color: #040020;
+		border-width: 3px;
+		border-style: solid;
+		border-radius: 3px;
+		padding: 3px;
+		cursor: pointer;
+	}
+
+	.audio-item-tag {
+		color: black;
+		background-color: #e73c7e;
+		border-color: #040020;
+		border-width: 3px;
+		border-style: solid;
+		border-radius: 3px;
+		padding: 3px;
+	}
+
+	.audio-tag-filter-flex-container {
+		display: flex;
+		flex-direction: row;
+		flex-wrap: wrap;
+		justify-content: flex-start;
+		align-items: baseline
+	}
+</style>
+
+<div>
+	<h4 class="modal-title">Tags editor&nbsp;</h4>
+</div>
+<div style="height: 600px;">
+	<div style="padding:5px;">
+		<h4>Add/Remove tags</h4>
+		<div style="padding:5px;">
+			<p>Type</p>
+			<div class="audio-tag-filter-flex-container">
+				@foreach (string tagName in DAAudioTagsProvider.Instance.CategoryTypes)
+				{
+					<span title="Delete tag from this category" class="audio-tag-editor-tag" @onclick="() => DAAudioTagsProvider.Instance.CategoryTypes.Remove(tagName)">@tagName.ToString() <span class="oi oi-trash"></span></span>
+				}
+			</div>
+			<MudStack Row="true" style="padding-top:10px;">
+				<MudTextField Variant="Variant.Filled" @bind-Value="newCategoryTypeTagName" Label="Enter new tag name"></MudTextField>
+				<MudButton Variant="@Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" @onclick="() => AddNewTag(DAAudioTag.TagCategory.Type, newCategoryTypeTagName)">Add new tag</MudButton>
+			</MudStack>
+		</div>
+		<div style="padding:5px;">
+			<p>Location</p>
+			<div class="audio-tag-filter-flex-container">
+				@foreach (string tagName in DAAudioTagsProvider.Instance.CategoryLocations)
+				{
+					<span title="Delete tag from this category" class="audio-tag-editor-tag" @onclick="() => DAAudioTagsProvider.Instance.CategoryLocations.Remove(tagName)">@tagName.ToString() <span class="oi oi-trash"></span></span>
+				}
+			</div>
+			<MudStack Row="true" style="padding-top:10px;">
+				<MudTextField Variant="Variant.Filled" @bind-Value="newCategoryLocationTagName" Label="Enter new tag name"></MudTextField>
+				<MudButton Variant="@Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" @onclick="() => AddNewTag(DAAudioTag.TagCategory.Location, newCategoryLocationTagName)">Add new tag</MudButton>
+			</MudStack>
+		</div>
+		<div style="padding:5px;">
+			<p>Expression</p>
+			<div class="audio-tag-filter-flex-container">
+				@foreach (string tagName in DAAudioTagsProvider.Instance.CategoryExpressions)
+				{
+					<span title="Delete tag from this category" class="audio-tag-editor-tag" @onclick="() => DAAudioTagsProvider.Instance.CategoryExpressions.Remove(tagName)">@tagName.ToString() <span class="oi oi-trash"></span></span>
+				}
+			</div>
+			<MudStack Row="true" style="padding-top:10px;">
+				<MudTextField Variant="Variant.Filled" @bind-Value="newCategoryExpressionTagName" Label="Enter new tag name"></MudTextField>
+				<MudButton Variant="@Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" @onclick="() => AddNewTag(DAAudioTag.TagCategory.Expression, newCategoryExpressionTagName)">Add new tag</MudButton>
+			</MudStack>
+		</div>
+	</div>
+</div>
+
+@code {
+
+	private string newCategoryTypeTagName = "";
+	private string newCategoryLocationTagName = "";
+	private string newCategoryExpressionTagName = "";
+
+	void AddNewTag(DAAudioTag.TagCategory tagCategory, string newTagName)
+	{
+		if (tagCategory == DAAudioTag.TagCategory.Type)
+		{
+			if (!DAAudioTagsProvider.Instance.CategoryTypes.Contains(newCategoryTypeTagName))
+			{
+				DAAudioTagsProvider.Instance.CategoryTypes.Add(newCategoryTypeTagName);
+				newCategoryTypeTagName = "";
+			}
+		}
+		else if (tagCategory == DAAudioTag.TagCategory.Location)
+		{
+			if (!DAAudioTagsProvider.Instance.CategoryLocations.Contains(newCategoryLocationTagName))
+			{
+				DAAudioTagsProvider.Instance.CategoryLocations.Add(newCategoryLocationTagName);
+				newCategoryLocationTagName = "";
+			}
+		}
+		else if (tagCategory == DAAudioTag.TagCategory.Expression)
+		{
+			if (!DAAudioTagsProvider.Instance.CategoryExpressions.Contains(newCategoryExpressionTagName))
+			{
+				DAAudioTagsProvider.Instance.CategoryExpressions.Add(newCategoryExpressionTagName);
+				newCategoryExpressionTagName = "";
+			}
+		}
+	}
+}

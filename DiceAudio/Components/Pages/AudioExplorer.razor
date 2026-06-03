@@ -37,13 +37,13 @@
 {
     <div class="nav-bar">
         <MudIconButton Icon="@Icons.Material.Filled.ArrowBack"
-                       Color="Color.Primary"
-                       Disabled="!CanGoBack"
-                       OnClick="GoBack" Size="Size.Medium" />
+                        Color="Color.Primary"
+                        Disabled="!CanGoBack"
+                        OnClick="GoBack" Size="Size.Medium" />
         <MudIconButton Icon="@Icons.Material.Filled.ArrowForward"
-                       Color="Color.Primary"
-                       Disabled="!CanGoForward"
-                       OnClick="GoForward" Size="Size.Medium" />
+                        Color="Color.Primary"
+                        Disabled="!CanGoForward"
+                        OnClick="GoForward" Size="Size.Medium" />
 
         @for (var i = 0; i < _breadcrumb.Count; i++)
         {
@@ -65,18 +65,19 @@
     </div>
 }
 
+
 <!-- ─────────────────────  MAIN GRID  ───────────────────── -->
 <div class="row">
     @foreach (var folder in (IsRoot ? _folderTree : _currentFolder.VirtualAudioSubFolders))
     {
         @RenderFolderCard(folder)
     }
-
+    
     @foreach (var item in DAService.AudioItems.Where(ai => ai.Folder.Name == _currentFolder.Name))
     {
         <div class="col col-md-3">
             <div class="audio-item-top"
-                 style="background-image:linear-gradient(-45deg,rgba(238,119,82,.2),rgba(231,60,126,.6),
+                    style="background-image:linear-gradient(-45deg,rgba(238,119,82,.2),rgba(231,60,126,.6),
                                                         rgba(35,166,213,.9),rgba(35,166,171,1));">
             </div>
             <div class="audio-item-bottom">
@@ -87,11 +88,11 @@
                 </MudStack>
                 <MudStack Row="true">
                     <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Tag"
-                               OnClick="@(() => OpenAudioTagsPicker(item))">Edit tags</MudButton>
+                                OnClick="@(() => OpenAudioTagsPicker(item))">Edit tags</MudButton>
                     <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Folder"
-                               OnClick="@(() => OpenMoveToFolderPicker(item))">Move</MudButton>
+                                OnClick="@(() => OpenMoveToFolderPicker(item))">Move</MudButton>
                 </MudStack>
-                <p>Player comes here</p>
+                <MusicPlayer AudioItem="@item"></MusicPlayer>
             </div>
         </div>
     }
@@ -130,6 +131,32 @@
 
     void BuildFolderTree()
     {
+        // Derive missing virtual folders from item metadata (handles empty audioVirtualFolders.json).
+        // Always create a NEW object so the canonical folder in AudioVirtualFolders is never
+        // aliased with an item's embedded Folder property (which would cause mutations via
+        // MoveToFolder to corrupt the canonical folder name).
+        foreach (var item in DAService.AudioItems)
+        {
+            if (item.Folder != null && item.Folder.Name != "." &&
+                DAService.AudioVirtualFolders.FindIndex(x => x.Name == item.Folder.Name) == -1)
+            {
+                DAService.AudioVirtualFolders.Add(new DAVirtualAudioFolder(item.Folder.Name)
+                {
+                    ParentFolderId = item.Folder.ParentFolderId
+                });
+            }
+        }
+
+        // Deduplicate by name then by ID — heals corrupted data that has same name or same ID
+        // appearing multiple times (e.g. from a previous broken run).
+        var seenNames = new HashSet<string>();
+        var seenIds   = new HashSet<Guid>();
+        var deduped = DAService.AudioVirtualFolders
+            .Where(f => seenNames.Add(f.Name) && seenIds.Add(f.Id))
+            .ToList();
+        DAService.AudioVirtualFolders.Clear();
+        DAService.AudioVirtualFolders.AddRange(deduped);
+
         var map = DAService.AudioVirtualFolders.ToDictionary(f => f.Id);
         _folderTree.Clear();
 
@@ -201,7 +228,34 @@
                 </div>
             </div>
             <div class="audio-item-bottom">
-                <b @onclick="@(() => NavigateToFolder(folder))">@folder.Name</b>
+                @if (_renamingFolder == folder)
+                {
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                        <MudTextField Value="@_renameValue"
+                                      ValueChanged="@((string v) => _renameValue = v)"
+                                      Variant="Variant.Filled"
+                                      Margin="Margin.Dense"
+                                      Style="flex:1;" />
+                        <MudIconButton Icon="@Icons.Material.Filled.Check"
+                                       Color="Color.Success"
+                                       Size="Size.Small"
+                                       OnClick="ConfirmRename" />
+                        <MudIconButton Icon="@Icons.Material.Filled.Close"
+                                       Color="Color.Error"
+                                       Size="Size.Small"
+                                       OnClick="CancelRename" />
+                    </MudStack>
+                }
+                else
+                {
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                        <b style="flex:1; cursor:pointer;" @onclick="@(() => NavigateToFolder(folder))">@folder.Name</b>
+                        <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                                       Size="Size.Small"
+                                       Title="Rename folder"
+                                       OnClick="@(() => StartRename(folder))" />
+                    </MudStack>
+                }
             </div>
         </div>;
     };
@@ -215,6 +269,37 @@
     void HandleAudioTagsPickerModalClose(bool _) { }
     void HandleMoveToFolderModalClose(bool _) { }
     void HandleAudioTagsEditorModalClose(bool saved) { if (saved) DAAudioTagsProvider.Instance.SaveTags(); }
+
+    // folder rename state
+    private DAVirtualAudioFolder? _renamingFolder = null;
+    private string _renameValue = string.Empty;
+
+    void StartRename(DAVirtualAudioFolder folder)
+    {
+        _renamingFolder = folder;
+        _renameValue = folder.Name;
+    }
+
+    void ConfirmRename()
+    {
+        if (_renamingFolder == null) { CancelRename(); return; }
+        var newName = _renameValue.Trim();
+        if (string.IsNullOrWhiteSpace(newName) || newName == _renamingFolder.Name) { CancelRename(); return; }
+        var oldName = _renamingFolder.Name;
+        _renamingFolder.Name = newName;
+        // also update the embedded Folder.Name on items loaded from JSON (which have their own Folder copy)
+        foreach (var item in DAService.AudioItems.Where(i => i.Folder.Name == oldName))
+            item.Folder.Name = newName;
+        _renamingFolder = null;
+        _renameValue = string.Empty;
+        BuildFolderTree();
+    }
+
+    void CancelRename()
+    {
+        _renamingFolder = null;
+        _renameValue = string.Empty;
+    }
 
     // misc
     private DAAudioItem _currentAudioItemForTagsPicker = default!;

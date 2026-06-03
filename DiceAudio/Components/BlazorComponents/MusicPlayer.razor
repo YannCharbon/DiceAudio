@@ -1,134 +1,95 @@
-﻿@using System.Timers
-@using NAudio.Wave
-@using NAudio.Wave.SampleProviders
+﻿@using Plugin.Maui.Audio
+@inject IAudioManager AudioManager
 
 <div class="row">
     <div class="col col-md-2">
-    @if (waveOut.PlaybackState == PlaybackState.Playing)
-    {
-        <span class="oi oi-media-pause command-button command-button-pause" @onclick="() => pauseAudio()"></span>
-    } else
-    {
-            <span class="oi oi-media-play command-button command-button-play" @onclick="() => playAudio()"></span>
-    }
+        @if (IsPlaying)
+        {
+            <span class="oi oi-media-pause command-button command-button-pause" @onclick="pauseAudio"></span>
+        }
+        else
+        {
+            <span class="oi oi-media-play command-button command-button-play" @onclick="playAudio"></span>
+        }
     </div>
     <div class="col col-sm-2">
-        <span class="oi oi-media-stop command-button command-button-stop" @onclick="() => stopAudio()"></span>
+        <span class="oi oi-media-stop command-button command-button-stop" @onclick="stopAudio"></span>
     </div>
 </div>
 
 <div>
-    Duration: @AudioInfo.TotalDuration.ToString("hh\\:mm\\:ss")
+    Duration: @TimeSpan.FromSeconds(_duration).ToString("hh\\:mm\\:ss")
 </div>
 
-<MudSlider @bind-Value="@playbackTimeSeconds" Min="0" Max="(int)AudioInfo.TotalDuration.TotalSeconds" onchange="@ProgressionChangedByUser"></MudSlider>
+<MudSlider @bind-Value="@playbackTimeSeconds" Min="0" Max="(int)_duration" @onchange="ProgressionChangedByUser" />
 
 @code {
-    [Parameter] public AudioInfo AudioInfo { get; set; } = default!;
+    [Parameter] public DAAudioItem AudioItem { get; set; } = default!;
 
-    public bool IsPlaying { get; set; } = false;
+    private IAudioPlayer? _audioPlayer;
+    private bool IsPlaying = false;
+    private double _duration = 0;
 
-    private WaveOutEvent waveOut = new WaveOutEvent();
-    AudioFileReader? audioFileReader = null;
-
-    private Timer tickerTimer1 = new Timer(1000);
-
+    private System.Timers.Timer tickerTimer1 = new System.Timers.Timer(1000);
     private int playbackTimeSeconds = 0;
-    private int playbackTimeSecondsControl = 0;
-
-    private int audioDuration = 0;
-    private TimeSpan audioDurationTime = new TimeSpan(0);
 
     protected override void OnInitialized()
     {
+        tickerTimer1.Elapsed += async (sender, args) =>
+        {
+            if (_audioPlayer != null && _audioPlayer.IsPlaying)
+            {
+                playbackTimeSeconds = (int)_audioPlayer.CurrentPosition;
+                await InvokeAsync(StateHasChanged);
+            }
+        };
     }
 
-    protected override void OnAfterRender(bool firstRender)
+    void playAudio()
     {
-        base.OnAfterRender(firstRender);
-        if (firstRender)
+        stopAudio();
+
+        var filePath = Path.Combine(FileSystem.AppDataDirectory, "Audio", AudioItem.LocalFileName);
+        var tmpFilePath = Path.Combine(FileSystem.CacheDirectory, AudioItem.Name);
+        File.Copy(filePath, tmpFilePath, true);
+
+        var fileStream = File.OpenRead(tmpFilePath);
+        _audioPlayer = AudioManager.CreatePlayer(fileStream);
+        _audioPlayer.Volume = 1.0;
+        _duration = _audioPlayer.Duration;
+
+        _audioPlayer.Play();
+        tickerTimer1.Start();
+        IsPlaying = true;
+    }
+
+    void pauseAudio()
+    {
+        _audioPlayer?.Pause();
+        tickerTimer1.Stop();
+        IsPlaying = false;
+    }
+
+    void stopAudio()
+    {
+        _audioPlayer?.Stop();
+        tickerTimer1.Stop();
+        IsPlaying = false;
+        playbackTimeSeconds = 0;
+        StateHasChanged();
+    }
+
+    void ProgressionChangedByUser(object val)
+    {
+        if (_audioPlayer != null)
         {
-            //StateHasChanged();
+            _audioPlayer.Seek(playbackTimeSeconds);
         }
     }
 
     public void Dispose()
     {
-        stopAudio();       
+        stopAudio();
+        _audioPlayer?.Dispose();
     }
-
-    void playAudio()
-    {
-        Console.WriteLine("Play");
-
-        if (audioFileReader != null)
-        {
-            audioFileReader.Close();
-            waveOut.Stop();
-        }        
-
-        // Read audio on temp file so we can edit tags on original file
-        string tmpFilePath = $"Tmp\\{AudioInfo.Name}";
-        File.Copy(AudioInfo.FilePath, tmpFilePath, true);
-
-        audioFileReader = new AudioFileReader(tmpFilePath);
-        audioFileReader.Volume = 1.0f;
-
-        audioDuration = (int)audioFileReader.TotalTime.TotalSeconds;
-
-        waveOut.Init(audioFileReader);
-        waveOut.Volume = 1.0f;
-        waveOut.Play();
-
-        tickerTimer1.Elapsed += (sender, e) => tickTimerElapsed();
-        tickerTimer1.Start();
-
-        IsPlaying = true;
-    }
-
-    void tickTimerElapsed()
-    {
-        Console.WriteLine("Ticker1");
-
-        // Try because audioFileReader can be closed
-        try {
-            playbackTimeSeconds = (int)audioFileReader.CurrentTime.TotalSeconds;
-            playbackTimeSecondsControl = playbackTimeSeconds;
-            InvokeAsync(() => StateHasChanged());
-        } catch (Exception ex) {}
-
-    }
-
-    void ProgressionChangedByUser(object val)
-    {
-        try
-        {
-            Console.WriteLine(playbackTimeSeconds);
-            waveOut.Stop();
-            audioFileReader?.Seek(0, SeekOrigin.Begin);
-            var trimmed = new OffsetSampleProvider(audioFileReader);
-            trimmed.SkipOver = TimeSpan.FromSeconds(playbackTimeSeconds);
-            waveOut.Init(trimmed);
-            waveOut.Play();
-        } catch (Exception ex) {}
-    }
-
-    void stopAudio()
-    {
-        tickerTimer1.Stop();
-        Console.WriteLine("Stop");
-        //player.Stop();
-        waveOut.Stop();
-        IsPlaying = false;
-        audioFileReader?.Close();
-    }
-
-    void pauseAudio()
-    {
-        tickerTimer1.Stop();
-        Console.WriteLine("Stop");
-        //player.Stop();
-        waveOut.Pause();
-    }
-
 }

@@ -61,7 +61,11 @@
 
     private void BuildFolderTree()
     {
-        var all = DAService.AudioVirtualFolders.ToDictionary(f => f.Id);
+        // Use TryAdd to tolerate any duplicate IDs left over from corrupted persisted data
+        var all = new Dictionary<Guid, DAVirtualAudioFolder>();
+        foreach (var f in DAService.AudioVirtualFolders)
+            all.TryAdd(f.Id, f);
+
         _folderTree.Clear();
 
         foreach (var folder in all.Values)
@@ -82,7 +86,7 @@
             <MudButton Variant="@(AudioItem?.Folder.Name == folder.Name ? Variant.Filled : Variant.Outlined)"
                        Color="Color.Primary"
                        StartIcon="@Icons.Material.Filled.Folder"
-                       OnClick="@(() => AudioItem!.Folder.Name = folder.Name)">
+                       OnClick="@(() => AudioItem!.Folder = folder)">
                 @folder.Name
             </MudButton>
 

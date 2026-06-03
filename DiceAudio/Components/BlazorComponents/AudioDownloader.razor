@@ -31,6 +31,51 @@
         </MudStack>
     </MudCardContent>
 
+    <MudCardContent>
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+            <MudIcon Icon="@Icons.Material.Filled.Folder" Style="color:#90caf9;" />
+            <MudText Typo="Typo.body2">Download to: <b>@_targetFolderName</b></MudText>
+            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                           OnClick="@(() => _folderPickerExpanded = !_folderPickerExpanded)" />
+        </MudStack>
+
+        @if (_folderPickerExpanded)
+        {
+            <div style="margin-top:8px; display:flex; flex-wrap:wrap; gap:6px;">
+                @foreach (var f in DAService.AudioVirtualFolders.Where(f => f.ParentFolderId == Guid.Empty))
+                {
+                    <MudButton Size="Size.Small"
+                               Variant="@(_targetFolderName == f.Name ? Variant.Filled : Variant.Outlined)"
+                               Color="Color.Primary"
+                               OnClick="@(() => { _targetFolderName = f.Name; _folderPickerExpanded = false; })">
+                        @f.Name
+                    </MudButton>
+                }
+                @if (!DAService.AudioVirtualFolders.Any(f => f.Name == "Untriaged"))
+                {
+                    <MudButton Size="Size.Small"
+                               Variant="@(_targetFolderName == "Untriaged" ? Variant.Filled : Variant.Outlined)"
+                               Color="Color.Primary"
+                               OnClick="@(() => { _targetFolderName = "Untriaged"; _folderPickerExpanded = false; })">
+                        Untriaged
+                    </MudButton>
+                }
+            </div>
+            <MudStack Row="true" Style="margin-top:10px;" AlignItems="AlignItems.Center">
+                <MudTextField Variant="Variant.Filled"
+                              @bind-Value="_newFolderInput"
+                              Label="New folder name"
+                              Style="max-width:250px;" />
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Secondary"
+                           Disabled="@string.IsNullOrWhiteSpace(_newFolderInput)"
+                           OnClick="UseNewFolder">
+                    Create &amp; select
+                </MudButton>
+            </MudStack>
+        }
+    </MudCardContent>
+
     @foreach (DAAudioItem item in stagedAudios)
     {
         <MudCardContent>
@@ -61,6 +106,10 @@
     private string urlToStage = "";
     private string stageErrorMessage = "";
     private bool isStaging = false;
+
+    private string _targetFolderName = "Untriaged";
+    private bool _folderPickerExpanded = false;
+    private string _newFolderInput = "";
 
     private List<DAAudioItem> stagedAudios = new List<DAAudioItem>();
 
@@ -142,7 +191,7 @@
             if (item.IsLocallyAvailable)
             {
                 item.SourceDownloadProgress = 100;
-                item.Folder.Name = "Untriaged";
+                item.Folder.Name = _targetFolderName;
                 DAService.AddAudioItem(item);
             }
         }        
@@ -163,6 +212,15 @@
     private string GetSpinnerStyle(DAAudioItem item)
     {
         return item.SourceIsDownloading ? "display: block; margin: auto;" : "display: none;";
+    }
+
+    private void UseNewFolder()
+    {
+        var name = _newFolderInput.Trim();
+        if (string.IsNullOrWhiteSpace(name)) return;
+        _targetFolderName = name;
+        _newFolderInput = "";
+        _folderPickerExpanded = false;
     }
 
     private void UpdateStatus(string message)

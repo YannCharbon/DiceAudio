@@ -2,8 +2,8 @@
 
     <PropertyGroup>
         <!-- Specify target frameworks -->
-        <TargetFrameworks>net9.0-android;net9.0-ios;net9.0-maccatalyst</TargetFrameworks>
-        <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">$(TargetFrameworks);net9.0-windows10.0.19041.0</TargetFrameworks>
+        <TargetFrameworks>net10.0-android;net10.0-ios;net10.0-maccatalyst</TargetFrameworks>
+        <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">$(TargetFrameworks);net10.0-windows10.0.19041.0</TargetFrameworks>
 
         <!-- General project settings -->
         <OutputType>Exe</OutputType>
@@ -62,16 +62,16 @@
         <PackageReference Include="FFmpeg.Native" Version="4.4.0.2386" />
         <PackageReference Include="HtmlAgilityPack" Version="1.11.72" />
         <PackageReference Include="Markdig" Version="0.40.0" />
-        <PackageReference Include="Microsoft.Maui.Controls" Version="9.0.30" />
-        <PackageReference Include="Microsoft.Maui.Controls.Compatibility" Version="9.0.30" />
-        <PackageReference Include="Microsoft.AspNetCore.Components.WebView.Maui" Version="9.0.30" />
-        <PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="9.0.1" />
+        <PackageReference Include="Microsoft.Maui.Controls" Version="10.0.70" />
+        <PackageReference Include="Microsoft.Maui.Controls.Compatibility" Version="10.0.70" />
+        <PackageReference Include="Microsoft.AspNetCore.Components.WebView.Maui" Version="10.0.70" />
+        <PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="10.0.8" />
         <PackageReference Include="MudBlazor" Version="8.0.0" />
-        <PackageReference Include="Plugin.Maui.Audio" Version="3.0.1" />
-        <PackageReference Include="Soenneker.Libraries.ytdlp" Version="3.0.563" />
+        <PackageReference Include="Plugin.Maui.Audio" Version="4.0.0" />
+        <PackageReference Include="Soenneker.Libraries.ytdlp" Version="4.0.1000" />
     </ItemGroup>
     <ItemGroup>
-      <Content Update="C:\Users\yannc\.nuget\packages\soenneker.libraries.ytdlp\3.0.417\contentFiles\any\net9.0\Resources\yt-dlp.exe">
+      <Content Update="C:\Users\yannc\.nuget\packages\soenneker.libraries.ytdlp\3.0.563\contentFiles\any\net10.0\Resources\yt-dlp.exe">
         <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       </Content>
     </ItemGroup>

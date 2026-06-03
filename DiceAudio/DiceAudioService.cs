@@ -30,11 +30,14 @@ namespace DiceAudio
 
         public void AddAudioItem(DAAudioItem audioItem)
         {
-            AudioItems.Add(audioItem);
-            if (AudioVirtualFolders.FindIndex(x => x.Name == audioItem.Folder.Name) == -1)
+            var canonical = AudioVirtualFolders.FirstOrDefault(x => x.Name == audioItem.Folder.Name);
+            if (canonical == null)
             {
-                AudioVirtualFolders.Add(new DAVirtualAudioFolder(audioItem.Folder.Name));
+                canonical = new DAVirtualAudioFolder(audioItem.Folder.Name);
+                AudioVirtualFolders.Add(canonical);
             }
+            audioItem.Folder = canonical;
+            AudioItems.Add(audioItem);
         }
 
         private static string audioItemsFilePath = Path.Combine(FileSystem.AppDataDirectory, "audioItems.json");

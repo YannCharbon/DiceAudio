@@ -1,0 +1,600 @@
+@*
+ * DiceAudio - Copyright (C) 2025 Yann Charbon
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ *
+ * This file is part of DiceAudio, released under the GNU GPL v3.
+ * See the LICENSE file in the repository root for details.
+*@
+
+@using Plugin.Maui.Audio
+@inject DiceAudioService DAService
+@inject IAudioManager AudioManager
+@implements IDisposable
+
+<style>
+    .se-section {
+        background: #1a1a30;
+        border: 1px solid #2a2a4a;
+        border-radius: 10px;
+        padding: 12px 14px;
+        margin-bottom: 14px;
+    }
+    .se-layer-card, .se-step-card {
+        background: #12121f;
+        border: 1px solid #2a2a4a;
+        border-radius: 8px;
+        padding: 10px 12px;
+        margin: 8px 0;
+    }
+    .se-layer-live { border-color: rgba(35,166,213,0.9); }
+    .se-cmd-row {
+        display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+        background: #191928; border-radius: 6px; padding: 6px 8px; margin: 4px 0;
+    }
+    .se-role-badge {
+        font-size: 11px; border-radius: 4px; padding: 1px 7px; color: black; font-weight: bold;
+    }
+</style>
+
+@if (_visible && Scene != null)
+{
+<div style="position:fixed; top:0; left:0; width:100%; height:100%;
+            background:rgba(0,0,0,0.82); z-index:4800; overflow-y:auto;"
+     @onclick="CloseAsync">
+    <div style="background:#232338; margin:2% auto; max-width:1050px; border-radius:12px;
+                padding:22px 26px; position:relative;"
+         @onclick:stopPropagation="true">
+
+        <MudStack Row="true" AlignItems="AlignItems.Center" Style="gap:14px; margin-bottom:14px; flex-wrap:wrap;">
+            <MudIcon Icon="@Icons.Material.Filled.Theaters" Style="color:#e73c7e;" />
+            <MudTextField @bind-Value="Scene.Name" Label="Scene name" Variant="Variant.Outlined"
+                          Margin="Margin.Dense" Style="max-width:280px;" />
+            <MudTextField @bind-Value="Scene.Category" Label="Category" Placeholder="e.g. Town, Combat"
+                          Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width:180px;" />
+            <MudSelect T="DASceneMode" Value="Scene.Mode" ValueChanged="m => Scene.Mode = m"
+                       Label="Mode" Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width:200px;">
+                <MudSelectItem T="DASceneMode" Value="DASceneMode.Linear">Linear (steps)</MudSelectItem>
+                <MudSelectItem T="DASceneMode" Value="DASceneMode.Contextual">Contextual (states)</MudSelectItem>
+            </MudSelect>
+
+            @* ── Live preview transport ── *@
+            <div style="display:flex; align-items:center; gap:6px; margin-left:auto;">
+                @if (_preview?.IsPlaying == true)
+                {
+                    <div class="da-cmd-btn" @onclick="() => _preview!.AdvanceAsync()"
+                         title="@(Scene.Mode == DASceneMode.Contextual ? "Next context" : "Advance to next step")">
+                        <MudIcon Icon="@Icons.Material.Filled.SkipNext" Class="da-skip" />
+                    </div>
+                    <div class="da-cmd-btn" @onclick="StopPreviewAsync" title="Stop preview">
+                        <MudIcon Icon="@Icons.Material.Filled.Stop" Class="da-stop" />
+                    </div>
+                    <MudText Typo="Typo.caption" Style="color:#90caf9;">
+                        @(_preview.CurrentCueName ?? "")
+                        @(Scene.Mode == DASceneMode.Linear
+                            ? (_preview.NextStep != null ? $" → next: {_preview.NextStep.Name}" : " (last step)")
+                            : "")
+                    </MudText>
+                }
+                else
+                {
+                    <div class="da-cmd-btn" @onclick="StartPreviewAsync" title="Preview the scene">
+                        <MudIcon Icon="@Icons.Material.Filled.PlayArrow" Class="da-play" />
+                    </div>
+                    <MudText Typo="Typo.caption" Style="color:grey;">Preview</MudText>
+                }
+            </div>
+        </MudStack>
+
+        @* ═══ Layers ═══ *@
+        <div class="se-section">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Style="gap:10px; margin-bottom:4px;">
+                <MudText Typo="Typo.subtitle1"><b>Layers</b></MudText>
+                <MudText Typo="Typo.caption" Style="color:grey;">
+                    The sound sources of the scene — ambiences, music, sound effects
+                </MudText>
+            </MudStack>
+
+            @foreach (var layer in Scene.Layers)
+            {
+                var l = layer;
+                var audioItem = DAService.AudioItems.FirstOrDefault(a => a.Id == l.Audio.AudioItemId);
+                bool live = _preview?.IsLayerAudible(l.Id) == true;
+
+                <div class="se-layer-card @(live ? "se-layer-live" : "")">
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Style="gap:10px; flex-wrap:wrap;">
+                        <span class="se-role-badge" style="background:@RoleColor(l.Role);">@RoleLabel(l.Role)</span>
+
+                        <MudTextField @bind-Value="l.Name" Label="Layer name" Variant="Variant.Outlined"
+                                      Margin="Margin.Dense" Style="max-width:180px;" />
+
+                        <MudSelect T="DALayerRole" Value="l.Role" ValueChanged="r => SetLayerRole(l, r)"
+                                   Label="Role" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                   Style="max-width:150px;">
+                            <MudSelectItem T="DALayerRole" Value="DALayerRole.Ambience">Ambience</MudSelectItem>
+                            <MudSelectItem T="DALayerRole" Value="DALayerRole.Music">Music</MudSelectItem>
+                            <MudSelectItem T="DALayerRole" Value="DALayerRole.SoundEffect">Sound effect</MudSelectItem>
+                        </MudSelect>
+
+                        <MudButton Variant="Variant.Outlined" Color="@(audioItem == null ? Color.Warning : Color.Default)"
+                                   StartIcon="@(audioItem?.Kind.Icon() ?? Icons.Material.Filled.LibraryMusic)"
+                                   OnClick="() => OpenAudioPicker(l)"
+                                   Style="flex:1; min-width:220px; text-transform:none; justify-content:flex-start;">
+                            @(audioItem?.Name ?? "Pick audio file…")
+                        </MudButton>
+
+                        <MudButton Size="Size.Small" Variant="Variant.Outlined"
+                                   StartIcon="@Icons.Material.Filled.Tune"
+                                   Disabled="audioItem == null"
+                                   OnClick="() => OpenLayerSettings(l, audioItem)">
+                            Settings@(l.Audio.IsClipped ? " ✂" : "")
+                        </MudButton>
+
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small"
+                                       Title="Delete layer" OnClick="() => DeleteLayer(l)" />
+                    </MudStack>
+
+                    @if (l.Role == DALayerRole.SoundEffect)
+                    {
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Style="gap:10px; flex-wrap:wrap; margin-top:8px;">
+                            <MudText Typo="Typo.caption" Style="color:grey;">Random scheduling:</MudText>
+                            <MudNumericField T="double" Value="l.RandomMinSeconds"
+                                             ValueChanged="v => l.RandomMinSeconds = Math.Max(0, v)"
+                                             Label="Min wait (s)" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                             Style="max-width:120px;" />
+                            <MudNumericField T="double" Value="l.RandomMaxSeconds"
+                                             ValueChanged="v => l.RandomMaxSeconds = Math.Max(0, v)"
+                                             Label="Max wait (s)" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                             Style="max-width:120px;" />
+                            <MudCheckBox T="bool" @bind-Value="l.FireImmediatelyOnStart" Label="Fire immediately" Dense="true" />
+                            <MudCheckBox T="bool" @bind-Value="l.RandomRepeat" Label="Repeat" Dense="true" />
+                        </MudStack>
+                    }
+                </div>
+            }
+
+            <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Add"
+                       OnClick="AddLayer" Style="margin-top:6px;">Add layer</MudButton>
+        </div>
+
+        @* ═══ Steps (linear mode) ═══ *@
+        @if (Scene.Mode == DASceneMode.Linear)
+        {
+        <div class="se-section">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Style="gap:10px; margin-bottom:4px;">
+                <MudText Typo="Typo.subtitle1"><b>Steps</b></MudText>
+                <MudText Typo="Typo.caption" Style="color:grey;">
+                    Step 1 runs when the scene starts; each next step is triggered by pressing "advance"
+                </MudText>
+            </MudStack>
+
+            @for (int si = 0; si < Scene.Steps.Count; si++)
+            {
+                var step = Scene.Steps[si];
+                var stepIndex = si;
+                bool isCurrent = _preview?.IsPlaying == true && _preview.CurrentStepIndex == stepIndex;
+
+                <div class="se-step-card" style="@(isCurrent ? "border-color:rgba(35,166,213,0.9);" : "")">
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Style="gap:10px; flex-wrap:wrap;">
+                        <MudChip T="string" Color="@(isCurrent ? Color.Info : Color.Default)" Size="Size.Small">
+                            Step @(stepIndex + 1)
+                        </MudChip>
+                        <MudTextField @bind-Value="step.Name" Label="Step name" Variant="Variant.Outlined"
+                                      Margin="Margin.Dense" Style="max-width:260px;" />
+                        <div style="margin-left:auto; display:flex; gap:2px;">
+                            <MudIconButton Icon="@Icons.Material.Filled.ArrowCircleUp" Size="Size.Small"
+                                           Disabled="stepIndex == 0" OnClick="() => MoveStep(step, -1)" />
+                            <MudIconButton Icon="@Icons.Material.Filled.ArrowCircleDown" Size="Size.Small"
+                                           Disabled="stepIndex == Scene.Steps.Count - 1" OnClick="() => MoveStep(step, +1)" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small"
+                                           OnClick="() => Scene.Steps.Remove(step)" />
+                        </div>
+                    </MudStack>
+
+                    @foreach (var command in step.Commands)
+                    {
+                        var c = command;
+                        <div class="se-cmd-row">
+                            <MudSelect T="DACommandType" Value="c.Type" ValueChanged="t => c.Type = t"
+                                       Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width:170px;" Label="Action">
+                                <MudSelectItem T="DACommandType" Value="DACommandType.FadeInLayer">Fade in</MudSelectItem>
+                                <MudSelectItem T="DACommandType" Value="DACommandType.StartLayer">Start (instant)</MudSelectItem>
+                                <MudSelectItem T="DACommandType" Value="DACommandType.FadeOutLayer">Fade out</MudSelectItem>
+                                <MudSelectItem T="DACommandType" Value="DACommandType.StopLayer">Stop (instant)</MudSelectItem>
+                                <MudSelectItem T="DACommandType" Value="DACommandType.SetVolume">Set volume</MudSelectItem>
+                                <MudSelectItem T="DACommandType" Value="DACommandType.StartRandom">Start random SFX</MudSelectItem>
+                                <MudSelectItem T="DACommandType" Value="DACommandType.StopRandom">Stop random SFX</MudSelectItem>
+                            </MudSelect>
+
+                            <MudSelect T="Guid" Value="c.LayerId" ValueChanged="id => c.LayerId = id"
+                                       Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width:190px;" Label="Layer">
+                                @foreach (var layer in Scene.Layers)
+                                {
+                                    <MudSelectItem T="Guid" Value="layer.Id">@layer.Name</MudSelectItem>
+                                }
+                            </MudSelect>
+
+                            <MudNumericField T="double" Value="c.DelaySeconds"
+                                             ValueChanged="v => c.DelaySeconds = Math.Max(0, v)"
+                                             Label="Delay (s)" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                             Style="max-width:105px;" />
+
+                            @if (c.Type is DACommandType.FadeInLayer or DACommandType.FadeOutLayer or DACommandType.SetVolume)
+                            {
+                                <MudNumericField T="double" Value="c.DurationSeconds"
+                                                 ValueChanged="v => c.DurationSeconds = Math.Max(0, v)"
+                                                 Label="Fade (s)" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                                 Style="max-width:105px;" />
+                            }
+                            @if (c.Type is DACommandType.SetVolume or DACommandType.FadeInLayer or DACommandType.StartLayer)
+                            {
+                                <div style="display:flex; flex-direction:column; min-width:140px; max-width:170px;">
+                                    <MudText Typo="Typo.caption" Style="color:grey; line-height:1;">
+                                        @(c.Type == DACommandType.SetVolume ? "Target volume" : "Volume") : @c.TargetVolume.ToString("P0")
+                                    </MudText>
+                                    <MudSlider T="double" Value="c.TargetVolume"
+                                               ValueChanged="v => c.TargetVolume = Math.Clamp(v, 0, 1)"
+                                               Min="0" Max="1" Step="0.01" Style="margin:0;" />
+                                </div>
+                            }
+
+                            <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small"
+                                           Title="Remove command" OnClick="() => step.Commands.Remove(c)" />
+                        </div>
+                    }
+
+                    <MudButton Size="Size.Small" Variant="Variant.Text" StartIcon="@Icons.Material.Filled.Add"
+                               OnClick="() => AddCommand(step)">Add action</MudButton>
+                </div>
+            }
+
+            <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Add"
+                       OnClick="AddStep" Style="margin-top:6px;">Add step</MudButton>
+        </div>
+        }
+
+        @* ═══ Contexts (contextual mode) ═══ *@
+        @if (Scene.Mode == DASceneMode.Contextual)
+        {
+        <div class="se-section">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Style="gap:10px; margin-bottom:4px;">
+                <MudText Typo="Typo.subtitle1"><b>Contexts</b></MudText>
+                <MudText Typo="Typo.caption" Style="color:grey;">
+                    The selectable states of the scene (e.g. fireplace / crowded / brawl) —
+                    switching crossfades every layer to its level in the target context
+                </MudText>
+            </MudStack>
+
+            @for (int ci = 0; ci < Scene.Contexts.Count; ci++)
+            {
+                var context = Scene.Contexts[ci];
+                var contextIndex = ci;
+                bool isCurrent = _preview?.IsPlaying == true && _preview.CurrentContext?.Id == context.Id;
+
+                <div class="se-step-card" style="@(isCurrent ? "border-color:rgba(35,166,213,0.9);" : "")">
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Style="gap:10px; flex-wrap:wrap;">
+                        <div class="da-cmd-btn" style="width:34px; height:34px;"
+                             title="Enter this context (starts the preview if needed)"
+                             @onclick="() => EnterPreviewContext(context)">
+                            <MudIcon Icon="@(isCurrent ? Icons.Material.Filled.GraphicEq : Icons.Material.Filled.PlayArrow)"
+                                     Style="font-size:17px;" Class="@(isCurrent ? "da-skip" : "da-play")" />
+                        </div>
+                        <MudTextField @bind-Value="context.Name" Label="Context name" Variant="Variant.Outlined"
+                                      Margin="Margin.Dense" Style="max-width:230px;" />
+                        <MudNumericField T="double" Value="context.TransitionSeconds"
+                                         ValueChanged="v => context.TransitionSeconds = Math.Max(0, v)"
+                                         Label="Transition (s)" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                         Style="max-width:120px;" />
+                        <div style="margin-left:auto; display:flex; gap:2px;">
+                            <MudIconButton Icon="@Icons.Material.Filled.ArrowCircleUp" Size="Size.Small"
+                                           Disabled="contextIndex == 0" OnClick="() => MoveContext(context, -1)" />
+                            <MudIconButton Icon="@Icons.Material.Filled.ArrowCircleDown" Size="Size.Small"
+                                           Disabled="contextIndex == Scene.Contexts.Count - 1" OnClick="() => MoveContext(context, +1)" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small"
+                                           OnClick="() => Scene.Contexts.Remove(context)" />
+                        </div>
+                    </MudStack>
+
+                    @foreach (var layer in Scene.Layers)
+                    {
+                        var l = layer;
+                        var state = GetOrCreateState(context, l);
+                        <div class="se-cmd-row">
+                            <span class="se-role-badge" style="background:@RoleColor(l.Role);">@RoleLabel(l.Role)</span>
+                            <span style="min-width:130px; font-size:13px;">@l.Name</span>
+                            <MudCheckBox T="bool" Value="state.Active" ValueChanged="v => state.Active = v"
+                                         Dense="true"
+                                         Label="@(l.Role == DALayerRole.SoundEffect ? "Random SFX on" : "Playing")" />
+                            @if (state.Active)
+                            {
+                                <div style="display:flex; flex-direction:column; min-width:150px; max-width:190px;">
+                                    <MudText Typo="Typo.caption" Style="color:grey; line-height:1;">
+                                        Volume: @state.Volume.ToString("P0")
+                                    </MudText>
+                                    <MudSlider T="double" Value="state.Volume"
+                                               ValueChanged="v => SetContextLayerVolume(context, l, state, v)"
+                                               Min="0" Max="1" Step="0.01" Style="margin:0;" />
+                                </div>
+                            }
+                        </div>
+                    }
+                    @if (Scene.Layers.Count == 0)
+                    {
+                        <MudText Typo="Typo.caption" Style="color:grey;">Add layers first — contexts define each layer's level.</MudText>
+                    }
+                </div>
+            }
+
+            <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Add"
+                       OnClick="AddContext" Style="margin-top:6px;">Add context</MudButton>
+        </div>
+        }
+
+        @* ── Footer ── *@
+        <div style="display:flex; align-items:center; gap:8px; margin-top:8px; flex-wrap:wrap;">
+            <MudTextField @bind-Value="_presetCategory" Label="Preset category" Placeholder="e.g. Town, Combat"
+                          Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width:180px;" />
+            <MudButton Variant="Variant.Outlined" Color="Color.Secondary"
+                       StartIcon="@Icons.Material.Filled.BookmarkAdd"
+                       OnClick="SaveAsPreset">Save as preset</MudButton>
+            @if (_presetSaved)
+            {
+                <MudText Typo="Typo.caption" Style="color:#4caf50;">Saved to catalogue ✓</MudText>
+            }
+            <div style="flex:1;"></div>
+            <MudButton Variant="Variant.Filled" Color="Color.Success"
+                       StartIcon="@Icons.Material.Filled.Check"
+                       OnClick="CloseAsync">OK</MudButton>
+        </div>
+    </div>
+</div>
+}
+
+<AudioClipEditor @ref="_clipEditor" ShowSceneSettings="true" OnClosed="StateHasChanged" />
+<AudioPicker @ref="_audioPicker" Title="Pick layer audio" SingleSelect="true"
+             OnPicked="OnLayerAudioPicked" OnClosed="StateHasChanged" />
+
+@code {
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    public DAScene? Scene { get; private set; }
+
+    private bool _visible;
+    private AudioClipEditor? _clipEditor;
+    private DAScenePlayer? _preview;
+
+    private string _presetCategory = "";
+    private bool _presetSaved;
+
+    public void Show(DAScene scene)
+    {
+        Scene = scene;
+        _visible = true;
+        _presetSaved = false;
+        StateHasChanged();
+    }
+
+    async Task SaveAsPreset()
+    {
+        if (Scene == null) return;
+        DAService.Presets.Add(DAPreset.FromScene(Scene, _presetCategory.Trim()));
+        await DAService.SavePresetsAsync();
+        _presetSaved = true;
+        StateHasChanged();
+    }
+
+    async Task CloseAsync()
+    {
+        await StopPreviewAsync();
+        _preview?.Dispose();
+        _preview = null;
+        _visible = false;
+        StateHasChanged();
+        await OnClose.InvokeAsync();
+    }
+
+    // ── Layers ──────────────────────────────────────────────────────────────
+
+    void AddLayer()
+    {
+        Scene?.Layers.Add(new DASceneLayer
+        {
+            Name = $"Layer {Scene.Layers.Count + 1}",
+            Audio = new DAAudioUsage { Loop = true },   // ambience default
+        });
+    }
+
+    void SetLayerRole(DASceneLayer layer, DALayerRole role)
+    {
+        layer.Role = role;
+        // Sensible loop default per role (user can override in Settings).
+        layer.Audio.Loop = role != DALayerRole.SoundEffect;
+    }
+
+    void DeleteLayer(DASceneLayer layer)
+    {
+        if (Scene == null) return;
+        Scene.Layers.Remove(layer);
+        foreach (var step in Scene.Steps)
+            step.Commands.RemoveAll(c => c.LayerId == layer.Id);
+        foreach (var context in Scene.Contexts)
+            context.LayerStates.RemoveAll(s => s.LayerId == layer.Id);
+    }
+
+    void OpenLayerSettings(DASceneLayer layer, DAAudioItem? item)
+    {
+        if (item != null)
+            _clipEditor?.Show(layer.Audio, item);
+    }
+
+    private AudioPicker? _audioPicker;
+    private DASceneLayer? _pickingLayer;
+
+    void OpenAudioPicker(DASceneLayer layer)
+    {
+        _pickingLayer = layer;
+        // Pre-filter to the kind matching the layer role; the user can widen it in the picker.
+        var kinds = layer.Role switch
+        {
+            DALayerRole.Ambience => new[] { AudioKind.Ambiance },
+            DALayerRole.Music => new[] { AudioKind.Music },
+            _ => new[] { AudioKind.SoundEffect },
+        };
+        _audioPicker?.Show(kinds);
+    }
+
+    void OnLayerAudioPicked(DAAudioItem item)
+    {
+        if (_pickingLayer == null) return;
+        _pickingLayer.Audio.AudioItemId = item.Id;
+        // A freshly assigned file has no meaningful clip bounds from a previous file.
+        _pickingLayer.Audio.ClipStartSeconds = null;
+        _pickingLayer.Audio.ClipEndSeconds = null;
+        if (_pickingLayer.Name.StartsWith("Layer ")) _pickingLayer.Name = item.Name;
+        _pickingLayer = null;
+        StateHasChanged();
+    }
+
+    static string RoleLabel(DALayerRole role) => role switch
+    {
+        DALayerRole.Ambience => "AMB",
+        DALayerRole.Music => "MUS",
+        _ => "SFX",
+    };
+
+    static string RoleColor(DALayerRole role) => role switch
+    {
+        DALayerRole.Ambience => "#23a6d5",
+        DALayerRole.Music => "#e73c7e",
+        _ => "#f0a03c",
+    };
+
+    // ── Steps ───────────────────────────────────────────────────────────────
+
+    void AddStep()
+    {
+        Scene?.Steps.Add(new DASceneStep
+        {
+            Name = Scene.Steps.Count == 0 ? "Scene start" : $"Step {Scene.Steps.Count + 1}",
+        });
+    }
+
+    void MoveStep(DASceneStep step, int direction)
+    {
+        if (Scene == null) return;
+        int idx = Scene.Steps.IndexOf(step);
+        int target = idx + direction;
+        if (idx < 0 || target < 0 || target >= Scene.Steps.Count) return;
+        Scene.Steps.RemoveAt(idx);
+        Scene.Steps.Insert(target, step);
+    }
+
+    void AddCommand(DASceneStep step)
+    {
+        var firstLayer = Scene?.Layers.FirstOrDefault();
+        step.Commands.Add(new DASceneCommand
+        {
+            LayerId = firstLayer?.Id ?? Guid.Empty,
+            // Sensible starting point: the layer's own configured volume.
+            TargetVolume = firstLayer?.Audio.Volume ?? 1.0,
+        });
+    }
+
+    // ── Contexts ────────────────────────────────────────────────────────────
+
+    DAContextLayerState GetOrCreateState(DASceneContext context, DASceneLayer layer)
+    {
+        var state = context.LayerStates.FirstOrDefault(s => s.LayerId == layer.Id);
+        if (state == null)
+        {
+            state = new DAContextLayerState
+            {
+                LayerId = layer.Id,
+                Active = false,
+                Volume = layer.Audio.Volume,
+            };
+            context.LayerStates.Add(state);
+        }
+        return state;
+    }
+
+    void AddContext()
+    {
+        if (Scene == null) return;
+        var context = new DASceneContext { Name = $"Context {Scene.Contexts.Count + 1}" };
+
+        // Start from the previous context's state — new contexts are usually variants.
+        var previous = Scene.Contexts.LastOrDefault();
+        foreach (var layer in Scene.Layers)
+        {
+            var previousState = previous?.LayerStates.FirstOrDefault(s => s.LayerId == layer.Id);
+            context.LayerStates.Add(new DAContextLayerState
+            {
+                LayerId = layer.Id,
+                Active = previousState?.Active ?? (layer.Role != DALayerRole.SoundEffect),
+                Volume = previousState?.Volume ?? layer.Audio.Volume,
+            });
+        }
+        Scene.Contexts.Add(context);
+    }
+
+    void SetContextLayerVolume(DASceneContext context, DASceneLayer layer, DAContextLayerState state, double volume)
+    {
+        state.Volume = Math.Clamp(volume, 0, 1);
+        // Live feedback: when this context is the one currently previewing,
+        // push the new level straight to the playing layer.
+        if (_preview?.IsPlaying == true && _preview.CurrentContext?.Id == context.Id)
+            _preview.SetLayerVolumeLive(layer, state.Volume);
+    }
+
+    void MoveContext(DASceneContext context, int direction)
+    {
+        if (Scene == null) return;
+        int index = Scene.Contexts.IndexOf(context);
+        int target = index + direction;
+        if (index < 0 || target < 0 || target >= Scene.Contexts.Count) return;
+        Scene.Contexts.RemoveAt(index);
+        Scene.Contexts.Insert(target, context);
+    }
+
+    async Task EnterPreviewContext(DASceneContext context)
+    {
+        if (Scene == null) return;
+        if (_preview == null)
+        {
+            _preview = new DAScenePlayer(AudioManager, DAService, Scene);
+            _preview.StateChanged += OnPreviewStateChanged;
+        }
+        await _preview.EnterContextAsync(context);
+    }
+
+    // ── Preview ─────────────────────────────────────────────────────────────
+
+    async Task StartPreviewAsync()
+    {
+        if (Scene == null) return;
+        if (_preview == null)
+        {
+            _preview = new DAScenePlayer(AudioManager, DAService, Scene);
+            _preview.StateChanged += OnPreviewStateChanged;
+        }
+        await _preview.StartAsync();
+    }
+
+    async Task StopPreviewAsync()
+    {
+        if (_preview != null)
+            await _preview.StopAsync();
+    }
+
+    void OnPreviewStateChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        if (_preview != null)
+        {
+            _preview.StateChanged -= OnPreviewStateChanged;
+            _preview.Dispose();
+            _preview = null;
+        }
+    }
+}

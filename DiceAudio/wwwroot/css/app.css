@@ -85,6 +85,80 @@ h1:focus {
     }
 }
 
+/* ─── MudBlazor popovers must render above the app's custom modal overlays
+       (which use z-index 2000–4000). Without this, selects/menus opened from
+       inside a modal appear behind it and cannot be interacted with. ───── */
+.mud-popover {
+    z-index: 6000 !important;
+}
+
+.da-popover-top {
+    z-index: 6001 !important;
+}
+
+/* ─── Same problem for MudBlazor dialogs (confirmations, the download
+       playlist prompt): the dialog container defaults to z-index 1400, which
+       is below the app's custom modal overlays (e.g. the AudioDownloader at
+       2000), so the prompt renders behind them. Lift it above. ───── */
+.mud-dialog-container {
+    z-index: 6000 !important;
+}
+
+/* ─── Shared animated player gradient ───────────────────────── */
+@keyframes da-gradient-shift {
+    0%   { background-position: 0%   50%; }
+    50%  { background-position: 100% 50%; }
+    100% { background-position: 0%   50%; }
+}
+
+.da-playing-banner {
+    border-top-left-radius: 8px; border-top-right-radius: 8px;
+    height: 70px; padding: 6px;
+    display: flex; align-items: center; justify-content: center; text-align: center;
+    background: linear-gradient(-45deg,
+        rgba(238,119,82,0.65), rgba(231,60,126,0.55),
+        rgba(35,166,213,0.55), rgba(35,166,171,0.65));
+    background-size: 400% 400%;
+    animation: da-gradient-shift 3s ease infinite;
+}
+
+.da-stopped-banner {
+    border-top-left-radius: 8px; border-top-right-radius: 8px;
+    height: 70px; padding: 6px;
+    display: flex; align-items: center; justify-content: center;
+    background: linear-gradient(-45deg,
+        rgba(238,119,82,0.25), rgba(231,60,126,0.15),
+        rgba(35,166,213,0.15), rgba(35,166,171,0.25));
+}
+
+/* Round command buttons — identical across all players */
+.da-cmd-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 44px; height: 44px; border-radius: 50%;
+    background: #1e1e38; border: 2px solid #363660;
+    cursor: pointer; user-select: none; margin: 2px;
+    transition: background 0.15s, border-color 0.15s;
+}
+.da-cmd-btn:hover { background: #2e2e58; border-color: #5555aa; }
+.da-play  { color: #4caf50; font-size: 22px; }
+.da-pause { color: #ff9800; font-size: 22px; }
+.da-stop  { color: #f44336; font-size: 20px; }
+.da-skip  { color: #90caf9; font-size: 20px; }
+
+/* Large version for scenario-level controls */
+.da-cmd-btn-lg {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 52px; height: 52px; border-radius: 50%;
+    background: #252545; border: 2px solid #3a3a5a;
+    cursor: pointer; user-select: none; margin: 2px;
+    transition: background 0.15s, border-color 0.15s;
+}
+.da-cmd-btn-lg:hover { background: #323260; border-color: #5050aa; }
+.da-play-lg  { color: #4caf50; font-size: 28px; }
+.da-pause-lg { color: #ff9800; font-size: 28px; }
+.da-stop-lg  { color: #f44336; font-size: 26px; }
+.da-skip-lg  { color: #90caf9; font-size: 26px; }
+
 .loading-page-circle-loader {
     text-align:center;
     font-size:x-large;

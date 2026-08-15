@@ -1,0 +1,121 @@
+@*
+ * DiceAudio - Copyright (C) 2025 Yann Charbon
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ *
+ * This file is part of DiceAudio, released under the GNU GPL v3.
+ * See the LICENSE file in the repository root for details.
+*@
+
+@inject DiceAudioService DAService
+
+@* ── Scene catalogue picker: browse by category, click to pick.
+     Overlay z-index 5000: opens above the scenario item editor (3000). ── *@
+@if (_visible)
+{
+<div style="position:fixed; top:0; left:0; width:100%; height:100%;
+            background:rgba(0,0,0,0.82); z-index:5000; overflow-y:auto;"
+     @onclick="Hide">
+    <div style="background:#232338; margin:4% auto; max-width:860px; border-radius:12px;
+                padding:20px 24px; position:relative;"
+         @onclick:stopPropagation="true">
+
+        <MudText Typo="Typo.h6" Style="margin-bottom:10px;">Pick a scene from the catalogue</MudText>
+
+        <MudTextField T="string" @bind-Value="_search" Placeholder="Search by name or category…"
+                      Variant="Variant.Outlined" Margin="Margin.Dense" Immediate="true" Clearable="true"
+                      Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                      Style="margin-bottom:12px;" />
+
+        @{ var groups = FilteredScenes()
+               .GroupBy(s => string.IsNullOrWhiteSpace(s.Category) ? "(uncategorized)" : s.Category)
+               .OrderBy(g => g.Key)
+               .ToList(); }
+
+        @if (!groups.Any())
+        {
+            <p style="padding:16px; color:grey;">
+                No scenes in the catalogue yet — create some on the Scenes page.
+            </p>
+        }
+
+        <div style="max-height:520px; overflow-y:auto;">
+            @foreach (var group in groups)
+            {
+                <div style="font-size:14px; font-weight:bold; color:#23a6ab;
+                            border-bottom:1px solid #2a2a4a; padding:10px 4px 4px 4px;">
+                    @group.Key
+                </div>
+                @foreach (var scene in group)
+                {
+                    var s = scene;
+                    <div class="scp-row" @onclick="() => PickScene(s)">
+                        <MudIcon Icon="@Icons.Material.Filled.Theaters" Style="color:#e73c7e;" />
+                        <div style="flex:1;">
+                            <div style="font-weight:bold;">@s.Name</div>
+                            <div style="font-size:12px; color:grey;">
+                                @(s.Mode == DASceneMode.Contextual ? "Contextual" : "Linear") · @s.CueSummary
+                            </div>
+                        </div>
+                        <MudIcon Icon="@Icons.Material.Filled.ChevronRight" Style="color:#666;" />
+                    </div>
+                }
+            }
+        </div>
+
+        <div style="display:flex; justify-content:flex-end; margin-top:12px;">
+            <MudButton Variant="Variant.Text" OnClick="Hide">Cancel</MudButton>
+        </div>
+    </div>
+</div>
+}
+
+<style>
+    .scp-row {
+        display: flex; align-items: center; gap: 12px;
+        background: #12121f; border: 1px solid #2a2a4a; border-radius: 8px;
+        padding: 10px 14px; margin: 6px 0; cursor: pointer;
+        transition: border-color 0.15s, background 0.15s;
+    }
+    .scp-row:hover { background: #1a1a30; border-color: #5555aa; }
+</style>
+
+@code {
+    [Parameter] public EventCallback<DAScene> OnPicked { get; set; }
+    [Parameter] public EventCallback OnClosed { get; set; }
+
+    private bool _visible;
+    private string _search = "";
+
+    public void Show()
+    {
+        _visible = true;
+        _search = "";
+        StateHasChanged();
+    }
+
+    async Task Hide()
+    {
+        _visible = false;
+        StateHasChanged();
+        await OnClosed.InvokeAsync();
+    }
+
+    IEnumerable<DAScene> FilteredScenes()
+    {
+        var scenes = DAService.Scenes.AsEnumerable();
+        if (!string.IsNullOrWhiteSpace(_search))
+        {
+            var term = _search.Trim();
+            scenes = scenes.Where(s =>
+                s.Name.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                s.Category.Contains(term, StringComparison.OrdinalIgnoreCase));
+        }
+        return scenes;
+    }
+
+    async Task PickScene(DAScene scene)
+    {
+        await OnPicked.InvokeAsync(scene);
+        await Hide();
+    }
+}

@@ -1,4 +1,12 @@
-﻿@inherits LayoutComponentBase
+﻿@*
+ * DiceAudio - Copyright (C) 2025 Yann Charbon
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ *
+ * This file is part of DiceAudio, released under the GNU GPL v3.
+ * See the LICENSE file in the repository root for details.
+*@
+
+@inherits LayoutComponentBase
 
 @inject DiceAudioService AudioService
 
@@ -11,13 +19,18 @@
     <DCNavMenu />
 
 
-    <main>
+    @* On Windows the web page includes the 32px title strip above the 50px
+       bar (WebTitleBar extends the webview to the window top), so the scroll
+       area starts 82px down; elsewhere the bar alone is 50px. *@
+    <main id="mainscroll" style="@(OperatingSystem.IsWindows() ? "margin-top:82px;height:calc(100vh - 82px);" : "")">
         <MudThemeProvider IsDarkMode="true" Theme="DCTheme" />
         <MudPopoverProvider />
         <MudDialogProvider />
         <MudSnackbarProvider />
 
-        <article class="content px-4" style="padding-top:70px;" id="mainpagebody">
+        @* main already sits 50px below the top (under the fixed app bar); keep
+           only the 20px breathing space here. *@
+        <article class="content px-4" style="padding-top:20px;" id="mainpagebody">
             @Body
         </article>
     </main>

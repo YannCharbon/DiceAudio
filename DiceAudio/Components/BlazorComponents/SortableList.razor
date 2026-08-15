@@ -1,11 +1,19 @@
-﻿@using System.Collections.Generic
+﻿@*
+ * DiceAudio - Copyright (C) 2025 Yann Charbon
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ *
+ * This file is part of DiceAudio, released under the GNU GPL v3.
+ * See the LICENSE file in the repository root for details.
+*@
+
+@using System.Collections.Generic
 @using System.Diagnostics.CodeAnalysis
 
 @inject IJSRuntime JS
 
 @typeparam T
 
-<div id="@Id">
+<div id="@Id" class="@Class">
     @foreach (var item in Items)
     {
         @if (SortableItemTemplate is not null)
@@ -31,6 +39,10 @@
 
     [Parameter]
     public string Id { get; set; } = Guid.NewGuid().ToString();
+
+    /// <summary>CSS class(es) applied to the container element that holds the items.</summary>
+    [Parameter]
+    public string? Class { get; set; }
 
     [Parameter]
     public string Group { get; set; } = Guid.NewGuid().ToString();

@@ -1,0 +1,250 @@
+@*
+ * DiceAudio - Copyright (C) 2025 Yann Charbon
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ *
+ * This file is part of DiceAudio, released under the GNU GPL v3.
+ * See the LICENSE file in the repository root for details.
+*@
+
+@inject DAPlaybackCoordinator Coordinator
+@implements IDisposable
+
+<style>
+    .sc-outer {
+        display: flex;
+        flex-direction: row;
+        border-radius: 12px;
+        background: #10101e;
+        border: 1px solid #2a2a4a;
+        margin: 12px 0;
+        overflow: hidden;
+        min-height: 240px;
+        max-width: 100%;
+    }
+    .sc-left {
+        width: 200px;
+        flex-shrink: 0;
+        background: #1a1a30;
+        padding: 14px 10px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
+        border-right: 1px solid #2a2a4a;
+    }
+    .sc-name-field {
+        width: 100%;
+    }
+    .sc-scroll {
+        display: flex;
+        flex-direction: row;
+        overflow-x: auto;
+        padding: 10px 6px;
+        flex: 1;
+        min-width: 0;   /* let this flex item shrink so it scrolls instead of growing */
+        align-items: flex-start;
+    }
+    /* Uses shared da-cmd-btn-lg from app.css */
+    .sc-move-row { display: flex; gap: 6px; }
+
+    /* Drag-and-drop reordering of item cards */
+    .sc-items-row {
+        display: flex;
+        flex-direction: row;
+        align-items: flex-start;
+    }
+    .si-drag-item {
+        position: relative;
+        flex-shrink: 0;
+    }
+    .si-drag-handle {
+        position: absolute;
+        top: 12px;
+        right: 12px;
+        z-index: 5;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 26px;
+        height: 26px;
+        border-radius: 6px;
+        background: rgba(0,0,0,0.45);
+        color: #fff;
+        cursor: grab;
+        opacity: 0.55;
+        transition: opacity 0.15s;
+    }
+    .si-drag-handle:hover { opacity: 1; }
+    .si-drag-handle:active { cursor: grabbing; }
+    /* Placeholder shown at the drop target while dragging (SortableJS default class) */
+    .sortable-ghost { opacity: 0.4; }
+</style>
+
+<div class="sc-outer">
+    @* ─── Left control panel ─── *@
+    <div class="sc-left">
+        @* Scenario name *@
+        <div class="sc-name-field">
+            <MudTextField @bind-Value="Scenario.Name" Label="Scenario" Variant="Variant.Outlined"
+                          Margin="Margin.Dense" Style="width:100%;" />
+        </div>
+
+        @* Move + delete *@
+        <div class="sc-move-row">
+            <MudIconButton Icon="@Icons.Material.Filled.ArrowCircleUp" Size="Size.Medium"
+                           Title="Move up" OnClick="() => MoveScenario?.Invoke(Scenario, true)" />
+            <MudIconButton Icon="@Icons.Material.Filled.ArrowCircleDown" Size="Size.Medium"
+                           Title="Move down" OnClick="() => MoveScenario?.Invoke(Scenario, false)" />
+            <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Medium"
+                           Title="Delete" OnClick="() => DeleteScenario?.Invoke(Scenario)" />
+        </div>
+
+        @* Big transport buttons *@
+        @if (_player != null)
+        {
+            <div style="display:flex; gap:8px; flex-wrap:wrap; justify-content:center;">
+                @if (_player.IsPlaying)
+                {
+                    <div class="da-cmd-btn-lg" @onclick="() => _player.Pause()" title="Pause">
+                        <MudIcon Icon="@Icons.Material.Filled.Pause" Class="da-pause-lg" />
+                    </div>
+                }
+                else
+                {
+                    <div class="da-cmd-btn-lg" @onclick="() => _player.PlayAsync()" title="Play">
+                        <MudIcon Icon="@Icons.Material.Filled.PlayArrow" Class="da-play-lg" />
+                    </div>
+                }
+                <div class="da-cmd-btn-lg" @onclick="() => _player.StopAsync()" title="Stop">
+                    <MudIcon Icon="@Icons.Material.Filled.Stop" Class="da-stop-lg" />
+                </div>
+                <div class="da-cmd-btn-lg" @onclick="() => _player.PlayNextAsync()" title="Skip to next item">
+                    <MudIcon Icon="@Icons.Material.Filled.SkipNext" Class="da-skip-lg" />
+                </div>
+            </div>
+        }
+    </div>
+
+    @* ─── Horizontally scrollable item cards ─── *@
+    <div class="sc-scroll">
+        @if (_player != null)
+        {
+            <SortableList T="DAScenarioItem"
+                          Items="Scenario.Items"
+                          Id="@($"sc-items-{Scenario.Id}")"
+                          Group="@($"scenario-items-{Scenario.Id}")"
+                          Class="sc-items-row"
+                          Handle=".si-drag-handle"
+                          OnUpdate="OnItemsReordered">
+                <SortableItemTemplate>
+                    <div class="si-drag-item">
+                        <div class="si-drag-handle" title="Drag to reorder">
+                            <MudIcon Icon="@Icons.Material.Filled.DragIndicator" Style="font-size:18px;" />
+                        </div>
+                        <ScenarioItemComp ScenarioItem="context"
+                                          Scenario="Scenario"
+                                          Player="_player.GetItemPlayer(context)"
+                                          OnRequestPlay="_player.PlayItemAsync"
+                                          DeleteItem="DeleteItem"
+                                          OnEditorClosed="OnItemEditorClosed" />
+                    </div>
+                </SortableItemTemplate>
+            </SortableList>
+        }
+
+        <div style="display:flex; flex-direction:column; gap:8px; justify-content:center;
+                    padding:16px 20px; flex-shrink:0;">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.Add"
+                       OnClick="CreateNewItem">New item</MudButton>
+
+            @{ var itemPresets = DAService.Presets.Where(p => p.Kind == DAPresetKind.ScenarioItem).ToList(); }
+            @if (itemPresets.Count > 0)
+            {
+                <MudMenu Label="From preset" Variant="Variant.Outlined" Color="Color.Secondary"
+                         StartIcon="@Icons.Material.Filled.Bookmark" Dense="true">
+                    @foreach (var preset in itemPresets)
+                    {
+                        var p = preset;
+                        <MudMenuItem OnClick="() => InsertPreset(p)">
+                            @(string.IsNullOrEmpty(p.Category) ? p.Name : $"{p.Category} / {p.Name}")
+                        </MudMenuItem>
+                    }
+                </MudMenu>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public DAScenario Scenario { get; set; } = default!;
+    [Parameter] public DiceAudioService DAService { get; set; } = default!;
+    [Parameter] public Action<DAScenario, bool>? MoveScenario { get; set; }
+    [Parameter] public Action<DAScenario>? DeleteScenario { get; set; }
+
+    private DAScenarioPlayer? _player;
+
+    protected override void OnInitialized()
+    {
+        // Borrow the player from the coordinator: playback state survives
+        // navigating away from and back to this page.
+        _player = Coordinator.GetOrCreateScenarioPlayer(Scenario);
+        _player.StateChanged += OnPlayerStateChanged;
+    }
+
+    void OnPlayerStateChanged() => InvokeAsync(StateHasChanged);
+
+    void CreateNewItem()
+    {
+        Scenario.Items.Add(new DAScenarioItem());
+        _player?.Initialize();   // reconciles; never interrupts playback
+        StateHasChanged();
+    }
+
+    void InsertPreset(DAPreset preset)
+    {
+        var item = preset.ToScenarioItem();   // independent deep copy, fresh ids
+        if (item == null) return;
+        Scenario.Items.Add(item);
+        _player?.Initialize();
+        StateHasChanged();
+    }
+
+    void DeleteItem(DAScenarioItem item)
+    {
+        Scenario.Items.Remove(item);
+        _player?.Initialize();
+        StateHasChanged();
+    }
+
+    // Reorder item cards via drag and drop. Players are keyed by item id, so
+    // moving an item in the list never interrupts playback — only the order
+    // (and thus what "skip to next" plays) changes. Persisted on the next Save.
+    void OnItemsReordered((int oldIndex, int newIndex) move)
+    {
+        var (oldIndex, newIndex) = move;
+        if (oldIndex < 0 || oldIndex >= Scenario.Items.Count) return;
+        if (newIndex < 0) newIndex = 0;
+        if (newIndex >= Scenario.Items.Count) newIndex = Scenario.Items.Count - 1;
+        if (oldIndex == newIndex) return;
+
+        var item = Scenario.Items[oldIndex];
+        Scenario.Items.RemoveAt(oldIndex);
+        Scenario.Items.Insert(newIndex, item);
+        StateHasChanged();
+    }
+
+    void OnItemEditorClosed()
+    {
+        _player?.Initialize();
+        StateHasChanged();
+    }
+
+    public void Dispose()
+    {
+        // The coordinator owns the player — only detach the UI refresh handler
+        // so audio keeps playing while the user navigates elsewhere.
+        if (_player != null)
+            _player.StateChanged -= OnPlayerStateChanged;
+    }
+}

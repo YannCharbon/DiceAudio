@@ -8,6 +8,20 @@
 
 main {
     flex: 1;
+    /* Flex items default to min-width:auto, which forbids shrinking below the
+       content's intrinsic width. Without this, any wide content (e.g. the
+       horizontally scrolling scenario item strip) pushes <main> beyond the
+       viewport and the whole page grows a horizontal scrollbar instead of the
+       inner container scrolling. */
+    min-width: 0;
+    /* The window itself never scrolls (html/body overflow:hidden); <main> is
+       the scroller and starts below the fixed 50px app bar, so the vertical
+       scrollbar begins under the bar instead of running over it and the bar
+       spans the full window width. */
+    margin-top: 50px;
+    height: calc(100vh - 50px);
+    overflow-y: auto;
+    overflow-x: hidden;
 }
 
 .sidebar {

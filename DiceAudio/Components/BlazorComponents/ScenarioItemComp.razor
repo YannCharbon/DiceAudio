@@ -1,0 +1,108 @@
+@*
+ * DiceAudio - Copyright (C) 2025 Yann Charbon
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ *
+ * This file is part of DiceAudio, released under the GNU GPL v3.
+ * See the LICENSE file in the repository root for details.
+*@
+
+@implements IDisposable
+
+<style>
+    .si-card {
+        border-radius: 10px;
+        width: 260px; flex-shrink: 0; margin: 6px;
+        overflow: hidden; display: flex; flex-direction: column;
+        border: 2px solid #2a2a4a; background: #12121f;
+    }
+    .si-card-active { border-color: rgba(35,166,213,0.9); background: #14142a; }
+    .si-body   { padding: 8px 10px; flex: 1; display: flex; flex-direction: column; gap: 4px; }
+    .si-name   { font-weight: bold; font-size: 13px; word-break: break-word; }
+    .si-meta   { font-size: 11px; color: grey; display: flex; align-items: center; gap: 4px; }
+    .si-footer { display: flex; justify-content: flex-end; gap: 4px; padding: 6px 8px;
+                 border-top: 1px solid #2a2a4a; }
+</style>
+
+@{
+    bool isActive = Player?.State == DAScenarioItemPlayer.PlayState.Play
+                 || Player?.State == DAScenarioItemPlayer.PlayState.Pause;
+    string trackName = Player?.CurrentAudioItem?.Name ?? "";
+}
+
+<div class="si-card @(isActive ? "si-card-active" : "")">
+    @* Animated gradient banner — uses shared da-playing-banner / da-stopped-banner from app.css *@
+    <div class="@(isActive ? "da-playing-banner" : "da-stopped-banner")">
+        @if (trackName.Length > 0)
+        {
+            <div style="font-size:11px; font-weight:bold; text-align:center;
+                        text-shadow:0 1px 3px rgba(0,0,0,0.8); word-break:break-word;">
+                @trackName
+            </div>
+        }
+        else
+        {
+            <MudIcon Icon="@Icons.Material.Filled.MusicNote" Style="font-size:32px; opacity:0.35;" />
+        }
+    </div>
+
+    <div class="si-body">
+        <div class="si-name">@ScenarioItem.Name</div>
+        <div class="si-meta">
+            <span>@ScenarioItem.Type</span>
+            @if (ScenarioItem.PlayInLoop)
+            { <MudIcon Icon="@Icons.Material.Filled.Repeat" Style="font-size:13px; color:lightgreen;" /> }
+            @if (ScenarioItem.Type == DAScenarioItem.ItemType.Playlist && ScenarioItem.PlaylistOrderIsRandom)
+            { <MudIcon Icon="@Icons.Material.Filled.Shuffle" Style="font-size:13px; color:lightgreen;" /> }
+        </div>
+
+        <ScenarioItemPlayerComp ScenarioItem="ScenarioItem" Player="Player" OnRequestPlay="OnRequestPlay" />
+    </div>
+
+    <div class="si-footer">
+        <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" Title="Edit" OnClick="OpenEditor" />
+        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                       Title="Delete" OnClick="() => DeleteItem?.Invoke(ScenarioItem)" />
+    </div>
+</div>
+
+<ScenarioItemEditor @ref="_editorRef" ScenarioItem="ScenarioItem" OnClose="OnEditorClose" />
+
+@code {
+    [Parameter] public DAScenarioItem ScenarioItem { get; set; } = default!;
+    [Parameter] public DAScenario Scenario { get; set; } = default!;
+    [Parameter] public DAScenarioItemPlayer? Player { get; set; }
+    [Parameter] public Func<DAScenarioItem, Task>? OnRequestPlay { get; set; }
+    [Parameter] public Action<DAScenarioItem>? DeleteItem { get; set; }
+    [Parameter] public Action? OnEditorClosed { get; set; }
+
+    private ScenarioItemEditor? _editorRef;
+    private DAScenarioItemPlayer? _subscribedPlayer;
+
+    void OpenEditor() => _editorRef?.Show();
+
+    async Task OnEditorClose()
+    {
+        OnEditorClosed?.Invoke();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (Player != _subscribedPlayer)
+        {
+            if (_subscribedPlayer != null)
+                _subscribedPlayer.PlayStateChanged -= OnPlayerStateChanged;
+            _subscribedPlayer = Player;
+            if (_subscribedPlayer != null)
+                _subscribedPlayer.PlayStateChanged += OnPlayerStateChanged;
+        }
+    }
+
+    void OnPlayerStateChanged(object? s, DAScenarioItemPlayer.PlayState _) => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        if (_subscribedPlayer != null)
+            _subscribedPlayer.PlayStateChanged -= OnPlayerStateChanged;
+    }
+}

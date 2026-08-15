@@ -46,6 +46,15 @@
       <None Remove="Resources\ffmpeg.exe" />
     </ItemGroup>
 
+    <!-- Windows: pack the gem bitmap at a deterministic output path so the
+         native title-bar overlay (TitleBarGem) can load it from disk. -->
+    <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">
+      <Content Include="Platforms\Windows\Assets\diceaudio_gem.png">
+        <Link>Assets\diceaudio_gem.png</Link>
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </Content>
+    </ItemGroup>
+
     <ItemGroup>
         <AndroidResource Include="Platforms\\Android\\Resources\\xml\\file_paths.xml" />
     </ItemGroup>
@@ -68,7 +77,12 @@
         <PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="10.0.8" />
         <PackageReference Include="MudBlazor" Version="8.0.0" />
         <PackageReference Include="Plugin.Maui.Audio" Version="4.0.0" />
-        <PackageReference Include="Soenneker.Libraries.ytdlp" Version="4.0.1000" />
+        <!-- NAudio for Windows audio output (same library used in old TRPG-Audio-Manager) -->
+        <PackageReference Include="NAudio" Version="2.2.0" Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'" />
+        <PackageReference Include="Soenneker.Libraries.ytdlp" Version="4.0.1037" />
+        <!-- TagLibSharp reads embedded tags (Genre) from audio files on import,
+             the same mechanism the old TRPG-Audio-Manager used to store tags -->
+        <PackageReference Include="TagLibSharp" Version="2.3.0" />
     </ItemGroup>
     <ItemGroup>
       <Content Update="C:\Users\yannc\.nuget\packages\soenneker.libraries.ytdlp\3.0.563\contentFiles\any\net10.0\Resources\yt-dlp.exe">

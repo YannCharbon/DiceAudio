@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>DiceAudio - Open source TTRPG audio manager</title>
+    <meta name="description" content="DiceAudio is a tabletop RPG audio manager: a tagged library, layered scenes that crossfade between contexts, scenarios for a whole session and a local control API." />
+    <link rel="stylesheet" href="style.css" />
+    <link rel="icon" href="logo.svg" type="image/svg+xml" />
+
+    <meta name="robots" content="index, follow" />
+    <meta property="og:title" content="DiceAudio - Open source TTRPG audio manager" />
+    <meta property="og:description" content="DiceAudio is a tabletop RPG audio manager: a tagged library, layered scenes that crossfade between contexts, scenarios for a whole session and a local control API." />
+    <meta property="og:image" content="https://yanncharbon.github.io/DiceAudio/logo.svg" />
+    <meta property="og:url" content="https://yanncharbon.github.io/DiceAudio/" />
+    <meta property="og:type" content="website" />
+
+    <link rel="alternate" href="https://yanncharbon.github.io/DiceAudio/" hreflang="en" />
+    <link rel="alternate" href="https://yanncharbon.github.io/DiceAudio/fr/" hreflang="fr" />
+
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "DiceAudio",
+        "applicationCategory": "GameApplication",
+        "operatingSystem": "Windows",
+        "description": "DiceAudio is a tabletop RPG audio manager: a tagged library, layered scenes that crossfade between contexts, scenarios for a whole session and a local control API.",
+        "url": "https://yanncharbon.github.io/DiceAudio/",
+        "downloadUrl": "https://github.com/YannCharbon/DiceAudio/releases/latest",
+        "image": "https://yanncharbon.github.io/DiceAudio/logo.svg",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+        "author": { "@type": "Person", "name": "Yann Charbon" }
+    }
+    </script>
+</head>
+<body>
+
+    <div class="topbar">
+        <div class="topbar-inner">
+            <a class="brand" href=""><img src="logo.svg" alt="DiceAudio logo" />DiceAudio</a>
+            <nav>
+            <a class="hide-small" href="#features">Features</a>
+            <a class="hide-small" href="#screenshots">Screenshots</a>
+            <a class="hide-small" href="#ecosystem">Ecosystem</a>
+            <a class="hide-small" href="#install">Install</a>
+                <a href="https://github.com/YannCharbon/DiceAudio/"><img src="github-mark-white.svg" alt="" />GitHub repo</a>
+                <a href="fr/"><img src="language-svgrepo-com.svg" alt="" />FR</a>
+                <a class="cta" href="https://github.com/YannCharbon/DiceAudio/releases/latest/">Download</a>
+            </nav>
+        </div>
+    </div>
+
+    <header class="hero">
+        <div class="hero-inner">
+            <img class="gem" src="logo.svg" alt="DiceAudio logo" />
+            <h1>DiceAudio</h1>
+            <p class="tagline">DiceAudio helps you manage the audio of your tabletop RPG sessions. Collect the music, ambiences and sound effects you use in a single library, build layered scenes that follow what happens at the table, and drive the whole evening from one window.</p>
+
+            <div class="badges">
+                <a href="https://github.com/YannCharbon/DiceAudio/releases/latest"><img src="https://img.shields.io/github/v/release/YannCharbon/DiceAudio?style=for-the-badge&color=d81e6a" alt="Latest release" /></a>
+                <img src="https://img.shields.io/badge/license-GPL--3.0-blue?style=for-the-badge" alt="License GPL-3.0" />
+                <img src="https://img.shields.io/badge/Windows-informational?style=for-the-badge" alt="Windows" />
+            </div>
+
+            <div class="hero-actions">
+                <a class="btn primary" href="https://github.com/YannCharbon/DiceAudio/releases/latest/">
+                    <img src="download-minimalistic-svgrepo-com.svg" alt="" />Download
+                </a>
+                <a class="btn" href="https://github.com/YannCharbon/DiceAudio/">
+                    <img src="github-mark-white.svg" alt="" />GitHub repo
+                </a>
+            </div>
+
+            <img class="hero-shot" src="img/audio-scenarios.jpg" alt="DiceAudio" />
+        </div>
+    </header>
+
+    <section id="features">
+        <div class="wrap">
+            <h2>What it does</h2>
+            <p class="lead">DiceAudio is made for the game master who wants the sound to follow what happens at the table, without having to fight with a media player in the middle of the session.</p>
+            <div class="cards">
+                <div class="card">
+                    <h3>The audio library</h3>
+                    <p>Your audio files are organised in folders and tagged in three categories: type (music, ambience or sound effect), location and expression. A search covers the whole library, filters narrow it down by type, and the files themselves stay where you put them on your disk.</p>
+                </div>
+                <div class="card">
+                    <h3>Importing your audio</h3>
+                    <p>Download from YouTube, SoundCloud and thousands of other sites with the built-in downloader: stage several links, choose the destination folder and start. You can also import files you already have on your disk.</p>
+                </div>
+                <div class="card">
+                    <h3>Track settings</h3>
+                    <p>Each item has its own volume, and can be clipped to the part you actually want to play. The clip is non-destructive, so the original file is never modified.</p>
+                </div>
+                <div class="card">
+                    <h3>Scenes</h3>
+                    <p>A scene is built from several layers, each one an ambience, a music track or a sound effect taken from your library, with its own role and playback settings.</p>
+                </div>
+                <div class="card">
+                    <h3>Contexts</h3>
+                    <p>A scene can have several contexts, which are the states it can be in, such as calm, mysterious or brawl. Each context stores a level for every layer, and switching to it crossfades the whole scene over the transition time you set.</p>
+                </div>
+                <div class="card">
+                    <h3>Scenarios</h3>
+                    <p>A scenario is the ordered list of what you plan to play during a session, and scenarios are gathered in groups, typically one per adventure or story arc. An item can be a single track, a playlist, a random selection based on tag criteria, or a whole scene.</p>
+                </div>
+                <div class="card">
+                    <h3>Presets</h3>
+                    <p>Any scenario item can be saved as a preset with a category, then reused to start a new scene or a new item without building it again.</p>
+                </div>
+                <div class="card">
+                    <h3>Remote control</h3>
+                    <p>DiceAudio can start a local HTTP server which exposes playback, navigation inside a scenario and scene contexts. Another application can then drive the sound: a Trilium note with the provided widget, or a DiceCombats automation when something happens in a fight. The server is disabled by default and switched on in the settings.</p>
+                </div>
+                <div class="card">
+                    <h3>On your machine</h3>
+                    <p>The library points to the audio files you already have and the settings stay on your computer. The interface is in English and the app runs on Windows. Mobile is not available for now, it might come in the future. DiceAudio is free and open source under GPL-3.0.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="screenshots">
+        <div class="wrap">
+            <h2>A look at the app</h2>
+            <p class="lead">These screenshots are taken from a library which is really used, so they show what a prepared session looks like.</p>
+            <div class="shots">
+                <article class="shot">
+                    <div class="shot-media"><img src="img/scene-editor.jpg" alt="The scene editor" loading="lazy" /></div>
+                    <div class="shot-text">
+                        <h3>The scene editor</h3>
+                        <p>A scene is made of layers and contexts, and both are edited on the same page. Each layer points to an item of your library and keeps its own settings. Each context stores which layers are playing and at which volume, with the time the crossfade should take. Switching from Calm to Mysterious during the session is then a single click.</p>
+                    </div>
+                </article>
+                <article class="shot">
+                    <div class="shot-media"><img src="img/audio-scenarios.jpg" alt="Scenarios" loading="lazy" /></div>
+                    <div class="shot-text">
+                        <h3>Scenarios</h3>
+                        <p>A group gathers the scenarios of an adventure, and each scenario lists what you plan to play in order. Single tracks come with their own transport and progress bar, while scenes show their contexts as buttons, so you start the right state directly from here.</p>
+                    </div>
+                </article>
+                <article class="shot">
+                    <div class="shot-media"><img src="img/scenario_item_editor_options.jpg" alt="What a scenario item can be" loading="lazy" /></div>
+                    <div class="shot-text">
+                        <h3>What a scenario item can be</h3>
+                        <p>An item is not necessarily a track: it can be a playlist, a random selection based on criteria, or a full scene. Sound effects can be attached to it, and the whole item can be saved as a preset for later.</p>
+                    </div>
+                </article>
+                <article class="shot">
+                    <div class="shot-media"><img src="img/random_play_criterion.jpg" alt="Random playback with criteria" loading="lazy" /></div>
+                    <div class="shot-text">
+                        <h3>Random playback with criteria</h3>
+                        <p>Instead of choosing a track, you describe what you want and let DiceAudio pick. Criteria are built from the tag categories, combined with AND or OR, so a forest ambience with a mysterious expression plays something different every time you enter the woods.</p>
+                    </div>
+                </article>
+                <article class="shot">
+                    <div class="shot-media"><img src="img/audio-library.jpg" alt="The library" loading="lazy" /></div>
+                    <div class="shot-text">
+                        <h3>The library</h3>
+                        <p>Every item keeps its tags, its place in the folders and its playback settings, and can be played, edited, moved or deleted from its card.</p>
+                    </div>
+                </article>
+                <article class="shot">
+                    <div class="shot-media"><img src="img/audio-explorer.jpg" alt="Folders and filters" loading="lazy" /></div>
+                    <div class="shot-text">
+                        <h3>Folders and filters</h3>
+                        <p>Your library is organised in folders you create yourself, with a search over every item and filters by type. The top bar always shows what is currently playing.</p>
+                    </div>
+                </article>
+                <article class="shot">
+                    <div class="shot-media"><img src="img/audio-downloader.jpg" alt="The audio downloader" loading="lazy" /></div>
+                    <div class="shot-text">
+                        <h3>The audio downloader</h3>
+                        <p>Paste one or several links, check what is staged, choose the destination folder and start the download. The tracks land directly in your library, ready to be tagged.</p>
+                    </div>
+                </article>
+                <article class="shot">
+                    <div class="shot-media"><img src="img/audio-clip-editor.jpg" alt="Track settings and clipping" loading="lazy" /></div>
+                    <div class="shot-text">
+                        <h3>Track settings and clipping</h3>
+                        <p>Set the volume of a track and, if you only need a part of it, drag the start and end of the clip on the waveform. The preview plays only the selected region and the original file is never modified.</p>
+                    </div>
+                </article>
+            </div>
+        </div>
+    </section>
+
+    <section>
+        <div class="wrap">
+            <h2>Remote control and Trilium Note integration</h2>
+            <p class="lead">DiceAudio embeds an HTTP server and can be controlled with an HTTP API from any external service. It also ships with a Trilium Note widget which allows you to embed the DiceAudio player within any of your Trilium Notes. This is very convenient because it allows you to include the right audio sample directly where it is needed within your scenario or script.</p>
+            <div class="shots">
+                <article class="shot">
+                    <div class="shot-media"><img src="img/trilium-widget.jpg" alt="Remote control" loading="lazy" /></div>
+                    <div class="shot-text">
+                        <h3>How to setup the Trilium Widget</h3>
+                        <ul>
+                            <li>Create a new Trilium code note called <code>DiceAudioWidgetHTML</code> with the language set to <b>HTML</b>, and paste the content of <a href="https://github.com/YannCharbon/DiceAudio/blob/master/TriliumPlugin/trilium/DiceAudioWidgetHTML.html">DiceAudioWidgetHTML.html</a> into it.</li>
+                            <li>Create a child code note of it with the language set to <b>JavaScript frontend</b>, and paste the content of <a href="https://github.com/YannCharbon/DiceAudio/blob/master/TriliumPlugin/trilium/DiceAudioWidgetJS.frontend.js">DiceAudioWidgetJS.frontend.js</a> into it.</li>
+                            <li>Create another new note called <code>DiceAudio widget render</code>. In the note's <b>Basic properties</b>, set the note type to <b>Render Note</b>. Then in the note's <b>Owned Attributes</b>, add <code>~renderNote=DiceAudioWidgetHTML</code>.</li>
+                            <li>After following these steps, the note should render. When DiceAudio is started, it should not print <code>⚠ DiceAudio not reachable.</code></li>
+                            <li>You are now able to include this note anywhere by clicking the <b>Paragraph menu</b> -> <b>Insert (+ button)</b> -> <b>Insert note</b> -> <b>Select the <code>DiceAudio widget render</code> note</b></li>
+                        </ul>
+                    </div>
+                </article>
+            </div>
+        </div>
+    </section>
+
+    <section id="ecosystem">
+        <div class="wrap">
+            <h2>One ecosystem</h2>
+            <p class="lead">The Dice ecosystem currently includes two apps: DiceCombats and DiceAudio. DiceCombats complements DiceAudio by handling the combat management side of your game table.</p>
+            <div class="eco">
+                <div class="eco-card self">
+                    <img src="logo.svg" alt="DiceAudio logo" />
+                    <div>
+                        <h3>DiceAudio <span style="color:var(--text-dim);font-weight:400;font-size:0.9rem;">This app</span></h3>
+                        <p>The library, the scenes and the scenarios. Its local API lets another application start a scene, make it advance or stop everything.</p>
+                    </div>
+                </div>
+                <div class="eco-card">
+                    <img src="sibling-logo.svg" alt="DiceCombats logo" />
+                    <div>
+                        <h3>DiceCombats</h3>
+                        <p>DiceCombats manages the combats of your table: creatures built with the fields your system needs, initiative, damage types and resistances, and a combat log. Its automations can call the DiceAudio API when a hit is applied.</p>
+                        <a href="https://yanncharbon.github.io/DiceCombats/">Visit the DiceCombats page</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="install">
+        <div class="wrap">
+            <h2>Install</h2>
+            <p class="lead">There is no installer and no account to create. The application stores its data on your machine.</p>
+            <ul class="plain">
+                <li><strong>Windows</strong>: Download the ZIP from the latest release, extract it anywhere and run <span class="code-style">DiceAudio.exe</span>. Pin it to the start menu if you want it close.</li>
+                <li><strong>Android</strong>: The app is currently not available for mobile. This might come in the future.</li>
+            </ul>
+
+            <h2 style="margin-top:34px;">Build from source</h2>
+            <p class="lead">You need the .NET 10 SDK and the MAUI workloads installed. Everything else is restored from NuGet.</p>
+<pre><code>git clone https://github.com/YannCharbon/DiceAudio.git
+dotnet workload install maui-windows maui-android
+dotnet publish DiceAudio/DiceAudio.csproj -f net10.0-windows10.0.19041.0 -c Release -p:RuntimeIdentifierOverride=win10-x64 -p:WindowsPackageType=None -p:IncludeAllContentForSelfExtract=true -p:PublishReadyToRun=true -p:IncludeNativeLibrariesForSelfExtract=true</code></pre>
+        </div>
+    </section>
+
+    <section id="contribute">
+        <div class="wrap">
+            <h2>Contribute</h2>
+            <div class="cards">
+                <div class="card">
+                    <h3>Issues and ideas</h3>
+                    <p>If you find a bug or if you would like a new feature, you can open an issue on the repository.</p>
+                </div>
+                <div class="card">
+                    <h3>Pull requests</h3>
+                    <p>Contributions are welcome. Please document them and follow the style of the code around them.</p>
+                </div>
+                <div class="card">
+                    <h3>License</h3>
+                    <p>The project is published under GPL-3.0-or-later. The source code is open and will stay open.</p>
+                </div>
+            </div>
+
+            <h2 style="margin-top:34px;">Support the project</h2>
+            <p class="lead">This project is free and I develop it on my free time, so the updates and the fixes can take some time to arrive. If DiceAudio is useful at your table, a donation helps me to keep working on it.</p>
+            <a href="https://www.paypal.com/donate/?hosted_button_id=4X9ZURL5T4E6N"><img src="https://www.paypalobjects.com/en_US/i/btn/btn_donateCC_LG.gif" alt="Donate with PayPal" /></a>
+        </div>
+    </section>
+
+    <section id="ainotice">
+        <div class="wrap">
+            <h2>AI usage notice</h2>
+            <p>I started developing DiceAudio in September 2023 in the context of an old non-public released project, when I did not yet consider AI coding tools reliable enough for this kind of work. Until early 2026, I wrote the entire codebase myself. As these tools have improved rapidly, I have started using Claude Code to help me implement new features faster. I enjoy writing code, but what I value even more is having time to work on my TTRPG scenarios. Using AI for part of the development work gives me more time for that creative side of the hobby. If the use of AI in the project is a concern for you, I completely understand if you would rather not use DiceAudio. I do, however, want to make one thing clear: AI is a development tool here. The features, design choices and overall direction of DiceAudio still come from me, as a game master building a tool for other game masters.</p>
+        </div>
+    </section>
+
+    <footer>
+        <div class="wrap">
+            <span>DiceAudio, GPL-3.0-or-later. Built with .NET MAUI and Blazor.</span>
+            <span><a href="https://github.com/YannCharbon/DiceAudio/">GitHub</a> &middot; <a href="https://yanncharbon.github.io/DiceCombats/">DiceCombats</a></span>
+        </div>
+    </footer>
+
+    <div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-label="Enlarged screenshot">
+        <button class="lightbox-close" type="button" aria-label="Close">&times;</button>
+        <img src="" alt="" />
+    </div>
+
+    <script>
+        // Click a screenshot to see it full size. Only the screenshots are
+        // concerned, not the logos and the badges.
+        (function () {
+            var box = document.getElementById("lightbox");
+            var full = box.querySelector("img");
+            var close = box.querySelector(".lightbox-close");
+            var opener = null;
+
+            function open(image) {
+                opener = image;
+                full.src = image.currentSrc || image.src;
+                full.alt = image.alt;
+                box.classList.add("open");
+                document.body.classList.add("lightbox-open");
+                close.focus();
+            }
+
+            function hide() {
+                box.classList.remove("open");
+                document.body.classList.remove("lightbox-open");
+                full.src = "";
+                if (opener) { opener.focus(); opener = null; }
+            }
+
+            var images = document.querySelectorAll(".hero-shot, .shot-media img, .ftype img, .fields-split img");
+            Array.prototype.forEach.call(images, function (image) {
+                image.classList.add("zoomable");
+                image.tabIndex = 0;
+                image.addEventListener("click", function () { open(image); });
+                image.addEventListener("keydown", function (event) {
+                    if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        open(image);
+                    }
+                });
+            });
+
+            box.addEventListener("click", hide);
+            document.addEventListener("keydown", function (event) {
+                if (event.key === "Escape" && box.classList.contains("open")) hide();
+            });
+        })();
+    </script>
+
+</body>
+</html>

@@ -1,6 +1,15 @@
-﻿@page "/settings"
+﻿@*
+ * DiceAudio - Copyright (C) 2025 Yann Charbon
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ *
+ * This file is part of DiceAudio, released under the GNU GPL v3.
+ * See the LICENSE file in the repository root for details.
+*@
+
+@page "/settings"
 
 @inject DiceAudioService AudioService
+@inject DAControlServer ControlServer
 
 <style>
     .settings-group-name {
@@ -62,8 +71,71 @@
     }
 </div>
 
+<div class="settings-group">
+    <div style="display:flex;">
+        <div class="settings-group-name">
+            <MudIcon Icon="@Icons.Material.Filled.SettingsRemote" Size="@Size.Large" style="color:white;margin:10px;" Title="Remote control" />
+            <h3>Remote control (Trilium)</h3>
+        </div>
+    </div>
+
+    @if (!DAControlServer.IsSupported)
+    {
+        <h5 style="color:grey;">Remote control is only available on Windows.</h5>
+    }
+    else
+    {
+        <MudStack Row="true" AlignItems="AlignItems.Center" Style="gap:14px; flex-wrap:wrap;">
+            <MudSwitch T="bool" Value="_serverEnabled" ValueChanged="OnServerToggled"
+                       Color="Color.Secondary" Label="Enable HTTP control server" />
+            <MudNumericField T="int" Value="_serverPort" ValueChanged="OnPortChanged"
+                             Label="Port" Variant="Variant.Outlined" Margin="Margin.Dense"
+                             Min="1024" Max="65535" Style="max-width:130px;" />
+            @if (ControlServer.IsRunning)
+            {
+                <MudChip T="string" Color="Color.Success" Size="Size.Small">
+                    Running on http://localhost:@ControlServer.Port/
+                </MudChip>
+            }
+            else if (!string.IsNullOrEmpty(ControlServer.LastError))
+            {
+                <MudChip T="string" Color="Color.Error" Size="Size.Small">@ControlServer.LastError</MudChip>
+            }
+        </MudStack>
+        <MudText Typo="Typo.body2" Style="color:grey; margin-top:6px;">
+            Lets the Trilium Notes widget (see <code>TriliumPlugin/</code> in the repository) play, stop
+            and advance scenario items and scenes from inside your campaign notes.
+            The server only listens on localhost.
+        </MudText>
+    }
+</div>
+
 @code {
     private GenericModal<WelcomeMessage>? WelcomeMessageModalRef;
+
+    private bool _serverEnabled;
+    private int _serverPort = DAControlServer.DefaultPort;
+
+    protected override void OnInitialized()
+    {
+        _serverEnabled = Preferences.Default.Get(DAControlServer.PrefEnabled, false);
+        _serverPort = Preferences.Default.Get(DAControlServer.PrefPort, DAControlServer.DefaultPort);
+    }
+
+    void OnServerToggled(bool enabled)
+    {
+        _serverEnabled = enabled;
+        Preferences.Default.Set(DAControlServer.PrefEnabled, enabled);
+        if (enabled) ControlServer.Start(_serverPort);
+        else ControlServer.Stop();
+    }
+
+    void OnPortChanged(int port)
+    {
+        _serverPort = port;
+        Preferences.Default.Set(DAControlServer.PrefPort, port);
+        if (_serverEnabled) ControlServer.Start(port);   // restart on the new port
+    }
 
     private bool _updateAvailable = false;
     private GitHubRelease? _updateInfos = null;

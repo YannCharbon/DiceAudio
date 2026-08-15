@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://yanncharbon.github.io/DiceCombats/sitemap.xml

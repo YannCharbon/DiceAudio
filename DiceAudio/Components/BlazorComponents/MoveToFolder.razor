@@ -1,144 +1,231 @@
-﻿@using DiceAudio
+@*
+ * DiceAudio - Copyright (C) 2025 Yann Charbon
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ *
+ * This file is part of DiceAudio, released under the GNU GPL v3.
+ * See the LICENSE file in the repository root for details.
+*@
+
+@using DiceAudio
 @inject DiceAudioService DAService
 
 <style>
-    .tree-indent   { border-left: 2px solid #ccc; margin-left: 20px; padding-left: 12px; margin-top: 5px; }
-    .folder-block  { margin-top: 10px; }
-
-    .action-row    { display: flex; align-items: center; gap: 10px; padding-top: 10px; }
-    .action-input  { width: 300px; flex: 0 0 auto; }
-    .action-btn    { flex: 0 0 auto; }
+    .mtf-crumb  { cursor:pointer; color:#90caf9; }
+    .mtf-crumb:hover { text-decoration:underline; }
+    .mtf-sep    { color:#888; }
+    .mtf-row {
+        display:flex; align-items:center; gap:10px; padding:6px 10px; margin:5px 0;
+        background:#1a1a2e; border:1px solid #2a2a4a; border-radius:8px;
+        transition: background 0.15s, border-color 0.15s;
+    }
+    .mtf-row:hover { background:#24243e; border-color:#444470; }
+    .mtf-current   { border-color:#23a6d5; }
+    .mtf-navzone   { display:flex; align-items:center; gap:10px; flex:1; cursor:pointer; min-width:0; }
+    .mtf-name      { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .mtf-empty     { color:grey; font-size:13px; padding:8px 2px; }
 </style>
 
-<h3>Move to folder</h3>
-
-<MudSwitch @bind-Value="_showCreateFields"
-           Color="Color.Primary"
-           Label="Enable folder creation" />
+<h3 style="margin-bottom:4px;">Move to folder</h3>
 
 @if (AudioItem is not null)
 {
-    <div style="padding-left:10px;">
-        @foreach (var root in _folderTree)
-        {
-            @RenderFolderTree(root)
-        }
+<div>
+    <MudText Typo="Typo.body2" Style="color:grey; margin-bottom:12px;">
+        <b>@AudioItem.Name</b> — currently in <b>@CurrentFolderLabel</b>
+    </MudText>
 
-        @if (_showCreateFields)
+    @* Breadcrumb of the folder being browsed *@
+    <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-bottom:8px;">
+        @if (_viewFolder == null)
         {
-            <div style="margin-top:20px;" class="action-row">
-                <MudTextField Variant="Variant.Filled"
-                              @bind-Value="_newRootFolderName"
-                              Label="New root folder name"
-                              Class="action-input" />
-                <MudButton Variant="Variant.Filled"
-                           Color="Color.Primary"
-                           StartIcon="@Icons.Material.Filled.Add"
-                           Class="action-btn"
-                           OnClick="CreateRootFolder">
-                    Create root folder
-                </MudButton>
-            </div>
+            <span style="font-weight:bold;">Root</span>
         }
-
-        @if (_folderExists)
+        else
         {
-            <MudText Color="Color.Error">Folder already exists at this level</MudText>
+            <span class="mtf-crumb" @onclick="() => NavigateTo(null)">Root</span>
+            @foreach (var crumb in ViewBreadcrumb())
+            {
+                var c = crumb;
+                <span class="mtf-sep">/</span>
+                @if (c.Id == _viewFolder.Id)
+                {
+                    <span style="font-weight:bold;">@c.Name</span>
+                }
+                else
+                {
+                    <span class="mtf-crumb" @onclick="() => NavigateTo(c)">@c.Name</span>
+                }
+            }
         }
     </div>
+
+    @* Subfolders of the current view *@
+    @{ var children = ChildrenOf(_viewFolder); }
+    @if (children.Count == 0)
+    {
+        <div class="mtf-empty">No subfolders here.</div>
+    }
+    else
+    {
+        @foreach (var folder in children)
+        {
+            var f = folder;
+            bool isItemFolder = AudioItem.Folder?.Id == f.Id;
+            <div class="mtf-row @(isItemFolder ? "mtf-current" : "")">
+                <div class="mtf-navzone" @onclick="() => NavigateTo(f)" title="Open">
+                    <MudIcon Icon="@Icons.Material.Filled.Folder" Style="color:#90caf9;" />
+                    <span class="mtf-name">@f.Name</span>
+                </div>
+                @if (isItemFolder)
+                {
+                    <span style="color:#23a6d5; font-size:12px;">current</span>
+                }
+                else
+                {
+                    <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary"
+                               StartIcon="@Icons.Material.Filled.DriveFileMove"
+                               OnClick="() => MoveTo(f)">Move here</MudButton>
+                }
+                <MudIcon Icon="@Icons.Material.Filled.ChevronRight" Style="color:#888; cursor:pointer;"
+                         @onclick="() => NavigateTo(f)" />
+            </div>
+        }
+    }
+
+    @* Actions: move into the folder currently open, and create a subfolder *@
+    <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:14px;">
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.DriveFileMove"
+                   Disabled="@(_viewFolder == null || AudioItem.Folder?.Id == _viewFolder.Id)"
+                   OnClick="() => MoveTo(_viewFolder!)">
+            @(_viewFolder != null ? $"Move here → {_viewFolder.Name}" : "Move here")
+        </MudButton>
+
+        @if (!_showCreate)
+        {
+            <MudButton Variant="Variant.Outlined" Color="Color.Secondary"
+                       StartIcon="@Icons.Material.Filled.CreateNewFolder"
+                       OnClick="() => _showCreate = true">New folder</MudButton>
+        }
+    </div>
+
+    @if (_showCreate)
+    {
+        <div style="display:flex; align-items:center; gap:8px; margin-top:10px; flex-wrap:wrap;">
+            <MudTextField @bind-Value="_newFolderName" Variant="Variant.Filled" Margin="Margin.Dense"
+                          Label="@($"New folder in {(_viewFolder?.Name ?? "Root")}")" Style="max-width:280px;" />
+            <MudButton Variant="Variant.Filled" Color="Color.Secondary"
+                       StartIcon="@Icons.Material.Filled.Add" OnClick="CreateFolder">Create</MudButton>
+            <MudButton Variant="Variant.Text"
+                       OnClick="@(() => { _showCreate = false; _newFolderName = string.Empty; _folderExists = false; })">Cancel</MudButton>
+        </div>
+        @if (_folderExists)
+        {
+            <MudText Color="Color.Error" Typo="Typo.caption">A folder with that name already exists.</MudText>
+        }
+    }
+
+    @if (_moved)
+    {
+        <MudText Style="color:#4caf50; margin-top:12px;" Typo="Typo.body2">
+            Moved to <b>@CurrentFolderLabel</b> ✓
+        </MudText>
+    }
+</div>
 }
 
 @code {
     [Parameter] public DAAudioItem? AudioItem { get; set; }
 
-    private List<DAVirtualAudioFolder> _folderTree = new();
-    private readonly Dictionary<Guid, string> _newSubfolderNames = new();
-    private string _newRootFolderName = "New Root";
+    private DAVirtualAudioFolder? _viewFolder;   // null = root
+    private DAAudioItem? _initializedFor;
+    private bool _showCreate;
+    private string _newFolderName = "";
     private bool _folderExists;
-    private bool _showCreateFields = false;
+    private bool _moved;
 
-    protected override void OnInitialized() => BuildFolderTree();
-
-    private void BuildFolderTree()
+    protected override void OnParametersSet()
     {
-        // Use TryAdd to tolerate any duplicate IDs left over from corrupted persisted data
-        var all = new Dictionary<Guid, DAVirtualAudioFolder>();
-        foreach (var f in DAService.AudioVirtualFolders)
-            all.TryAdd(f.Id, f);
-
-        _folderTree.Clear();
-
-        foreach (var folder in all.Values)
+        // Initialise the browser once per item: start inside the item's current
+        // folder so its neighbours (and the "current" marker) are visible.
+        if (!ReferenceEquals(AudioItem, _initializedFor))
         {
-            folder.VirtualAudioSubFolders.Clear();
-            _newSubfolderNames.TryAdd(folder.Id, "New Subfolder");
-
-            if (folder.ParentFolderId != Guid.Empty && all.ContainsKey(folder.ParentFolderId))
-                all[folder.ParentFolderId].VirtualAudioSubFolders.Add(folder);
-            else
-                _folderTree.Add(folder);
+            _initializedFor = AudioItem;
+            _showCreate = false;
+            _newFolderName = "";
+            _folderExists = false;
+            _moved = false;
+            _viewFolder = InitialViewFolder();
         }
     }
 
-    private RenderFragment RenderFolderTree(DAVirtualAudioFolder folder) => __builder =>
+    private DAVirtualAudioFolder? InitialViewFolder()
     {
-        <div class="folder-block">
-            <MudButton Variant="@(AudioItem?.Folder.Name == folder.Name ? Variant.Filled : Variant.Outlined)"
-                       Color="Color.Primary"
-                       StartIcon="@Icons.Material.Filled.Folder"
-                       OnClick="@(() => AudioItem!.Folder = folder)">
-                @folder.Name
-            </MudButton>
+        if (AudioItem?.Folder == null || AudioItem.Folder.Name == ".") return null;
 
-            <div class="tree-indent">
-                @foreach (var sub in folder.VirtualAudioSubFolders)
-                {
-                    @RenderFolderTree(sub)
-                }
-
-                @if (_showCreateFields)
-                {
-                    <div class="action-row">
-                        <MudTextField Variant="Variant.Filled"
-                                      @bind-Value="_newSubfolderNames[folder.Id]"
-                                      Label="Subfolder name"
-                                      Class="action-input" />
-
-                        <MudButton Variant="Variant.Filled"
-                                   Color="Color.Primary"
-                                   StartIcon="@Icons.Material.Filled.Add"
-                                   Class="action-btn"
-                                   OnClick="@(() => CreateSubFolder(folder))">
-                            Create sub folder
-                        </MudButton>
-                    </div>
-                }
-            </div>
-        </div>;
-    };
-
-    private void CreateSubFolder(DAVirtualAudioFolder parent)
-    {
-        var name = _newSubfolderNames[parent.Id].Trim();
-        if (string.IsNullOrWhiteSpace(name)) return;
-
-        _folderExists = DAService.AudioVirtualFolders.Any(f => f.Name == name && f.ParentFolderId == parent.Id);
-        if (_folderExists) return;
-
-        DAService.AudioVirtualFolders.Add(new DAVirtualAudioFolder(name) { ParentFolderId = parent.Id });
-        BuildFolderTree();
+        var itemFolder = DAService.AudioVirtualFolders.FirstOrDefault(f => f.Name == AudioItem.Folder.Name);
+        if (itemFolder == null) return null;
+        // Browse the item folder's parent so the item folder itself is one of the rows.
+        return itemFolder.ParentFolderId == Guid.Empty
+            ? null
+            : DAService.AudioVirtualFolders.FirstOrDefault(f => f.Id == itemFolder.ParentFolderId);
     }
 
-    private void CreateRootFolder()
+    private string CurrentFolderLabel =>
+        AudioItem?.Folder == null || AudioItem.Folder.Name == "." ? "Root" : AudioItem.Folder.Name;
+
+    private List<DAVirtualAudioFolder> ChildrenOf(DAVirtualAudioFolder? parent)
     {
-        var name = _newRootFolderName.Trim();
+        var parentId = parent?.Id ?? Guid.Empty;
+        return DAService.AudioVirtualFolders
+            .Where(f => f.Name != "." && f.ParentFolderId == parentId)
+            .OrderBy(f => f.Name)
+            .ToList();
+    }
+
+    // Ancestor chain (root-most first) down to the folder currently being browsed.
+    private List<DAVirtualAudioFolder> ViewBreadcrumb()
+    {
+        var chain = new List<DAVirtualAudioFolder>();
+        var current = _viewFolder;
+        int guard = 0;
+        while (current != null && guard++ < 100)
+        {
+            chain.Insert(0, current);
+            if (current.ParentFolderId == Guid.Empty) break;
+            current = DAService.AudioVirtualFolders.FirstOrDefault(f => f.Id == current.ParentFolderId);
+        }
+        return chain;
+    }
+
+    private void NavigateTo(DAVirtualAudioFolder? folder)
+    {
+        _viewFolder = folder;
+        _moved = false;
+        _folderExists = false;
+    }
+
+    private void MoveTo(DAVirtualAudioFolder folder)
+    {
+        if (AudioItem == null) return;
+        AudioItem.Folder = folder;   // canonical folder object from the service
+        _moved = true;
+    }
+
+    private void CreateFolder()
+    {
+        var name = _newFolderName.Trim();
         if (string.IsNullOrWhiteSpace(name)) return;
 
-        _folderExists = DAService.AudioVirtualFolders.Any(f => f.Name == name && f.ParentFolderId == Guid.Empty);
+        // Folder names are globally unique in this app's model, so reject any clash.
+        _folderExists = DAService.AudioVirtualFolders.Any(f => f.Name == name);
         if (_folderExists) return;
 
-        DAService.AudioVirtualFolders.Add(new DAVirtualAudioFolder(name) { ParentFolderId = Guid.Empty });
-        _newRootFolderName = "New Root";
-        BuildFolderTree();
+        DAService.AudioVirtualFolders.Add(new DAVirtualAudioFolder(name)
+        {
+            ParentFolderId = _viewFolder?.Id ?? Guid.Empty
+        });
+        _newFolderName = "";
+        _showCreate = false;
     }
 }

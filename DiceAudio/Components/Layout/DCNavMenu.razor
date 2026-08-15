@@ -1,10 +1,23 @@
-﻿
+@*
+ * DiceAudio - Copyright (C) 2025 Yann Charbon
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ *
+ * This file is part of DiceAudio, released under the GNU GPL v3.
+ * See the LICENSE file in the repository root for details.
+*@
+
+@implements IDisposable
+@inject NavigationManager Nav
+@inject DAPlaybackCoordinator Coordinator
+
 <style>
-    nav {
+    /* ── Bar (gradient / height / shadow kept exactly as before) ── */
+    .da-bar {
         display: flex;
         height: 50px;
         align-items: center;
         justify-content: center;
+        gap: 22px; /* space between each capsule and the central gem notch */
         background-image: linear-gradient(-45deg, rgba(238, 119, 82, 0.2), rgba(231, 60, 126, 0.6), rgba(35, 166, 213, 0.9), rgba(35, 166, 171, 1.0));
         position: fixed;
         top: 0;
@@ -14,40 +27,283 @@
         z-index: 10; /* Ensures nav stays above other elements */
     }
 
-    .nav-link {
+    /* ── Segmented glass capsule (one per pair) ── */
+    .da-seg {
+        display: inline-flex;
+        align-items: center;
+        border-radius: 999px;
+        overflow: hidden;
+        background: rgba(9, 9, 20, 0.34);
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+        z-index: 1; /* below the logo if they overlap */
+    }
+
+    .da-navlink {
         text-decoration: none;
-        color: #FFFFFF;
-        margin: 20px;
-        padding: 10px;
-        border-radius: 10px;
-        background: #101010;
-        font-size: large;
-        z-index: 1; /* Makes sure links are below the logo if they overlap */
+        color: #ffffff;
+        font-size: 14px;
+        font-weight: 600;
+        white-space: nowrap;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        padding: 8px 16px;
+        transition: background .16s ease, color .16s ease;
     }
 
-    .nav-link:hover {
-        box-shadow: 0 2px 10px rgba(255, 255, 255, 0.1);
-        color: grey;
-    }
+        .da-navlink + .da-navlink {
+            box-shadow: -1px 0 0 rgba(255, 255, 255, 0.14); /* hairline divider */
+        }
 
+        .da-navlink:hover {
+            background: rgba(255, 255, 255, 0.12);
+        }
+
+        .da-navlink.active {
+            background: rgba(231, 60, 126, 0.32); /* app pink accent */
+        }
+
+    /* ── App icon / central gem ── */
     .nav-logo {
         position: relative;
         z-index: 5; /* Ensures the logo is above the nav links */
+        width: 104px; /* reserve the notch the gem occupies */
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
     }
 
         .nav-logo img {
             width: 100px; /* Increase the width to make it more prominent */
             transform: translateY(0px); /* Moves the logo upwards to overflow the navbar */
         }
+
+    /* ── Windows: the web page is the title bar ──
+       The WebView2 extends to the window's top edge (see WebTitleBar). A 32px
+       strip above the bar acts as the draggable title bar; the bar sits below
+       it and the gem crowns over both, exactly like the old native overlay:
+       hexagon edge == bar height (50px), flat-top corners on the bar's top. */
+    .da-titlestrip {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 32px;
+        background: #202020;
+        z-index: 9; /* under the bar and the gem */
+        app-region: drag;
+        -webkit-app-region: drag;
+    }
+
+    .da-bar-win {
+        top: 32px; /* below the drag strip */
+    }
+
+        .da-bar-win .nav-logo {
+            align-self: stretch; /* span the bar so the img anchors to its top */
+        }
+
+            .da-bar-win .nav-logo img {
+                position: absolute;
+                left: 50%;
+                transform: translateX(-50%);
+                width: 90.7px;   /* 72.583 × (50 / 40.001): hexagon edge = bar height */
+                top: -27.1px;    /* flat-top corners (21.65 × 1.25 into the image) on the bar top */
+                app-region: no-drag;
+                -webkit-app-region: no-drag;
+            }
+
+    /* ── Right-hand utilities: live now-playing chip + settings ── */
+    .da-util {
+        position: absolute;
+        right: 20px;
+        top: 50%;
+        transform: translateY(-50%);
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        z-index: 6;
+    }
+
+    .da-nowplaying {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        height: 32px;
+        padding: 0 12px 0 10px;
+        border-radius: 999px;
+        background: rgba(9, 9, 20, 0.4);
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        color: #eef0fb;
+        font-size: 12px;
+        font-weight: 600;
+        max-width: 200px;
+        cursor: pointer;
+        transition: background .16s, border-color .16s;
+    }
+
+        .da-nowplaying:hover {
+            background: rgba(9, 9, 20, 0.6);
+            border-color: rgba(255, 255, 255, 0.5);
+        }
+
+    .da-np-name {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .da-eq {
+        display: inline-flex;
+        align-items: flex-end;
+        gap: 2px;
+        height: 14px;
+        flex: none;
+    }
+
+        .da-eq span {
+            width: 3px;
+            background: #23a6ab;
+            border-radius: 2px;
+            animation: da-eq 1s ease-in-out infinite;
+        }
+
+            .da-eq span:nth-child(1) { height: 6px; animation-delay: -0.2s; }
+            .da-eq span:nth-child(2) { height: 13px; animation-delay: -0.5s; }
+            .da-eq span:nth-child(3) { height: 9px; animation-delay: 0s; }
+
+    @@keyframes da-eq {
+        0%, 100% { transform: scaleY(0.45); }
+        50% { transform: scaleY(1); }
+    }
+
+    .da-gear {
+        width: 32px;
+        height: 32px;
+        border-radius: 999px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(9, 9, 20, 0.4);
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        color: #fff;
+        cursor: pointer;
+        transition: background .16s, border-color .16s;
+    }
+
+        .da-gear:hover {
+            background: rgba(9, 9, 20, 0.6);
+            border-color: rgba(255, 255, 255, 0.5);
+        }
+
+    @@media (prefers-reduced-motion: reduce) {
+        .da-eq span { animation: none; }
+    }
 </style>
 
-<nav>
-    <a class="nav-link" href="audioexplorer">Explorer</a>
-    <div class="nav-logo"><a href=""><img src="diceaudio_logo.svg" /></a></div>
-    <a class="nav-link" href="scenarios">Scenarios</a>
+@if (OperatingSystem.IsWindows())
+{
+    @* Draggable title strip: the OS treats it as caption (drag, double-click
+       maximize, right-click system menu) via WebView2 non-client regions. *@
+    <div class="da-titlestrip"></div>
+}
+
+<nav class="da-bar @(OperatingSystem.IsWindows() ? "da-bar-win" : "")">
+    <div class="da-seg">
+        <a class="da-navlink @(IsActive("audioexplorer") ? "active" : "")" href="audioexplorer">
+            <MudIcon Icon="@Icons.Material.Filled.LibraryMusic" Color="Color.Inherit" Style="font-size:18px;" />
+            <span>Explorer</span>
+        </a>
+        <a class="da-navlink @(IsActive("scenes") ? "active" : "")" href="scenes">
+            <MudIcon Icon="@Icons.Material.Filled.Movie" Color="Color.Inherit" Style="font-size:18px;" />
+            <span>Scenes</span>
+        </a>
+    </div>
+
+    <div class="nav-logo" @onclick="GoHome"><img src="diceaudio_logo.svg" /></div>
+
+    <div class="da-seg">
+        <a class="da-navlink @(IsActive("scenarios") ? "active" : "")" href="scenarios">
+            <MudIcon Icon="@Icons.Material.Filled.AutoStories" Color="Color.Inherit" Style="font-size:18px;" />
+            <span>Scenarios</span>
+        </a>
+        <a class="da-navlink @(IsActive("presets") ? "active" : "")" href="presets">
+            <MudIcon Icon="@Icons.Material.Filled.Bookmarks" Color="Color.Inherit" Style="font-size:18px;" />
+            <span>Presets</span>
+        </a>
+    </div>
+
+    <div class="da-util">
+        @if (_nowPlaying is not null)
+        {
+            <div class="da-nowplaying" title="@_nowPlaying" @onclick="GoToScenarios">
+                <span class="da-eq"><span></span><span></span><span></span></span>
+                <span class="da-np-name">@_nowPlaying</span>
+            </div>
+        }
+        <div class="da-gear" title="Settings" @onclick="GoToSettings">
+            <MudIcon Icon="@Icons.Material.Filled.Settings" Color="Color.Inherit" Style="font-size:18px;" />
+        </div>
+    </div>
 </nav>
 
+@code {
+    private string? _nowPlaying;
 
+    protected override void OnInitialized()
+    {
+        // Live status: the chip follows whatever the coordinator is actually playing.
+        Coordinator.StateChanged += OnPlaybackStateChanged;
+        // Re-render so the active nav link tracks navigation.
+        Nav.LocationChanged += OnLocationChanged;
+        RecomputeNowPlaying();
+    }
 
+    private string CurrentPath =>
+        Nav.ToBaseRelativePath(Nav.Uri).Split('?', '#')[0].Trim('/').ToLowerInvariant();
 
+    private bool IsActive(string route) =>
+        CurrentPath.Equals(route, StringComparison.OrdinalIgnoreCase) ||
+        CurrentPath.StartsWith(route + "/", StringComparison.OrdinalIgnoreCase);
 
+    private void RecomputeNowPlaying()
+    {
+        var active = Coordinator.ActiveScenarioPlayers;
+        if (active.Count == 0)
+        {
+            _nowPlaying = null;
+            return;
+        }
+
+        var first = active[0];
+        var name = first.CurrentItem?.Name ?? first.Scenario.Name;
+        _nowPlaying = active.Count > 1 ? $"{name}  +{active.Count - 1}" : name;
+    }
+
+    private void OnPlaybackStateChanged()
+    {
+        // StateChanged may fire off the UI thread (audio callbacks).
+        InvokeAsync(() =>
+        {
+            RecomputeNowPlaying();
+            StateHasChanged();
+        });
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+        => InvokeAsync(StateHasChanged);
+
+    private void GoHome() => Nav.NavigateTo("/");
+    private void GoToScenarios() => Nav.NavigateTo("scenarios");
+    private void GoToSettings() => Nav.NavigateTo("settings");
+
+    public void Dispose()
+    {
+        Coordinator.StateChanged -= OnPlaybackStateChanged;
+        Nav.LocationChanged -= OnLocationChanged;
+    }
+}

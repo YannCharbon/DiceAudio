@@ -3,11 +3,18 @@ name: Build and Release DiceAudio
 on:
   push:
     tags:
-      - 'v*.*.*'  # Trigger on version tags like v1.0.0
-  workflow_dispatch:  # Allow manual triggering
+      - 'v*.*.*'
+  workflow_dispatch:
 
 permissions:
-  contents: write  # Ensure write permissions for releases
+  contents: write
+
+env:
+  PROJECT_PATH: DiceAudio/DiceAudio.csproj
+  WINDOWS_TFM: net10.0-windows10.0.19041.0
+  WINDOWS_RID: win-x64
+  # Android is not supported yet, kept for when it comes back.
+  # ANDROID_TFM: net10.0-android
 
 jobs:
   release:
@@ -16,96 +23,210 @@ jobs:
 
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
 
     - name: Setup .NET SDK
-      uses: actions/setup-dotnet@v3
+      uses: actions/setup-dotnet@v4
       with:
         dotnet-version: '10.0.x'
 
+    # - name: Setup Java for Android
+    #   uses: actions/setup-java@v4
+    #   with:
+    #     distribution: temurin
+    #     java-version: '17'
+
     - name: Install .NET MAUI Workloads
+      shell: pwsh
       run: |
-        dotnet workload install maui-android maui-windows maui-ios
+        $ErrorActionPreference = "Stop"
+
+        # Add maui-android back when the Android build returns.
+        dotnet workload install maui-windows --ignore-failed-sources
+        dotnet workload list
 
     - name: Determine AssemblyVersion
-      id: version
-      shell: bash
+      shell: pwsh
       run: |
-        if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
-          TAG_VERSION="${GITHUB_REF##*/}"
-          echo "Tag version detected: $TAG_VERSION"
-          ASSEMBLY_VERSION="${TAG_VERSION#v}.0"
-          echo "assembly_version=$ASSEMBLY_VERSION" >> $GITHUB_ENV
-          TAG_VERSION="${TAG_VERSION#v}"
-          echo "tag_version=$TAG_VERSION" >> $GITHUB_ENV
-        else
-          echo "Manual trigger detected. Setting AssemblyVersion to 999.999.999.0"
-          echo "assembly_version=999.999.999.0" >> $GITHUB_ENV
-        fi
+        $ErrorActionPreference = "Stop"
 
-    - name: Update AssemblyVersion
+        if ($env:GITHUB_REF -like "refs/tags/*") {
+          $tagVersion = $env:GITHUB_REF -replace "^refs/tags/", ""
+          Write-Host "Tag version detected: $tagVersion"
+
+          $cleanVersion = $tagVersion -replace "^v", ""
+          $assemblyVersion = "$cleanVersion.0"
+
+          "assembly_version=$assemblyVersion" >> $env:GITHUB_ENV
+          "tag_version=$cleanVersion" >> $env:GITHUB_ENV
+        }
+        else {
+          Write-Host "Manual trigger detected. Setting AssemblyVersion to 999.999.999.0"
+
+          "assembly_version=999.999.999.0" >> $env:GITHUB_ENV
+          "tag_version=dev-$env:GITHUB_RUN_NUMBER" >> $env:GITHUB_ENV
+        }
+
+    - name: Update AssemblyVersion in .csproj
+      shell: pwsh
       run: |
-        sed -i "s|<AssemblyVersion>.*</AssemblyVersion>|<AssemblyVersion>${{ env.assembly_version }}</AssemblyVersion>|g" DiceAudio/DiceAudio.csproj
-        git config user.name "github-actions"
-        git config user.email "actions@github.com"
-        git commit -a -m "Set AssemblyVersion to ${{ env.assembly_version }}"
+        $ErrorActionPreference = "Stop"
+
+        $csprojPath = "${{ env.PROJECT_PATH }}"
+        $assemblyVersion = "${{ env.assembly_version }}"
+
+        $content = Get-Content $csprojPath -Raw
+
+        if ($content -match "<AssemblyVersion>.*?</AssemblyVersion>") {
+          $content = [regex]::Replace(
+            $content,
+            "<AssemblyVersion>.*?</AssemblyVersion>",
+            "<AssemblyVersion>$assemblyVersion</AssemblyVersion>"
+          )
+        }
+        else {
+          $content = $content -replace "</Project>", "  <PropertyGroup>`n    <AssemblyVersion>$assemblyVersion</AssemblyVersion>`n  </PropertyGroup>`n</Project>"
+        }
+
+        Set-Content -Path $csprojPath -Value $content -NoNewline
 
     - name: Copy RELEASE_NOTES.md to wwwroot
-      run: |
-        cp -force RELEASE_NOTES.md DiceAudio/wwwroot/
-
-    - name: Build for Windows
-      run: |
-        dotnet publish DiceAudio.sln -f net10.0-windows10.0.19041.0 -c Release -p:RuntimeIdentifierOverride=win10-x64 -p:WindowsPackageType=None -p:IncludeAllContentForSelfExtract=true -p:PublishReadyToRun=true -p:IncludeNativeLibrariesForSelfExtract=true -o ./publish/windows
-
-    - name: Build for Android
-      run: |
-        dotnet publish DiceAudio/DiceAudio.csproj -f net10.0-android -c Release -o ./publish/android
-
-    - name: Find APK File
-      id: find_apk
-      shell: bash
-      run: |
-        APK_FILE=$(find ./publish/android -name "*.apk" | head -n 1)
-        echo "Found APK File: $APK_FILE"
-        echo "apk_file=$APK_FILE" >> $GITHUB_ENV
-
-    - name: Create Directory for Release
-      run: |
-        mkdir -p ./publish/release
-
-    - name: Create Zip of Windows Builds
-      run: |
-        $tagVersion = "${{ env.assembly_version }}"
-        $zipPath = "./publish/release/DiceAudio-$tagVersion-Windows.zip"
-        Compress-Archive -Path ./publish/windows/* -DestinationPath $zipPath
-        echo "zip_path=$zipPath" >> $env:GITHUB_ENV
-        Write-Host "Created zip file: $zipPath"
       shell: pwsh
+      run: |
+        $ErrorActionPreference = "Stop"
+
+        Copy-Item -Force RELEASE_NOTES.md DiceAudio/wwwroot/
+
+    - name: Publish Windows
+      shell: pwsh
+      run: |
+        $ErrorActionPreference = "Stop"
+
+        dotnet publish $env:PROJECT_PATH `
+          -f $env:WINDOWS_TFM `
+          -c Release `
+          -p:TargetFrameworks=$env:WINDOWS_TFM `
+          -p:RuntimeIdentifierOverride=$env:WINDOWS_RID `
+          -p:RuntimeIdentifiers=$env:WINDOWS_RID `
+          -p:WindowsPackageType=None `
+          -p:WindowsAppSDKSelfContained=true `
+          -p:SelfContained=true `
+          -p:IncludeAllContentForSelfExtract=true `
+          -p:IncludeNativeLibrariesForSelfExtract=true `
+          -p:PublishReadyToRun=true `
+          -o ./publish/windows
+
+    - name: Decode and Save Certificate PFX
+      shell: pwsh
+      run: |
+        $ErrorActionPreference = "Stop"
+
+        if ([string]::IsNullOrWhiteSpace("${{ secrets.WIN_CERTIFICATE_B64 }}")) {
+          throw "WIN_CERTIFICATE_B64 secret is missing or empty."
+        }
+
+        $certBase64 = "${{ secrets.WIN_CERTIFICATE_B64 }}"
+        $certBytes = [System.Convert]::FromBase64String($certBase64)
+        $certPath = "$env:USERPROFILE\mycert.pfx"
+
+        [System.IO.File]::WriteAllBytes($certPath, $certBytes)
+
+        "pfx_path=$certPath" >> $env:GITHUB_ENV
+
+    - name: Add signtool to PATH
+      uses: KamaranL/add-signtool-action@v1
+
+    - name: Sign Windows Executables
+      shell: pwsh
+      run: |
+        $ErrorActionPreference = "Stop"
+
+        if ([string]::IsNullOrWhiteSpace("${{ secrets.WIN_CERTIFICATE_PASSWORD }}")) {
+          throw "WIN_CERTIFICATE_PASSWORD secret is missing or empty."
+        }
+
+        $exeFiles = Get-ChildItem -Path ./publish/windows -Filter *.exe -Recurse
+
+        if (-not $exeFiles) {
+          throw "No Windows .exe files found in ./publish/windows."
+        }
+
+        foreach ($exe in $exeFiles) {
+          signtool sign `
+            /f "${{ env.pfx_path }}" `
+            /p "${{ secrets.WIN_CERTIFICATE_PASSWORD }}" `
+            /fd SHA256 `
+            /tr http://timestamp.digicert.com `
+            /td SHA256 `
+            "$($exe.FullName)"
+        }
+
+    - name: Create release directory
+      shell: pwsh
+      run: |
+        $ErrorActionPreference = "Stop"
+
+        New-Item -ItemType Directory -Force -Path ./publish/release
+
+    - name: Create Zip of Windows Build
+      shell: pwsh
+      run: |
+        $ErrorActionPreference = "Stop"
+
+        if (-not (Test-Path "./publish/windows")) {
+          throw "Windows publish directory not found."
+        }
+
+        $zipPath = "./publish/release/DiceAudio-${{ env.tag_version }}-Windows.zip"
+
+        Compress-Archive -Path ./publish/windows/* -DestinationPath $zipPath -Force
+
+        "zip_path=$zipPath" >> $env:GITHUB_ENV
+
+    # - name: Publish Android APK
+    #   shell: pwsh
+    #   run: |
+    #     $ErrorActionPreference = "Stop"
+
+    #     dotnet publish $env:PROJECT_PATH `
+    #       -f $env:ANDROID_TFM `
+    #       -c Release `
+    #       -p:TargetFrameworks=$env:ANDROID_TFM `
+    #       -p:AndroidPackageFormat=apk `
+    #       -o ./publish/android
+
+    # - name: Find and copy APK file
+    #   shell: pwsh
+    #   run: |
+    #     $ErrorActionPreference = "Stop"
+
+    #     $apkFile = Get-ChildItem -Path ./publish/android -Filter *.apk -Recurse | Select-Object -First 1
+
+    #     if (-not $apkFile) {
+    #       throw "No APK file found in ./publish/android."
+    #     }
+
+    #     $releaseApkPath = "./publish/release/DiceAudio-${{ env.tag_version }}-Android.apk"
+
+    #     Copy-Item -Force $apkFile.FullName $releaseApkPath
+
+    #     "apk_file=$releaseApkPath" >> $env:GITHUB_ENV
 
     - name: Upload Build Artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
-        name: DiceAudio-Builds
-        path: ./publish/release
-
-    - name: Read Release Notes
-      id: notes
-      run: |
-        $releaseNotes = Get-Content RELEASE_NOTES.md -Raw
-        echo "release_notes<<EOF" >> $env:GITHUB_ENV
-        echo "$releaseNotes" >> $env:GITHUB_ENV
-        echo "EOF" >> $env:GITHUB_ENV
-      shell: pwsh
+        name: DiceAudio-Builds-${{ env.tag_version }}
+        path: ./publish/release/*
 
     - name: Create GitHub Release
+      if: startsWith(github.ref, 'refs/tags/')
       uses: ncipollo/release-action@v1
       with:
-        tag: ${{ env.tag_version }}
+        tag: ${{ github.ref_name }}
         name: DiceAudio ${{ env.tag_version }}
-        body: ${{ env.release_notes }}
+        bodyFile: RELEASE_NOTES.md
         token: ${{ secrets.GITHUB_TOKEN }}
-        artifacts: |
-          ${{ env.zip_path }}
-          ${{ env.apk_file }}
-
+        artifacts: ./publish/release/*
+        artifactErrorsFailBuild: true
+        allowUpdates: true
+        replacesArtifacts: true

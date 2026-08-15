@@ -1,0 +1,109 @@
+@*
+ * DiceAudio - Copyright (C) 2025 Yann Charbon
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ *
+ * This file is part of DiceAudio, released under the GNU GPL v3.
+ * See the LICENSE file in the repository root for details.
+*@
+
+@page "/presets"
+@inject DiceAudioService DAService
+
+<style>
+    .pre-cat-header {
+        font-size: 15px; font-weight: bold; color: #23a6ab;
+        border-bottom: 1px solid #2a2a4a;
+        padding: 14px 4px 4px 4px; margin-bottom: 4px;
+    }
+    .pre-card {
+        border-radius: 10px;
+        background: #12121f;
+        border: 1px solid #2a2a4a;
+        padding: 12px 14px;
+        margin: 8px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+    .pre-meta { font-size: 12px; color: grey; }
+</style>
+
+<h3>Presets</h3>
+<MudText Typo="Typo.body2" Style="color:grey; margin-bottom:14px;">
+    Reusable scenario items and scenes. Save presets from the item and scene editors;
+    insert copies from the Scenarios and Scenes pages. Inserted copies are independent —
+    editing them never changes the preset.
+</MudText>
+
+@if (DAService.Presets.Count == 0)
+{
+    <p style="color:grey; padding:20px;">
+        No presets yet. Open a scenario item or scene editor and use "Save as preset".
+    </p>
+}
+
+@foreach (var group in DAService.Presets
+    .GroupBy(p => string.IsNullOrWhiteSpace(p.Category) ? "(uncategorized)" : p.Category)
+    .OrderBy(g => g.Key))
+{
+    <div class="pre-cat-header">@group.Key</div>
+    <div class="row">
+        @foreach (var preset in group)
+        {
+            var p = preset;
+            <div class="col col-md-5 pre-card">
+                <MudIcon Icon="@(p.Kind == DAPresetKind.Scene ? Icons.Material.Filled.Theaters : Icons.Material.Filled.MusicNote)"
+                         Style="@($"color:{(p.Kind == DAPresetKind.Scene ? "#e73c7e" : "#23a6d5")};")" />
+                <div style="flex:1;">
+                    @if (_renaming == p)
+                    {
+                        <MudTextField @bind-Value="p.Name" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                      OnBlur="StopRenaming" AutoFocus="true" />
+                    }
+                    else
+                    {
+                        <div style="font-weight:bold;">@p.Name</div>
+                    }
+                    <div class="pre-meta">@KindLabel(p) · @PreviewLabel(p)</div>
+                </div>
+                <MudIconButton Icon="@Icons.Material.Filled.DriveFileRenameOutline" Size="Size.Small"
+                               Title="Rename" OnClick="() => _renaming = p" />
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small"
+                               Title="Delete" OnClick="() => DeletePreset(p)" />
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private DAPreset? _renaming;
+
+    static string KindLabel(DAPreset p) =>
+        p.Kind == DAPresetKind.Scene ? "Scene" : "Scenario item";
+
+    static string PreviewLabel(DAPreset p)
+    {
+        if (p.Kind == DAPresetKind.Scene)
+        {
+            var scene = p.ToScene();
+            return scene == null ? "unreadable" : scene.CueSummary;
+        }
+        var item = p.ToScenarioItem();
+        if (item == null) return "unreadable";
+        return item.Type == DAScenarioItem.ItemType.Scene
+            ? "scene: " + (item.Scene?.CueSummary ?? "empty")
+            : $"{item.Type}, {item.PlaylistTracks.Count} track(s), {item.SoundEffects.Count} sfx";
+    }
+
+    async Task StopRenaming()
+    {
+        _renaming = null;
+        await DAService.SavePresetsAsync();
+    }
+
+    async Task DeletePreset(DAPreset preset)
+    {
+        DAService.Presets.Remove(preset);
+        await DAService.SavePresetsAsync();
+    }
+}

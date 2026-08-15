@@ -1,0 +1,246 @@
+@*
+ * DiceAudio - Copyright (C) 2025 Yann Charbon
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ *
+ * This file is part of DiceAudio, released under the GNU GPL v3.
+ * See the LICENSE file in the repository root for details.
+*@
+
+@implements IDisposable
+
+<style>
+    .da-ctx-btn {
+        background: #1e1e38; border: 1px solid #363660; border-radius: 10px;
+        padding: 3px 9px; font-size: 11px; cursor: pointer; user-select: none;
+        transition: background 0.15s, border-color 0.15s;
+    }
+    .da-ctx-btn:hover { background: #2e2e58; border-color: #5555aa; }
+    .da-ctx-btn-active {
+        background: rgba(35,166,213,0.3); border-color: #23a6d5; color: #bfe8ff;
+        font-weight: bold;
+    }
+</style>
+
+@* Uses shared da-cmd-btn CSS from app.css *@
+
+@if (Player != null && ScenarioItem.Type == DAScenarioItem.ItemType.Scene)
+{
+    @* ── Scene transport ── *@
+    var scene = Player.ScenePlayer;
+    bool scenePlaying = scene?.IsPlaying == true;
+    bool contextual = ScenarioItem.Scene?.Mode == DASceneMode.Contextual;
+
+    <div style="display:flex; justify-content:center; margin:6px 0;">
+        @if (!scenePlaying)
+        {
+            <div class="da-cmd-btn" @onclick="RequestPlay" title="Start scene">
+                <MudIcon Icon="@Icons.Material.Filled.PlayArrow" Class="da-play" />
+            </div>
+        }
+        else
+        {
+            @if (!contextual)
+            {
+                <div class="da-cmd-btn" @onclick="() => Player.AdvanceSceneAsync()" title="Advance to next step">
+                    <MudIcon Icon="@Icons.Material.Filled.SkipNext" Class="da-skip" />
+                </div>
+            }
+            <div class="da-cmd-btn" @onclick="() => Player.StopWithFadeAsync()" title="Stop scene">
+                <MudIcon Icon="@Icons.Material.Filled.Stop" Class="da-stop" />
+            </div>
+        }
+    </div>
+
+    @if (ScenarioItem.Scene == null)
+    {
+        <div style="font-size:11px; color:orange; text-align:center;">No scene configured — edit this item</div>
+    }
+    else if (contextual)
+    {
+        @* ── Context navigation buttons ── *@
+        <div style="display:flex; flex-wrap:wrap; gap:3px; justify-content:center; margin:2px 0;">
+            @foreach (var context in ScenarioItem.Scene.Contexts)
+            {
+                var c = context;
+                bool isCurrent = scenePlaying && scene?.CurrentContext?.Id == c.Id;
+                <div class="da-ctx-btn @(isCurrent ? "da-ctx-btn-active" : "")"
+                     title="@($"Switch to \"{c.Name}\" ({c.TransitionSeconds:0.#} s crossfade)")"
+                     @onclick="() => EnterContextAsync(c)">@c.Name</div>
+            }
+        </div>
+        @if (!scenePlaying)
+        {
+            <div style="font-size:11px; color:grey; text-align:center;">
+                Click a context to start · @ScenarioItem.Scene.CueSummary
+            </div>
+        }
+    }
+    else if (scenePlaying && scene != null)
+    {
+        <div style="font-size:11px; color:#90caf9; text-align:center; margin:2px 0;">
+            Step @(scene.CurrentStepIndex + 1)/@ScenarioItem.Scene.Steps.Count:
+            <b>@(scene.CurrentStep?.Name ?? "")</b>
+        </div>
+        @if (scene.NextStep != null)
+        {
+            <div style="font-size:11px; color:#888; text-align:center;">Next: @scene.NextStep.Name</div>
+        }
+        else
+        {
+            <div style="font-size:11px; color:#666; text-align:center;">(last step)</div>
+        }
+    }
+    else
+    {
+        <div style="font-size:11px; color:grey; text-align:center;">@ScenarioItem.Scene.CueSummary</div>
+    }
+}
+else if (Player != null)
+{
+    @* ── Transport controls ── *@
+    <div style="display:flex; justify-content:center; margin:6px 0;">
+        <div class="da-cmd-btn" @onclick="() => Player.SkipBackwardAsync()" title="Skip backward">
+            <MudIcon Icon="@Icons.Material.Filled.SkipPrevious" Class="da-skip" />
+        </div>
+
+        @if (Player.State == DAScenarioItemPlayer.PlayState.Play)
+        {
+            <div class="da-cmd-btn" @onclick="() => Player.Pause()" title="Pause">
+                <MudIcon Icon="@Icons.Material.Filled.Pause" Class="da-pause" />
+            </div>
+        }
+        else
+        {
+            <div class="da-cmd-btn" @onclick="RequestPlay" title="Play">
+                <MudIcon Icon="@Icons.Material.Filled.PlayArrow" Class="da-play" />
+            </div>
+        }
+
+        <div class="da-cmd-btn" @onclick="() => Player.StopWithFadeAsync()" title="Stop">
+            <MudIcon Icon="@Icons.Material.Filled.Stop" Class="da-stop" />
+        </div>
+        <div class="da-cmd-btn" @onclick="() => Player.SkipForwardAsync()" title="Skip forward">
+            <MudIcon Icon="@Icons.Material.Filled.SkipNext" Class="da-skip" />
+        </div>
+    </div>
+
+    @* ── Duration + progress ── *@
+    <div style="font-size:11px; color:grey; margin:2px 0;">
+        Duration: @TimeSpan.FromSeconds(Player.DisplayDuration).ToString(@"hh\:mm\:ss")
+    </div>
+    <MudSlider T="double"
+               Value="Player.CurrentPosition"
+               ValueChanged="SeekTo"
+               Min="0" Max="@(Math.Max(Player.Duration, 1))"
+               Step="1" Style="margin:0 0 4px 0;" />
+
+    @* ── Next in queue ── *@
+    @if (ScenarioItem.Type != DAScenarioItem.ItemType.Single && Player.NextAudioItem != null)
+    {
+        <div style="font-size:11px; color:#888; margin:3px 0;">
+            Next: <b>@Player.NextAudioItem.Name</b>
+        </div>
+    }
+
+    @* ── Sound effects ── *@
+    @if (Player.ResolvedSounds.Count > 0)
+    {
+        <div style="font-size:11px; color:grey; margin-top:4px;">Sound effects</div>
+        @for (int i = 0; i < Player.ResolvedSounds.Count; i++)
+        {
+            var idx = i;
+            var sound = Player.ResolvedSounds[idx].Item;
+            <div style="display:flex; align-items:center; gap:4px; background:#1a1a2e;
+                        border-radius:6px; padding:3px 6px; margin:2px 0; font-size:12px;">
+                @if (Player.IsSoundPlaying(idx))
+                {
+                    <div class="da-cmd-btn" style="width:30px;height:30px;"
+                         @onclick="() => Player.StopSound(idx)" title="Stop">
+                        <MudIcon Icon="@Icons.Material.Filled.Stop" Style="font-size:16px; color:#f44336;" />
+                    </div>
+                }
+                else
+                {
+                    <div class="da-cmd-btn" style="width:30px;height:30px;"
+                         @onclick="() => Player.PlaySound(idx)" title="Play">
+                        <MudIcon Icon="@Icons.Material.Filled.PlayArrow" Style="font-size:16px; color:#4caf50;" />
+                    </div>
+                }
+                <span>@sound.Name</span>
+            </div>
+        }
+    }
+}
+
+@code {
+    [Parameter] public DAScenarioItem ScenarioItem { get; set; } = default!;
+    [Parameter] public DAScenarioItemPlayer? Player { get; set; }
+    [Parameter] public Func<DAScenarioItem, Task>? OnRequestPlay { get; set; }
+
+    private DAScenarioItemPlayer? _subscribedPlayer;
+
+    // All play requests route through the scenario player so the previously
+    // active item is faded out first (Bug #1).
+    async Task RequestPlay()
+    {
+        if (OnRequestPlay != null)
+            await OnRequestPlay(ScenarioItem);
+        else
+            Player?.Play();
+    }
+
+    // Context buttons: when the item isn't active yet, route through the
+    // coordinator first (fades out other items), then jump to the clicked
+    // context — its transition supersedes the start-up fade cleanly.
+    async Task EnterContextAsync(DASceneContext context)
+    {
+        if (Player == null) return;
+
+        if (Player.State != DAScenarioItemPlayer.PlayState.Play && OnRequestPlay != null)
+            await OnRequestPlay(ScenarioItem);
+
+        await Player.EnterSceneContextAsync(context);
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // Probe the first track's length so the duration line isn't 00:00:00 before play.
+        if (Player != null)
+        {
+            await Player.EnsureProbedDurationAsync();
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (Player != _subscribedPlayer)
+        {
+            if (_subscribedPlayer != null)
+            {
+                _subscribedPlayer.PlayStateChanged -= OnPlayStateChanged;
+                _subscribedPlayer.PlayProgressionChanged -= OnProgressChanged;
+            }
+            _subscribedPlayer = Player;
+            if (_subscribedPlayer != null)
+            {
+                _subscribedPlayer.PlayStateChanged += OnPlayStateChanged;
+                _subscribedPlayer.PlayProgressionChanged += OnProgressChanged;
+            }
+        }
+    }
+
+    void OnPlayStateChanged(object? s, DAScenarioItemPlayer.PlayState _) => InvokeAsync(StateHasChanged);
+    void OnProgressChanged(object? s, EventArgs e) => InvokeAsync(StateHasChanged);
+
+    void SeekTo(double val) => Player?.Seek(val);
+
+    public void Dispose()
+    {
+        if (_subscribedPlayer != null)
+        {
+            _subscribedPlayer.PlayStateChanged -= OnPlayStateChanged;
+            _subscribedPlayer.PlayProgressionChanged -= OnProgressChanged;
+        }
+    }
+}

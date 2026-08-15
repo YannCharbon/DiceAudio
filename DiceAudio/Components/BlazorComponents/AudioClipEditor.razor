@@ -1,0 +1,422 @@
+@*
+ * DiceAudio - Copyright (C) 2025 Yann Charbon
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ *
+ * This file is part of DiceAudio, released under the GNU GPL v3.
+ * See the LICENSE file in the repository root for details.
+*@
+
+@using Plugin.Maui.Audio
+@inject IAudioManager AudioManager
+@inject IJSRuntime JS
+@implements IDisposable
+
+<style>
+    .ace-wave-box {
+        position: relative;
+        height: 110px;
+        background: #0c0c18;
+        border: 1px solid #2a2a4a;
+        border-radius: 8px;
+        overflow: hidden;
+        margin: 10px 0 2px 0;
+    }
+    .ace-canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+    .ace-shade  { position: absolute; top: 0; bottom: 0; background: rgba(0,0,0,0.65); pointer-events: none; }
+    .ace-playhead {
+        position: absolute; top: 0; bottom: 0; width: 2px;
+        background: #ffd166; pointer-events: none;
+        box-shadow: 0 0 6px rgba(255,209,102,0.9);
+    }
+    .ace-slider {
+        position: absolute; inset: 0; width: 100%; height: 100%; margin: 0;
+        -webkit-appearance: none; appearance: none;
+        background: transparent; pointer-events: none;
+    }
+    .ace-slider::-webkit-slider-runnable-track { background: transparent; }
+    .ace-slider::-webkit-slider-thumb {
+        -webkit-appearance: none; appearance: none;
+        pointer-events: auto; cursor: ew-resize;
+        width: 12px; height: 108px; border-radius: 4px; border: none;
+        background: rgba(231,60,126,0.85);
+        box-shadow: 0 0 4px rgba(0,0,0,0.8);
+    }
+    .ace-slider-end::-webkit-slider-thumb { background: rgba(35,166,171,0.9); }
+</style>
+
+@if (_visible && Usage != null && Item != null)
+{
+<div style="position:fixed; top:0; left:0; width:100%; height:100%;
+            background:rgba(0,0,0,0.85); z-index:5200; overflow-y:auto;"
+     @onclick="CloseAsync">
+    <div style="background:#232338; margin:5% auto; max-width:720px; border-radius:12px;
+                padding:22px 26px; position:relative;"
+         @onclick:stopPropagation="true">
+
+        <MudText Typo="Typo.h6" Style="margin-bottom:4px;">Track settings</MudText>
+        <MudText Typo="Typo.body2" Style="color:grey; margin-bottom:12px;">@Item.Name</MudText>
+
+        @* ── Volume ── *@
+        <MudText Typo="Typo.caption" Style="color:grey;">Volume: @Usage.Volume.ToString("P0")</MudText>
+        <MudSlider T="double" Value="Usage.Volume" ValueChanged="v => Usage.Volume = v"
+                   Min="0" Max="1" Step="0.01" Style="margin-bottom:8px;" />
+
+        @if (ShowSceneSettings)
+        {
+            <MudStack Row="true" Spacing="3" Style="margin-bottom:8px;">
+                <MudCheckBox T="bool" Value="Usage.Loop" ValueChanged="v => Usage.Loop = v" Label="Loop" />
+                <MudNumericField T="double" Value="Usage.FadeInSeconds" ValueChanged="v => Usage.FadeInSeconds = Math.Max(0, v)"
+                                 Label="Fade-in (s)" Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width:120px;" />
+                <MudNumericField T="double" Value="Usage.FadeOutSeconds" ValueChanged="v => Usage.FadeOutSeconds = Math.Max(0, v)"
+                                 Label="Fade-out (s)" Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width:120px;" />
+            </MudStack>
+        }
+
+        @* ── Clip region ── *@
+        <MudStack Row="true" AlignItems="AlignItems.Center" Style="gap:8px; margin-top:6px;">
+            <MudIcon Icon="@Icons.Material.Filled.ContentCut" Style="font-size:16px; color:#e73c7e;" />
+            <MudText Typo="Typo.subtitle2">Clip (non-destructive — the file is never modified)</MudText>
+        </MudStack>
+
+        @if (_fileDuration <= 0)
+        {
+            <MudText Typo="Typo.body2" Style="color:#ff6b6b; padding:8px 0;">
+                Audio file unavailable — cannot edit the clip.
+            </MudText>
+        }
+        else
+        {
+            <div class="ace-wave-box" @onclick="OnWaveClick"
+                 title="@(_previewPlayer?.IsPlaying == true ? "Click to seek the preview" : "")">
+                <canvas id="@_canvasId" class="ace-canvas"></canvas>
+
+                @* Shading outside the selected region (percentages must be culture-invariant CSS) *@
+                <div class="ace-shade" style="left:0; width:@Pct(ClipStartValue);"></div>
+                <div class="ace-shade" style="right:0; width:@PctInverse(ClipEndValue);"></div>
+
+                @if (_previewPlayer != null && _previewPlayer.IsPlaying)
+                {
+                    <div class="ace-playhead" style="left:@Pct(ClipStartValue + _previewPosition);"></div>
+                }
+
+                @* Dual-thumb range (two overlaid native sliders).
+                   stopPropagation: releasing a thumb must not trigger the seek-on-click. *@
+                <input type="range" class="ace-slider" min="0" max="@_maxDeci" step="1"
+                       value="@((int)(ClipStartValue * 10))" @oninput="OnStartSliderInput"
+                       @onclick:stopPropagation="true" />
+                <input type="range" class="ace-slider ace-slider-end" min="0" max="@_maxDeci" step="1"
+                       value="@((int)(ClipEndValue * 10))" @oninput="OnEndSliderInput"
+                       @onclick:stopPropagation="true" />
+            </div>
+
+            <MudStack Row="true" AlignItems="AlignItems.Center" Style="gap:10px; flex-wrap:wrap; margin-top:10px;">
+                <MudNumericField T="double" Value="ClipStartValue" ValueChanged="SetClipStart"
+                                 Label="Start (s)" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                 Min="0" Max="@_fileDuration" Step="0.1" Format="F1" Style="max-width:130px;" />
+                <MudNumericField T="double" Value="ClipEndValue" ValueChanged="SetClipEnd"
+                                 Label="End (s)" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                 Min="0" Max="@_fileDuration" Step="0.1" Format="F1" Style="max-width:130px;" />
+                <MudText Typo="Typo.caption" Style="color:grey;">
+                    Clip: @FormatTime(ClipEndValue - ClipStartValue) / @FormatTime(_fileDuration)
+                </MudText>
+                <MudButton Size="Size.Small" Variant="Variant.Text" StartIcon="@Icons.Material.Filled.Restore"
+                           OnClick="ResetClip">Reset</MudButton>
+            </MudStack>
+
+            @* ── Preview ── *@
+            <MudStack Row="true" AlignItems="AlignItems.Center" Style="gap:10px; margin-top:12px; flex-wrap:wrap;">
+                @if (_previewPlayer != null && _previewPlayer.IsPlaying)
+                {
+                    <div class="da-cmd-btn" @onclick="StopPreview" title="Stop preview">
+                        <MudIcon Icon="@Icons.Material.Filled.Stop" Class="da-stop" />
+                    </div>
+                    <MudText Typo="Typo.caption" Style="color:grey;">
+                        @FormatTime(_previewPosition) / @FormatTime(ClipEndValue - ClipStartValue)
+                        — click the waveform to seek
+                    </MudText>
+                }
+                else
+                {
+                    <div class="da-cmd-btn" @onclick="StartPreview" title="Preview the clip">
+                        <MudIcon Icon="@Icons.Material.Filled.PlayArrow" Class="da-play" />
+                    </div>
+                    <MudText Typo="Typo.caption" Style="color:grey;">Preview plays only the selected region</MudText>
+                }
+                <MudCheckBox T="bool" Value="_previewLoop" ValueChanged="OnPreviewLoopChanged"
+                             Dense="true" Label="Loop the selection" />
+            </MudStack>
+        }
+
+        @* ── Footer ── *@
+        <div style="display:flex; justify-content:flex-end; margin-top:18px;">
+            <MudButton Variant="Variant.Filled" Color="Color.Success"
+                       StartIcon="@Icons.Material.Filled.Check"
+                       OnClick="CloseAsync">OK</MudButton>
+        </div>
+    </div>
+</div>
+}
+
+@code {
+    [Parameter] public EventCallback OnClosed { get; set; }
+    /// <summary>Shows loop/fade fields (used when editing a scene layer).</summary>
+    [Parameter] public bool ShowSceneSettings { get; set; }
+
+    public DAAudioUsage? Usage { get; private set; }
+    public DAAudioItem? Item { get; private set; }
+
+    private bool _visible;
+    private double _fileDuration;
+    private int _maxDeci;
+    private readonly string _canvasId = $"ace-wave-{Guid.NewGuid():N}";
+
+    private float[]? _peaks;
+    private bool _peaksDrawn;
+
+    private DAAudioPlayer? _previewPlayer;
+    private double _previewPosition;
+    private readonly System.Timers.Timer _previewTicker = new(100);
+
+    protected override void OnInitialized()
+    {
+        _previewTicker.Elapsed += (_, _) =>
+        {
+            if (_previewPlayer?.IsPlaying == true)
+            {
+                _previewPosition = _previewPlayer.CurrentPosition;
+                InvokeAsync(StateHasChanged);
+            }
+        };
+    }
+
+    private double ClipStartValue => Usage?.ClipStartSeconds ?? 0;
+    private double ClipEndValue => Usage?.ClipEndSeconds ?? _fileDuration;
+
+    private double PercentOf(double seconds) =>
+        _fileDuration <= 0 ? 0 : Math.Clamp(seconds / _fileDuration * 100.0, 0, 100);
+
+    // CSS percentages must use "." as decimal separator regardless of the OS
+    // culture (fr-FR renders doubles with "," which browsers reject silently).
+    private string Pct(double seconds) =>
+        PercentOf(seconds).ToString("F3", System.Globalization.CultureInfo.InvariantCulture) + "%";
+
+    private string PctInverse(double seconds) =>
+        (100.0 - PercentOf(seconds)).ToString("F3", System.Globalization.CultureInfo.InvariantCulture) + "%";
+
+    private static string FormatTime(double seconds) =>
+        TimeSpan.FromSeconds(Math.Max(0, seconds)).ToString(@"mm\:ss\.f");
+
+    public void Show(DAAudioUsage usage, DAAudioItem item)
+    {
+        Usage = usage;
+        Item = item;
+        _visible = true;
+        _peaks = null;
+        _peaksDrawn = false;
+        _fileDuration = 0;
+        _previewPosition = 0;
+
+        var cachePath = DAScenarioItemPlayer.GetPlayableCachePath(item.LocalFileName);
+        if (cachePath != null)
+        {
+            try
+            {
+                // A throw-away player just to read the file duration.
+                using var probe = DAAudioPlayer.Create(cachePath, AudioManager);
+                _fileDuration = probe.FileDuration;
+            }
+            catch { _fileDuration = 0; }
+
+            _maxDeci = (int)(_fileDuration * 10);
+            _ = ComputePeaksAsync(cachePath);
+        }
+
+        StateHasChanged();
+    }
+
+    async Task CloseAsync()
+    {
+        StopPreview();
+        _visible = false;
+        StateHasChanged();
+        await OnClosed.InvokeAsync();
+    }
+
+    // ── Clip bound updates ──────────────────────────────────────────────────
+
+    void OnStartSliderInput(ChangeEventArgs e)
+    {
+        if (double.TryParse(e.Value?.ToString(), out var deci))
+            SetClipStart(deci / 10.0);
+    }
+
+    void OnEndSliderInput(ChangeEventArgs e)
+    {
+        if (double.TryParse(e.Value?.ToString(), out var deci))
+            SetClipEnd(deci / 10.0);
+    }
+
+    void SetClipStart(double seconds)
+    {
+        if (Usage == null) return;
+        seconds = Math.Clamp(seconds, 0, Math.Max(0, ClipEndValue - 0.1));
+        Usage.ClipStartSeconds = seconds <= 0 ? null : seconds;
+        SyncPreviewBounds();
+    }
+
+    void SetClipEnd(double seconds)
+    {
+        if (Usage == null) return;
+        seconds = Math.Clamp(seconds, ClipStartValue + 0.1, _fileDuration);
+        Usage.ClipEndSeconds = seconds >= _fileDuration - 0.05 ? null : seconds;
+        SyncPreviewBounds();
+    }
+
+    void ResetClip()
+    {
+        if (Usage == null) return;
+        Usage.ClipStartSeconds = null;
+        Usage.ClipEndSeconds = null;
+        SyncPreviewBounds();
+    }
+
+    // Keeps an active preview following the handles as they are dragged.
+    void SyncPreviewBounds()
+    {
+        if (Usage != null)
+            _previewPlayer?.SetClipBounds(Usage.ClipStartSeconds, Usage.ClipEndSeconds);
+    }
+
+    // ── Preview ─────────────────────────────────────────────────────────────
+
+    private bool _previewLoop;
+
+    void StartPreview()
+    {
+        if (Usage == null || Item == null) return;
+        StopPreview();
+
+        var cachePath = DAScenarioItemPlayer.GetPlayableCachePath(Item.LocalFileName);
+        if (cachePath == null) return;
+
+        try
+        {
+            _previewPlayer = DAAudioPlayer.Create(cachePath, Usage, AudioManager);
+            _previewPlayer.Loop = _previewLoop;             // audition how the selection loops
+            _previewPlayer.PlaybackEnded += OnPreviewEnded;
+            _previewPlayer.Play();
+            _previewTicker.Start();
+        }
+        catch { _previewPlayer = null; }
+    }
+
+    void OnPreviewLoopChanged(bool value)
+    {
+        _previewLoop = value;
+        if (_previewPlayer != null)
+            _previewPlayer.Loop = value;   // applies live during preview
+    }
+
+    // Click on the waveform seeks the running preview to that spot (clamped to the clip).
+    async Task OnWaveClick(MouseEventArgs e)
+    {
+        if (_previewPlayer == null || !_previewPlayer.IsPlaying || _fileDuration <= 0) return;
+
+        double width = 0;
+        try { width = await JS.InvokeAsync<double>("daWaveform.width", _canvasId); }
+        catch { }
+        if (width <= 0) return;
+
+        double absoluteSeconds = Math.Clamp(e.OffsetX / width, 0, 1) * _fileDuration;
+        double clipRelative = Math.Clamp(absoluteSeconds - ClipStartValue, 0, ClipEndValue - ClipStartValue);
+        _previewPlayer.Seek(clipRelative);
+        _previewPosition = clipRelative;
+        StateHasChanged();
+    }
+
+    void StopPreview()
+    {
+        _previewTicker.Stop();
+        if (_previewPlayer != null)
+        {
+            _previewPlayer.PlaybackEnded -= OnPreviewEnded;
+            _previewPlayer.Dispose();
+            _previewPlayer = null;
+        }
+        _previewPosition = 0;
+    }
+
+    void OnPreviewEnded(object? s, EventArgs e)
+    {
+        _previewTicker.Stop();
+        _previewPosition = 0;
+        InvokeAsync(StateHasChanged);
+    }
+
+    // ── Waveform ────────────────────────────────────────────────────────────
+
+    private async Task ComputePeaksAsync(string filePath)
+    {
+#if WINDOWS
+        try
+        {
+            _peaks = await Task.Run(() => ComputePeaks(filePath, 600));
+        }
+        catch
+        {
+            _peaks = null;   // decode failed → plain background, still fully usable
+        }
+        _peaksDrawn = false;
+        await InvokeAsync(StateHasChanged);
+#else
+        await Task.CompletedTask;   // no waveform off-Windows (baseline UI only)
+#endif
+    }
+
+#if WINDOWS
+    private static float[] ComputePeaks(string filePath, int buckets)
+    {
+        using var reader = new NAudio.Wave.AudioFileReader(filePath);
+        var peaks = new float[buckets];
+        long totalSamples = reader.Length / 4;   // AudioFileReader reads 32-bit floats
+        long samplesPerBucket = Math.Max(1, totalSamples / buckets);
+
+        var buffer = new float[16384];
+        int bucketIndex = 0;
+        long count = 0;
+        float max = 0;
+        int read;
+        while ((read = reader.Read(buffer, 0, buffer.Length)) > 0 && bucketIndex < buckets)
+        {
+            for (int i = 0; i < read; i++)
+            {
+                float abs = Math.Abs(buffer[i]);
+                if (abs > max) max = abs;
+                if (++count >= samplesPerBucket)
+                {
+                    if (bucketIndex < buckets) peaks[bucketIndex++] = max;
+                    max = 0;
+                    count = 0;
+                }
+            }
+        }
+        return peaks;
+    }
+#endif
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_visible && _peaks != null && !_peaksDrawn)
+        {
+            _peaksDrawn = true;
+            try { await JS.InvokeVoidAsync("daWaveform.draw", _canvasId, _peaks); }
+            catch { /* canvas not ready — ignored */ }
+        }
+    }
+
+    public void Dispose()
+    {
+        _previewTicker.Dispose();
+        StopPreview();
+    }
+}

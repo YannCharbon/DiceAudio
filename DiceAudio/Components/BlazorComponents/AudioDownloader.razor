@@ -1,36 +1,67 @@
-﻿@page "/ytptest"
+@*
+ * DiceAudio - Copyright (C) 2025 Yann Charbon
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ *
+ * This file is part of DiceAudio, released under the GNU GPL v3.
+ * See the LICENSE file in the repository root for details.
+*@
+
+@page "/ytptest"
 @using System.Globalization
 
 @inject YtDlpService YtDlpService
 @inject DiceAudioService DAService
+@inject IDialogService DialogService
 
 <style>
-    .progress-spinner {
-    display: block;
-    margin: auto;
-    text-align: center;
-    }
+    .progress-spinner { display: block; margin: auto; text-align: center; }
 </style>
 
+@* ── Main download controls ── *@
 <MudCard>
     <MudCardContent>
         <MudText Typo="Typo.h6">Audio Downloader</MudText>
-        <MudText Typo="Typo.body2">This downloader allows you to download the audio from thousands of websites (including YouTube, SoundCloud, etc.)</MudText>
-        <MudStack Row="true">
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Download" Disabled="isDownloading" @onclick="StartDownload">Start Download &nbsp;<MudProgressCircular Indeterminate="true" Class="progress-spinner" Size="Size.Small" Style="@GetGlobalSpinnerStyle()" /></MudButton>
-            <MudButton Variant="Variant.Outlined" Color="Color.Secondary" StartIcon="@Icons.Material.Filled.Stop" Disabled="!isDownloading" @onclick="AbortDownload">Abort Download</MudButton>
-            <MudButton Variant="Variant.Outlined" Color="Color.Secondary" StartIcon="@Icons.Material.Filled.Delete" Disabled="isDownloading" @onclick="() => stagedAudios.Clear()">Clear staged</MudButton>
+        <MudText Typo="Typo.body2">Download audio from YouTube, SoundCloud, and thousands of other sites.</MudText>
+        <MudStack Row="true" Style="flex-wrap:wrap; gap:6px; margin-top:10px;">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.Download"
+                       Disabled="isDownloading || stagedAudios.Count == 0"
+                       @onclick="StartDownload">
+                Start Download &nbsp;
+                <MudProgressCircular Indeterminate="true" Class="progress-spinner"
+                                     Size="Size.Small" Style="@GetGlobalSpinnerStyle()" />
+            </MudButton>
+            <MudButton Variant="Variant.Outlined" Color="Color.Secondary"
+                       StartIcon="@Icons.Material.Filled.Stop"
+                       Disabled="!isDownloading"
+                       @onclick="AbortDownload">Abort</MudButton>
+            <MudButton Variant="Variant.Outlined" Color="Color.Default"
+                       StartIcon="@Icons.Material.Filled.Delete"
+                       Disabled="isDownloading"
+                       @onclick="() => stagedAudios.Clear()">Clear staged</MudButton>
         </MudStack>
     </MudCardContent>
 
+    @* ── URL staging ── *@
     <MudCardContent>
-        <MudStack Row="true">
-            <MudTextField Variant="Variant.Filled" @bind-Value="urlToStage" Label="Stage URL"></MudTextField>
-            <MudText Typo="Typo.body2">@stageErrorMessage</MudText>
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" Disabled="isStaging" @onclick="StageURL">Stage&nbsp;<MudProgressCircular Indeterminate="true" Class="progress-spinner" Size="Size.Small" Style="@GetStageSpinnerStyle()" /></MudButton>
+        <MudStack Row="true" AlignItems="AlignItems.Center">
+            <MudTextField Variant="Variant.Filled" @bind-Value="urlToStage" Label="Stage URL" Style="flex:1;" />
+            @if (!string.IsNullOrEmpty(stageErrorMessage))
+            {
+                <MudText Typo="Typo.body2" Color="Color.Error">@stageErrorMessage</MudText>
+            }
+            <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.Add"
+                       Disabled="isStaging"
+                       @onclick="StageURL">
+                Stage &nbsp;
+                <MudProgressCircular Indeterminate="true" Class="progress-spinner"
+                                     Size="Size.Small" Style="@GetStageSpinnerStyle()" />
+            </MudButton>
         </MudStack>
     </MudCardContent>
 
+    @* ── Target folder picker ── *@
     <MudCardContent>
         <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
             <MudIcon Icon="@Icons.Material.Filled.Folder" Style="color:#90caf9;" />
@@ -62,43 +93,59 @@
                 }
             </div>
             <MudStack Row="true" Style="margin-top:10px;" AlignItems="AlignItems.Center">
-                <MudTextField Variant="Variant.Filled"
-                              @bind-Value="_newFolderInput"
-                              Label="New folder name"
-                              Style="max-width:250px;" />
-                <MudButton Variant="Variant.Filled"
-                           Color="Color.Secondary"
+                <MudTextField Variant="Variant.Filled" @bind-Value="_newFolderInput"
+                              Label="New folder name" Style="max-width:250px;" />
+                <MudButton Variant="Variant.Filled" Color="Color.Secondary"
                            Disabled="@string.IsNullOrWhiteSpace(_newFolderInput)"
-                           OnClick="UseNewFolder">
-                    Create &amp; select
-                </MudButton>
+                           OnClick="UseNewFolder">Create &amp; select</MudButton>
             </MudStack>
         }
     </MudCardContent>
 
-    @foreach (DAAudioItem item in stagedAudios)
+    @* ── Staged items ── *@
+    @foreach (var item in stagedAudios)
     {
         <MudCardContent>
-            <MudStack Row="true">
-                <MudTextField Variant="Variant.Filled" @bind-Value="item.Name" Label="Name"></MudTextField>
-                <MudProgressCircular Indeterminate="true" Class="progress-spinner" Style="@GetSpinnerStyle(item)" />
+            <MudStack Row="true" AlignItems="AlignItems.Center">
+                <MudTextField Variant="Variant.Filled" @bind-Value="item.Name" Label="Name" Style="flex:1;" />
+                <MudProgressCircular Indeterminate="true" Class="progress-spinner"
+                                     Style="@GetSpinnerStyle(item)" Size="Size.Small" />
                 @if (item.IsLocallyAvailable)
                 {
-                    <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="@Color.Success" Size="Size.Large" />
+                    <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" Size="Size.Large"
+                             Title="@item.LocalFileName" />
                 }
-                <MudButton Variant="Variant.Outlined" Color="Color.Secondary" StartIcon="@Icons.Material.Filled.Remove" Disabled="isDownloading" @onclick="() => Unstage(item)">Unstage</MudButton>
+                <MudButton Variant="Variant.Outlined" Color="Color.Secondary"
+                           StartIcon="@Icons.Material.Filled.Remove"
+                           Disabled="isDownloading"
+                           @onclick="() => Unstage(item)">Unstage</MudButton>
             </MudStack>
-
-            <MudProgressLinear Value="@item.SourceDownloadProgress" Max="100" Style="margin-top:10px;" />
-            <MudText Typo="Typo.body2">@item.SourceDownloadStatusMessage</MudText>
+            <MudProgressLinear Value="@item.SourceDownloadProgress" Max="100" Style="margin-top:6px;" />
+            <MudText Typo="Typo.body2" Style="font-size:12px; color:grey;">@item.SourceDownloadStatusMessage</MudText>
         </MudCardContent>
     }
 </MudCard>
 
+@* ── Library repair: scan local files ── *@
+<MudCard Style="margin-top:16px;">
+    <MudCardContent>
+        <MudText Typo="Typo.h6">Scan local audio folder</MudText>
+        <MudText Typo="Typo.body2" Style="margin-bottom:10px;">
+            If items are missing their local file reference (showing "Not downloaded" despite being on disk),
+            click Scan to repair them. Also imports unclaimed MP3 files as new library items.
+        </MudText>
+        <MudButton Variant="Variant.Filled" Color="Color.Secondary"
+                   StartIcon="@Icons.Material.Filled.Search"
+                   Disabled="isDownloading"
+                   @onclick="ScanLocalFiles">Scan audio folder</MudButton>
+        @if (!string.IsNullOrEmpty(_scanResultMessage))
+        {
+            <MudText Typo="Typo.body2" Style="margin-top:8px; color:#90caf9;">@_scanResultMessage</MudText>
+        }
+    </MudCardContent>
+</MudCard>
+
 @code {
-
-
-
     private string statusMessage = string.Empty;
     private bool isDownloading = false;
     private int progress = 0;
@@ -110,109 +157,249 @@
     private string _targetFolderName = "Untriaged";
     private bool _folderPickerExpanded = false;
     private string _newFolderInput = "";
+    private string _scanResultMessage = "";
 
-    private List<DAAudioItem> stagedAudios = new List<DAAudioItem>();
+    private List<DAAudioItem> stagedAudios = new();
+
+    // ── Staging ──────────────────────────────────────────────
 
     private async Task StageURL()
     {
-        if (urlToStage == "")
+        if (string.IsNullOrWhiteSpace(urlToStage))
         {
-            stageErrorMessage = "Please provide a valid YouTube video/playlist URL";
+            stageErrorMessage = "Please provide a URL.";
             return;
         }
         isStaging = true;
         stageErrorMessage = "";
+
         if (stagedAudios.Find(x => x.SourceURL == urlToStage) == null)
         {
             if (urlToStage.Contains("list="))
             {
-                var (titles, urls) = await YtDlpService.GetPlaylistVideoTitlesAndUrlsAsync(urlToStage);
+                // A playlist URL. If it also points at a specific video, ask whether
+                // to stage the whole playlist or just that one video.
+                var singleVideoUrl = TryGetSingleVideoUrl(urlToStage);
+                bool stageWholePlaylist = true;
 
-                for (int i = 0; i < titles.Count; i++)
+                if (singleVideoUrl != null)
                 {
-                    DAAudioItem item = new DAAudioItem(titles[i]);
-                    item.SourceURL = urls[i];
-                    stagedAudios.Add(item);
+                    var choice = await DialogService.ShowMessageBox(
+                        "Playlist detected",
+                        "This link points to a video inside a playlist. Stage the entire playlist, or only this video?",
+                        yesText: "Entire playlist", noText: "Only this video", cancelText: "Cancel");
+
+                    if (choice == null) { isStaging = false; return; }   // cancelled
+                    stageWholePlaylist = choice == true;
                 }
-                urlToStage = "";
-            } else
-            {
-                DAAudioItem item = new DAAudioItem("Default");
-                item.SourceURL = urlToStage;
-                item.Name = await YtDlpService.GetVideoTitleAsync(urlToStage);
-                if (!item.Name.Contains("YtDLP Error"))
+
+                if (stageWholePlaylist)
                 {
-                    stagedAudios.Add(item);
+                    var (titles, urls) = await YtDlpService.GetPlaylistVideoTitlesAndUrlsAsync(urlToStage);
+                    for (int i = 0; i < titles.Count; i++)
+                    {
+                        var item = new DAAudioItem(titles[i]) { SourceURL = urls[i] };
+                        stagedAudios.Add(item);
+                    }
                     urlToStage = "";
-                } else
+                }
+                else
                 {
-                    stageErrorMessage = item.Name;
+                    // Only this video: use the cleaned URL (playlist params stripped)
+                    // so the later download fetches a single track, not the playlist.
+                    await StageSingleUrlAsync(singleVideoUrl!);
                 }
             }
-
+            else
+            {
+                await StageSingleUrlAsync(urlToStage);
+            }
         }
+
         isStaging = false;
     }
 
-    private void Unstage(DAAudioItem item)
+    private async Task StageSingleUrlAsync(string url)
     {
-        stagedAudios.Remove(item);
+        var item = new DAAudioItem("Default") { SourceURL = url };
+        item.Name = await YtDlpService.GetVideoTitleAsync(url);
+        if (!item.Name.Contains("YtDLP Error"))
+        {
+            stagedAudios.Add(item);
+            urlToStage = "";
+        }
+        else
+        {
+            stageErrorMessage = item.Name;
+        }
     }
 
-    private string GetStageSpinnerStyle()
+    // Returns a clean single-video watch URL if the given URL carries a video id
+    // (watch?v=… or youtu.be/…), else null (e.g. a playlist-only URL).
+    private static string? TryGetSingleVideoUrl(string url)
     {
-        return isStaging ? "display: block; margin: auto;" : "display: none;";
+        try
+        {
+            var uri = new Uri(url);
+
+            if (uri.Host.Contains("youtu.be", StringComparison.OrdinalIgnoreCase))
+            {
+                var id = uri.AbsolutePath.Trim('/');
+                if (!string.IsNullOrEmpty(id))
+                    return $"https://www.youtube.com/watch?v={id}";
+            }
+
+            foreach (var pair in uri.Query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries))
+            {
+                var kv = pair.Split('=', 2);
+                if (kv.Length == 2 && kv[0] == "v" && !string.IsNullOrEmpty(kv[1]))
+                    return $"https://www.youtube.com/watch?v={Uri.UnescapeDataString(kv[1])}";
+            }
+        }
+        catch { /* not a parseable URL — treat as no single video */ }
+        return null;
     }
 
-    private string GetGlobalSpinnerStyle()
-    {
-        return isDownloading ? "display: block;" : "display: none;";
-    }
+    private void Unstage(DAAudioItem item) => stagedAudios.Remove(item);
+
+    // ── Download (3 scenarios) ────────────────────────────────
 
     private async Task StartDownload()
     {
         isDownloading = true;
         progress = 0;
-        statusMessage = "Starting download...";
 
-        foreach (DAAudioItem item in stagedAudios)
+        foreach (var item in stagedAudios)
         {
-            @if (isDownloading == false)
+            if (!isDownloading) break;   // aborted
+
+            // Scenario 2: file already known and on disk — just add to library
+            if (item.IsLocallyAvailable && !string.IsNullOrEmpty(item.LocalFileName))
             {
-                // Manual abort
-                break;
-            }
-            if (item.IsLocallyAvailable)
-            {
-                // Already downloaded
+                AddToLibraryIfNew(item);
                 continue;
             }
+
+            // Scenario 2b: check if an existing MP3 matches this item before downloading
+            var existingFileName = FindExistingFile(item);
+            if (existingFileName != null)
+            {
+                item.LocalFileName = existingFileName;
+                item.IsLocallyAvailable = true;
+                item.SourceDownloadStatusMessage = "Found existing file — not re-downloaded";
+                AddToLibraryIfNew(item);
+                await InvokeAsync(StateHasChanged);
+                continue;
+            }
+
+            // Scenario 1: download
             await YtDlpService.RunYtDlpAsync(item, UpdateStatus);
+
             if (item.IsLocallyAvailable)
             {
+                // Scenario 1 success
                 item.SourceDownloadProgress = 100;
-                item.Folder.Name = _targetFolderName;
-                DAService.AddAudioItem(item);
+                AddToLibraryIfNew(item);
             }
-        }        
+            // Scenario 3: download failed — item not added (IsLocallyAvailable stays false)
+        }
 
         progress = 100;
-
         isDownloading = false;
+
+        // Persist newly added items (and any folder created for them) right away.
+        // Downloads previously relied on the save-on-close handler, which is a
+        // non-awaited fire-and-forget: the process could exit before the write
+        // flushed, losing the item (and a subsequent move) on restart.
+        await DAService.SaveAudioItemListAsync();
+        await DAService.SaveAudioVirtualFoldersAsync();
+    }
+
+    private void AddToLibraryIfNew(DAAudioItem item)
+    {
+        // Don't add duplicates (same URL or same LocalFileName already in library)
+        bool alreadyInLibrary = DAService.AudioItems.Any(a =>
+            (!string.IsNullOrEmpty(a.SourceURL) && a.SourceURL == item.SourceURL) ||
+            (!string.IsNullOrEmpty(a.LocalFileName) && a.LocalFileName == item.LocalFileName));
+
+        if (!alreadyInLibrary)
+        {
+            item.Folder.Name = _targetFolderName;
+            DAService.AddAudioItem(item);
+        }
+    }
+
+    // Checks if an MP3 matching the item already exists on disk and isn't claimed by another item.
+    private string? FindExistingFile(DAAudioItem item)
+    {
+        // Already in library with a known file?
+        var fromLibrary = DAService.AudioItems.FirstOrDefault(a =>
+            !string.IsNullOrEmpty(a.SourceURL) && a.SourceURL == item.SourceURL &&
+            !string.IsNullOrEmpty(a.LocalFileName));
+        if (fromLibrary != null) return fromLibrary.LocalFileName;
+
+        var audioDir = Path.Combine(FileSystem.AppDataDirectory, "Audio");
+        if (!Directory.Exists(audioDir)) return null;
+
+        var claimed = new HashSet<string>(
+            DAService.AudioItems.Where(a => !string.IsNullOrEmpty(a.LocalFileName)).Select(a => a.LocalFileName),
+            StringComparer.OrdinalIgnoreCase);
+
+        // Match by item name == MP3 base name (yt-dlp uses the video title as filename)
+        foreach (var file in Directory.GetFiles(audioDir, "*.mp3"))
+        {
+            var fileName = Path.GetFileName(file);
+            if (claimed.Contains(fileName)) continue;
+
+            var baseName = Path.GetFileNameWithoutExtension(file);
+            if (string.Equals(baseName, item.Name, StringComparison.OrdinalIgnoreCase))
+                return fileName;
+        }
+
+        return null;
     }
 
     private void AbortDownload()
     {
         YtDlpService.AbortDownload(UpdateStatus);
         isDownloading = false;
-
         progress = 0;
     }
 
-    private string GetSpinnerStyle(DAAudioItem item)
+    // ── Library scan / repair ─────────────────────────────────
+
+    private async Task ScanLocalFiles()
     {
-        return item.SourceIsDownloading ? "display: block; margin: auto;" : "display: none;";
+        _scanResultMessage = "Scanning...";
+        await InvokeAsync(StateHasChanged);
+
+        int repaired = YtDlpService.RepairMissingLocalFileNames(DAService.AudioItems);
+
+        var unclaimed = YtDlpService.GetUnclaimedMp3Files(DAService.AudioItems);
+        int imported = 0;
+        foreach (var fileName in unclaimed)
+        {
+            var baseName = Path.GetFileNameWithoutExtension(fileName);
+            var newItem = new DAAudioItem(baseName)
+            {
+                LocalFileName = fileName,
+                IsLocallyAvailable = true
+            };
+            newItem.Folder.Name = _targetFolderName;
+            DAService.AddAudioItem(newItem);
+            imported++;
+        }
+
+        await DAService.SaveAudioItemListAsync();
+
+        _scanResultMessage = repaired == 0 && imported == 0
+            ? "Scan complete — no changes needed."
+            : $"Scan complete: {repaired} item(s) repaired, {imported} new file(s) imported.";
+
+        await InvokeAsync(StateHasChanged);
     }
+
+    // ── Folder helpers ────────────────────────────────────────
 
     private void UseNewFolder()
     {
@@ -223,11 +410,11 @@
         _folderPickerExpanded = false;
     }
 
-    private void UpdateStatus(string message)
-    {
-        InvokeAsync(() =>
-        {
-            StateHasChanged();
-        });
-    }
+    // ── UI helpers ────────────────────────────────────────────
+
+    private string GetStageSpinnerStyle()  => isStaging      ? "display:block; margin:auto;" : "display:none;";
+    private string GetGlobalSpinnerStyle() => isDownloading  ? "display:block;"              : "display:none;";
+    private string GetSpinnerStyle(DAAudioItem item) => item.SourceIsDownloading ? "display:block; margin:auto;" : "display:none;";
+
+    private void UpdateStatus(string message) => InvokeAsync(StateHasChanged);
 }

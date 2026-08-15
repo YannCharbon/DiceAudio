@@ -1,0 +1,333 @@
+@*
+ * DiceAudio - Copyright (C) 2025 Yann Charbon
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ *
+ * This file is part of DiceAudio, released under the GNU GPL v3.
+ * See the LICENSE file in the repository root for details.
+*@
+
+@inject DiceAudioService DAService
+
+@* ── General audio item picker modal.
+     Two modes:
+       • multi-select — toggles entries in SelectionList (List<DAAudioUsage>)
+       • single-select — invokes OnPicked with the chosen item and closes
+     Overlay z-index 5000: above the item editor (3000) and scene editor (4800). ── *@
+@if (_visible)
+{
+<div style="position:fixed; top:0; left:0; width:100%; height:100%;
+            background:rgba(0,0,0,0.82); z-index:5000; overflow-y:auto;"
+     @onclick="Hide">
+    <div style="background:#232338; margin:3% auto; max-width:960px; border-radius:12px;
+                padding:20px 24px; position:relative;"
+         @onclick:stopPropagation="true">
+
+        <MudText Typo="Typo.h6" Style="margin-bottom:14px;">@Title</MudText>
+
+        @* ── Search + kind filter ── *@
+        <MudStack Row="true" AlignItems="AlignItems.Center" Style="margin-bottom:10px; flex-wrap:wrap; gap:6px;">
+            <MudTextField T="string" Value="_search" ValueChanged="OnSearchChanged"
+                          Placeholder="Search by name…" Variant="Variant.Outlined" Margin="Margin.Dense"
+                          Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                          Immediate="true" Clearable="true" Style="min-width:240px; flex:1;" />
+
+            <MudButton Variant="@(_kinds.Count == 3 ? Variant.Filled : Variant.Outlined)"
+                       Color="Color.Default" Size="Size.Small"
+                       OnClick="SelectAllKinds">All</MudButton>
+            @foreach (var kind in new[] { AudioKind.Music, AudioKind.Ambiance, AudioKind.SoundEffect })
+            {
+                var k = kind;
+                <MudButton Variant="@(_kinds.Contains(k) && _kinds.Count < 3 ? Variant.Filled : Variant.Outlined)"
+                           Color="@k.Color()" Size="Size.Small" StartIcon="@k.Icon()"
+                           OnClick="() => ToggleKind(k)">@k.Label()</MudButton>
+            }
+
+            <MudButton Variant="@(_filterOpen ? Variant.Filled : Variant.Outlined)"
+                       Color="Color.Secondary" Size="Size.Small"
+                       StartIcon="@Icons.Material.Filled.FilterList"
+                       OnClick="() => _filterOpen = !_filterOpen">Tags</MudButton>
+            @if (_filterTags.Count > 0)
+            {
+                <MudButton Size="Size.Small" Variant="Variant.Text" OnClick="() => _filterTags.Clear()">Clear tags</MudButton>
+            }
+        </MudStack>
+
+        @if (_filterOpen)
+        {
+            <div style="background:#1a1a2e; border-radius:8px; padding:10px; margin-bottom:12px;">
+                <MudText Typo="Typo.caption" Style="color:grey;">Type</MudText>
+                <div style="display:flex; flex-wrap:wrap; gap:4px; padding:4px 0 8px 0;">
+                    @foreach (var tag in DAAudioTag.GetAllCategoryTypeTags())
+                    { <span class="@FilterChipClass(tag)" @onclick="() => ToggleFilterTag(tag)" style="cursor:pointer;">@tag</span> }
+                </div>
+                <MudText Typo="Typo.caption" Style="color:grey;">Location</MudText>
+                <div style="display:flex; flex-wrap:wrap; gap:4px; padding:4px 0 8px 0;">
+                    @foreach (var tag in DAAudioTag.GetAllCategoryLocationTags())
+                    { <span class="@FilterChipClass(tag)" @onclick="() => ToggleFilterTag(tag)" style="cursor:pointer;">@tag</span> }
+                </div>
+                <MudText Typo="Typo.caption" Style="color:grey;">Expression</MudText>
+                <div style="display:flex; flex-wrap:wrap; gap:4px; padding:4px 0;">
+                    @foreach (var tag in DAAudioTag.GetAllCategoryExpressionTags())
+                    { <span class="@FilterChipClass(tag)" @onclick="() => ToggleFilterTag(tag)" style="cursor:pointer;">@tag</span> }
+                </div>
+            </div>
+        }
+
+        @* ── Folder navigation (hidden while searching — search is global) ── *@
+        @if (string.IsNullOrWhiteSpace(_search))
+        {
+            <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-bottom:8px;">
+                @if (_currentFolderName == ".")
+                {
+                    <span style="font-weight:bold;">Root</span>
+                }
+                else
+                {
+                    <span class="sap-crumb" @onclick='() => _currentFolderName = "."'>Root</span>
+                    @foreach (var crumb in BreadcrumbChain())
+                    {
+                        var c = crumb;
+                        <span style="color:#888;">/</span>
+                        @if (c.Name == _currentFolderName)
+                        {
+                            <span style="font-weight:bold;">@c.Name</span>
+                        }
+                        else
+                        {
+                            <span class="sap-crumb" @onclick="() => _currentFolderName = c.Name">@c.Name</span>
+                        }
+                    }
+                }
+            </div>
+
+            <div class="row" style="margin-bottom:4px;">
+                @if (_currentFolderName == ".")
+                {
+                    @foreach (var folder in DAService.AudioVirtualFolders.Where(f => f.Name != "." && f.ParentFolderId == Guid.Empty))
+                    {
+                        @RenderFolderCard(folder)
+                    }
+                }
+                else
+                {
+                    var current = DAService.AudioVirtualFolders.FirstOrDefault(f => f.Name == _currentFolderName);
+                    if (current != null)
+                    {
+                        @foreach (var folder in DAService.AudioVirtualFolders.Where(f => f.ParentFolderId == current.Id))
+                        {
+                            @RenderFolderCard(folder)
+                        }
+                    }
+                }
+            </div>
+        }
+
+        @* ── Audio items grid ── *@
+        <div class="row" style="max-height:480px; overflow-y:auto;">
+            @{
+                var visibleItems = FilteredItems().ToList();
+            }
+            @if (!visibleItems.Any())
+            {
+                <p style="padding:20px; color:grey;">No matching audio items found.</p>
+            }
+            @foreach (var item in visibleItems)
+            {
+                bool isSelected = !SingleSelect && SelectionList != null
+                    && SelectionList.Any(u => u.AudioItemId == item.Id);
+
+                <div class="col col-md-3">
+                    <div class="@(isSelected ? "sap-item-top-sel" : "sap-item-top")"
+                         @onclick="() => PickItem(item)">
+                        @if (isSelected)
+                        {
+                            <MudIcon Icon="@Icons.Material.Filled.CheckCircle"
+                                     Style="font-size:34px; color:white;" />
+                        }
+                        else
+                        {
+                            <MudIcon Icon="@item.Kind.Icon()" Style="font-size:26px; opacity:0.55;" />
+                        }
+                    </div>
+                    <div class="sap-item-bottom">
+                        <b>@item.Name</b>
+                        <div style="display:flex; flex-wrap:wrap; margin-top:3px; margin-bottom:4px;">
+                            @foreach (var tag in item.Tags)
+                            { <span class="sap-tag">@tag.Name</span> }
+                        </div>
+                        @if (item.IsLocallyAvailable)
+                        {
+                            <MusicPlayer AudioItem="@item" />
+                        }
+                        else
+                        {
+                            <div style="color:grey; font-size:x-small; padding:4px 0;">Not downloaded</div>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+
+        @* ── Footer ── *@
+        <div style="display:flex; justify-content:flex-end; margin-top:14px;">
+            <MudButton Variant="Variant.Filled" Color="Color.Success"
+                       StartIcon="@Icons.Material.Filled.Check"
+                       OnClick="async () => await Hide()">OK</MudButton>
+        </div>
+    </div>
+</div>
+}
+
+<style>
+    .sap-item-top {
+        border-top-left-radius: 8px; border-top-right-radius: 8px;
+        height: 70px; margin: 6px 6px 0 6px; cursor: pointer;
+        display: flex; align-items: center; justify-content: center;
+        background-image: linear-gradient(-45deg,rgba(200,90,50,0.2),rgba(200,30,96,0.5),
+                          rgba(5,136,183,0.8),rgba(5,136,141,1.0));
+    }
+    .sap-item-top-sel {
+        border-top-left-radius: 8px; border-top-right-radius: 8px;
+        height: 70px; margin: 6px 6px 0 6px; cursor: pointer;
+        display: flex; align-items: center; justify-content: center;
+        background-image: linear-gradient(-45deg,rgba(255,170,120,0.6),rgba(255,90,150,0.6),
+                          rgba(60,255,250,0.9),rgba(60,255,220,1.0));
+        box-shadow: 0 2px 10px rgba(255,255,255,0.4);
+    }
+    .sap-item-bottom {
+        font-size: small; color: white; background: #040020;
+        border-bottom-left-radius: 8px; border-bottom-right-radius: 8px;
+        padding: 8px; margin: 0 6px 6px 6px;
+    }
+    .sap-folder-top {
+        border-top-left-radius: 8px; border-top-right-radius: 8px;
+        height: 70px; margin: 6px 6px 0 6px; cursor: pointer;
+        display: flex; align-items: center; justify-content: center;
+        background-image: linear-gradient(-45deg,rgba(200,90,50,0.15),rgba(200,30,96,0.35),
+                          rgba(5,136,183,0.55),rgba(5,136,141,0.7));
+    }
+    .sap-tag { color:black; background:#e73c7e; border-radius:3px; padding:1px 4px; margin:2px; font-size:x-small; }
+    .sap-tag-sel { color:black; background:#23a6d5; border-radius:3px; padding:1px 4px; margin:2px; font-size:x-small; }
+    .sap-crumb { cursor:pointer; color:#90caf9; }
+    .sap-crumb:hover { text-decoration:underline; }
+</style>
+
+@code {
+    /// <summary>Multi-select mode: entries are toggled in this list.</summary>
+    [Parameter] public List<DAAudioUsage>? SelectionList { get; set; }
+
+    /// <summary>Single-select mode: pick one item, raise OnPicked, close.</summary>
+    [Parameter] public bool SingleSelect { get; set; }
+    [Parameter] public EventCallback<DAAudioItem> OnPicked { get; set; }
+
+    [Parameter] public string Title { get; set; } = "Pick audio";
+    [Parameter] public EventCallback OnClosed { get; set; }
+
+    private bool _visible;
+    private string _currentFolderName = ".";
+    private string _search = "";
+    private bool _filterOpen;
+    private readonly List<string> _filterTags = new();
+    private HashSet<AudioKind> _kinds = new() { AudioKind.Music, AudioKind.Ambiance, AudioKind.SoundEffect };
+
+    /// <summary>Opens the picker, optionally pre-filtering to the given kinds.</summary>
+    public void Show(IEnumerable<AudioKind>? kinds = null)
+    {
+        _visible = true;
+        _currentFolderName = ".";
+        _search = "";
+        _filterOpen = false;
+        _filterTags.Clear();
+        _kinds = kinds != null && kinds.Any()
+            ? new HashSet<AudioKind>(kinds)
+            : new HashSet<AudioKind> { AudioKind.Music, AudioKind.Ambiance, AudioKind.SoundEffect };
+        StateHasChanged();
+    }
+
+    public async Task Hide()
+    {
+        _visible = false;
+        StateHasChanged();
+        await OnClosed.InvokeAsync();
+    }
+
+    // Ancestor chain (root-most first) down to the current folder, for breadcrumbs.
+    private List<DAVirtualAudioFolder> BreadcrumbChain()
+    {
+        var chain = new List<DAVirtualAudioFolder>();
+        if (_currentFolderName == ".") return chain;
+
+        var current = DAService.AudioVirtualFolders.FirstOrDefault(f => f.Name == _currentFolderName);
+        int guard = 0;
+        while (current != null && guard++ < 100)
+        {
+            chain.Insert(0, current);
+            if (current.ParentFolderId == Guid.Empty) break;
+            current = DAService.AudioVirtualFolders.FirstOrDefault(f => f.Id == current.ParentFolderId);
+        }
+        return chain;
+    }
+
+    private RenderFragment RenderFolderCard(DAVirtualAudioFolder folder) => __builder =>
+    {
+        <div class="col col-md-3" style="cursor:pointer;">
+            <div class="sap-folder-top" @onclick="() => _currentFolderName = folder.Name">
+                <MudIcon Icon="@Icons.Material.Filled.Folder" Style="font-size:38px;" />
+            </div>
+            <div class="sap-item-bottom"><b>@folder.Name</b></div>
+        </div>;
+    };
+
+    private IEnumerable<DAAudioItem> FilteredItems()
+    {
+        var items = DAService.AudioItems.Where(a => _kinds.Contains(a.Kind));
+
+        if (!string.IsNullOrWhiteSpace(_search))
+            items = items.Where(a => a.Name.Contains(_search.Trim(), StringComparison.OrdinalIgnoreCase));
+        else
+            items = items.Where(a => a.Folder.Name == _currentFolderName);
+
+        if (_filterTags.Count > 0)
+            items = items.Where(a => _filterTags.Any(ft => a.Tags.Any(t => t.Name == ft)));
+
+        return items.Take(200);   // hard cap so huge libraries stay responsive
+    }
+
+    private async Task PickItem(DAAudioItem item)
+    {
+        if (SingleSelect)
+        {
+            await OnPicked.InvokeAsync(item);
+            await Hide();
+            return;
+        }
+
+        if (SelectionList == null) return;
+        var existing = SelectionList.FirstOrDefault(u => u.AudioItemId == item.Id);
+        if (existing != null) SelectionList.Remove(existing);
+        else SelectionList.Add(new DAAudioUsage(item.Id));
+    }
+
+    private void OnSearchChanged(string value) => _search = value ?? "";
+
+    private void SelectAllKinds() =>
+        _kinds = new HashSet<AudioKind> { AudioKind.Music, AudioKind.Ambiance, AudioKind.SoundEffect };
+
+    private void ToggleKind(AudioKind kind)
+    {
+        // Clicking a kind narrows to it; clicking the active single kind restores all.
+        if (_kinds.Count == 1 && _kinds.Contains(kind))
+            SelectAllKinds();
+        else
+            _kinds = new HashSet<AudioKind> { kind };
+    }
+
+    private void ToggleFilterTag(string tag)
+    {
+        if (_filterTags.Contains(tag)) _filterTags.Remove(tag);
+        else _filterTags.Add(tag);
+    }
+
+    private string FilterChipClass(string tag) =>
+        _filterTags.Contains(tag) ? "sap-tag-sel" : "sap-tag";
+}

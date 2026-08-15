@@ -1,0 +1,149 @@
+@*
+ * DiceAudio - Copyright (C) 2025 Yann Charbon
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ *
+ * This file is part of DiceAudio, released under the GNU GPL v3.
+ * See the LICENSE file in the repository root for details.
+*@
+
+@page "/scenes"
+@inject DiceAudioService DAService
+
+<style>
+    .scn-card {
+        border-radius: 12px;
+        background: #12121f;
+        border: 1px solid #2a2a4a;
+        padding: 16px 18px;
+        margin: 10px;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        transition: box-shadow 0.2s, border-color 0.2s;
+    }
+    .scn-card:hover {
+        box-shadow: 0 4px 16px rgba(255,255,255,0.08);
+        border-color: #444470;
+    }
+    .scn-icon {
+        width: 52px; height: 52px; border-radius: 10px; flex-shrink: 0;
+        display: flex; align-items: center; justify-content: center;
+        background: linear-gradient(-45deg, rgba(238,119,82,0.35), rgba(231,60,126,0.45),
+                    rgba(35,166,213,0.55), rgba(35,166,171,0.65));
+    }
+    .scn-name { font-weight: bold; font-size: 15px; }
+    .scn-meta { font-size: 12px; color: grey; }
+    .scn-cat-header {
+        font-size: 15px; font-weight: bold; color: #23a6ab;
+        border-bottom: 1px solid #2a2a4a;
+        padding: 14px 4px 4px 4px; margin: 4px 8px;
+    }
+</style>
+
+<h3>Scenes</h3>
+<MudText Typo="Typo.body2" Style="color:grey; margin-bottom:14px;">
+    Layered soundscapes — ambiences, music and sound effects driven by steps you trigger live.
+    Scenes from this catalogue can be copied into scenarios.
+</MudText>
+
+<MudStack Row="true" Style="gap:10px; margin-bottom:10px;">
+    <MudButton Variant="Variant.Filled" Color="Color.Primary"
+               StartIcon="@Icons.Material.Filled.Add"
+               OnClick="CreateScene">
+        New scene
+    </MudButton>
+
+    @{ var scenePresets = DAService.Presets.Where(p => p.Kind == DAPresetKind.Scene).ToList(); }
+    @if (scenePresets.Count > 0)
+    {
+        <MudMenu Label="From preset" Variant="Variant.Outlined" Color="Color.Secondary"
+                 StartIcon="@Icons.Material.Filled.Bookmark" Dense="true">
+            @foreach (var preset in scenePresets)
+            {
+                var p = preset;
+                <MudMenuItem OnClick="() => InsertPreset(p)">
+                    @(string.IsNullOrEmpty(p.Category) ? p.Name : $"{p.Category} / {p.Name}")
+                </MudMenuItem>
+            }
+        </MudMenu>
+    }
+</MudStack>
+
+@if (DAService.Scenes.Count == 0)
+{
+    <p style="color:grey; padding:20px;">No scenes yet. Create one to get started.</p>
+}
+
+@foreach (var group in DAService.Scenes
+    .GroupBy(s => string.IsNullOrWhiteSpace(s.Category) ? "(uncategorized)" : s.Category)
+    .OrderBy(g => g.Key))
+{
+    <div class="scn-cat-header">@group.Key</div>
+    <div class="row">
+        @foreach (var scene in group)
+        {
+            var s = scene;
+            <div class="col col-md-5 scn-card">
+                <div class="scn-icon">
+                    <MudIcon Icon="@Icons.Material.Filled.Theaters" />
+                </div>
+                <div style="flex:1;">
+                    <div class="scn-name">@s.Name</div>
+                    <div class="scn-meta">@(s.Mode == DASceneMode.Contextual ? "Contextual" : "Linear") · @s.CueSummary</div>
+                </div>
+                <MudIconButton Icon="@Icons.Material.Filled.Edit" Title="Edit scene"
+                               OnClick="() => EditScene(s)" />
+                <MudIconButton Icon="@Icons.Material.Filled.ContentCopy" Title="Duplicate"
+                               OnClick="() => DuplicateScene(s)" />
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Title="Delete"
+                               OnClick="() => DeleteScene(s)" />
+            </div>
+        }
+    </div>
+}
+
+<SceneEditor @ref="_editor" OnClose="OnEditorClosed" />
+
+@code {
+    private SceneEditor? _editor;
+
+    void CreateScene()
+    {
+        var scene = new DAScene();
+        DAService.Scenes.Add(scene);
+        _editor?.Show(scene);
+    }
+
+    void EditScene(DAScene scene) => _editor?.Show(scene);
+
+    async Task InsertPreset(DAPreset preset)
+    {
+        var scene = preset.ToScene();   // independent deep copy, fresh ids
+        if (scene == null) return;
+        DAService.Scenes.Add(scene);
+        await DAService.SaveScenesAsync();
+        StateHasChanged();
+    }
+
+    void DuplicateScene(DAScene scene)
+    {
+        // JSON round-trip via the preset payload gives a deep copy with fresh ids.
+        var copy = DAPreset.FromScene(scene).ToScene();
+        if (copy == null) return;
+        copy.Name = scene.Name + " (copy)";
+        DAService.Scenes.Add(copy);
+        _ = DAService.SaveScenesAsync();
+    }
+
+    async Task DeleteScene(DAScene scene)
+    {
+        DAService.Scenes.Remove(scene);
+        await DAService.SaveScenesAsync();
+    }
+
+    async Task OnEditorClosed()
+    {
+        await DAService.SaveScenesAsync();
+        StateHasChanged();
+    }
+}

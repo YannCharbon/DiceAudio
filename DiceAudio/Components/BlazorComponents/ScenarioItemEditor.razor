@@ -1,0 +1,271 @@
+@*
+ * DiceAudio - Copyright (C) 2025 Yann Charbon
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ *
+ * This file is part of DiceAudio, released under the GNU GPL v3.
+ * See the LICENSE file in the repository root for details.
+*@
+
+@inject DiceAudioService DAService
+
+<style>
+.scenario-type-popover {
+    z-index: 5000 !important;
+}
+</style>
+
+@* ── Self-contained modal overlay ── *@
+@if (_visible)
+{
+<div style="position:fixed; top:0; left:0; width:100%; height:100%;
+            background:rgba(0,0,0,0.75); z-index:3000; overflow-y:auto;"
+     @onclick="Close">
+    <div style="background:#2D2D2D; margin:4% auto; max-width:780px; border-radius:12px;
+                padding:24px; position:relative;"
+         @onclick:stopPropagation="true">
+
+        <MudText Typo="Typo.h6" Style="margin-bottom:16px;">Edit scenario item</MudText>
+
+        @* ── Name & type ── *@
+        <MudStack Row="false" Spacing="2" Style="margin-bottom:12px; max-width:500px;">
+            <MudTextField @bind-Value="ScenarioItem.Name" Label="Item name" Variant="Variant.Outlined" />
+            <MudSelect T="DAScenarioItem.ItemType"
+                   Label="Type"
+                   Variant="Variant.Outlined"
+                   Value="ScenarioItem.Type"
+                   ValueChanged="OnTypeChanged"
+                   PopoverClass="scenario-type-popover">
+            <MudSelectItem T="DAScenarioItem.ItemType" Value="@DAScenarioItem.ItemType.Single">
+                Single audio
+            </MudSelectItem>
+            <MudSelectItem T="DAScenarioItem.ItemType" Value="@DAScenarioItem.ItemType.Playlist">
+                Playlist
+            </MudSelectItem>
+            <MudSelectItem T="DAScenarioItem.ItemType" Value="@DAScenarioItem.ItemType.RandomWithCriteria">
+                Random with criteria
+            </MudSelectItem>
+            <MudSelectItem T="DAScenarioItem.ItemType" Value="@DAScenarioItem.ItemType.Scene">
+                Scene (layered soundscape)
+            </MudSelectItem>
+        </MudSelect>
+            @if (ScenarioItem.Type != DAScenarioItem.ItemType.Scene)
+            {
+                <MudStack Row="true">
+                    <MudCheckBox @bind-Value="ScenarioItem.PlayInLoop" Label="Loop" />
+                    @if (ScenarioItem.Type == DAScenarioItem.ItemType.Playlist)
+                    {
+                        <MudCheckBox @bind-Value="ScenarioItem.PlaylistOrderIsRandom" Label="Randomize playlist" />
+                    }
+                </MudStack>
+            }
+        </MudStack>
+
+        @* ── Scene ── *@
+        @if (ScenarioItem.Type == DAScenarioItem.ItemType.Scene)
+        {
+            <MudDivider Style="margin-bottom:10px;" />
+            <MudText Typo="Typo.subtitle2" Style="margin-bottom:8px;">Scene</MudText>
+            <MudStack Row="true" AlignItems="AlignItems.Center" Style="gap:10px; flex-wrap:wrap;">
+                @if (ScenarioItem.Scene != null)
+                {
+                    <MudText Typo="Typo.body2">
+                        <b>@ScenarioItem.Scene.Name</b>
+                        <span style="color:grey;"> — @(ScenarioItem.Scene.Mode == DASceneMode.Contextual ? "contextual" : "linear"), @ScenarioItem.Scene.CueSummary</span>
+                    </MudText>
+                }
+                <MudButton Variant="Variant.Filled" Color="Color.Secondary"
+                           StartIcon="@Icons.Material.Filled.Theaters"
+                           OnClick="EditScene">
+                    @(ScenarioItem.Scene == null ? "Create scene…" : "Edit scene…")
+                </MudButton>
+                @if (DAService.Scenes.Count > 0)
+                {
+                    <MudButton Variant="Variant.Outlined" Color="Color.Secondary"
+                               StartIcon="@Icons.Material.Filled.LibraryBooks"
+                               OnClick="() => _scenePicker?.Show()">
+                        Pick from catalogue…
+                    </MudButton>
+                }
+            </MudStack>
+
+            @* Which context this item enters when it starts playing. *@
+            @if (ScenarioItem.Scene is { Mode: DASceneMode.Contextual } contextualScene
+                 && contextualScene.Contexts.Count > 0)
+            {
+                <MudSelect T="Guid?" Value="contextualScene.DefaultContextId"
+                           ValueChanged="OnDefaultContextChanged"
+                           Label="Default context (plays on start)"
+                           Variant="Variant.Outlined" Margin="Margin.Dense"
+                           Style="max-width:300px; margin-top:8px;">
+                    <MudSelectItem T="Guid?" Value="@((Guid?)null)">
+                        First context (@contextualScene.Contexts[0].Name)
+                    </MudSelectItem>
+                    @foreach (var ctx in contextualScene.Contexts)
+                    {
+                        <MudSelectItem T="Guid?" Value="@((Guid?)ctx.Id)">@ctx.Name</MudSelectItem>
+                    }
+                </MudSelect>
+            }
+        }
+
+        @* ── Random criteria ── *@
+        @if (ScenarioItem.Type == DAScenarioItem.ItemType.RandomWithCriteria)
+        {
+            <MudDivider Style="margin-bottom:10px;" />
+            <MudText Typo="Typo.subtitle2" Style="margin-bottom:8px;">Random play criteria</MudText>
+            <ScenarioItemCriteriaEditor ScenarioItem="ScenarioItem" UpdateParent="StateHasChanged" />
+        }
+
+        @* ── Ambience playlist ── *@
+        @if (ScenarioItem.Type != DAScenarioItem.ItemType.RandomWithCriteria
+          && ScenarioItem.Type != DAScenarioItem.ItemType.Scene)
+        {
+            <MudDivider Style="margin:12px 0;" />
+            <MudStack Row="true" AlignItems="AlignItems.Center" Style="margin-bottom:8px; gap:8px;">
+                <MudText Typo="Typo.subtitle2">Ambience / music</MudText>
+                @if (ScenarioItem.Type == DAScenarioItem.ItemType.Single && ScenarioItem.PlaylistTracks.Count > 1)
+                {
+                    <MudText Typo="Typo.caption" Style="color:orange;">(Single: only first track plays)</MudText>
+                }
+                <MudText Typo="Typo.caption" Style="color:grey;">(click a track to edit volume / clip)</MudText>
+            </MudStack>
+
+            <div style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; min-height:28px;">
+                @foreach (var usage in ScenarioItem.PlaylistTracks)
+                {
+                    var captured = usage;
+                    var item = DAService.AudioItems.FirstOrDefault(a => a.Id == captured.AudioItemId);
+                    if (item != null)
+                    {
+                        <MudChip T="string" OnClick="() => OpenClipEditor(captured, item)"
+                                 OnClose="() => ScenarioItem.PlaylistTracks.Remove(captured)"
+                                 Icon="@(captured.IsClipped ? Icons.Material.Filled.ContentCut : null)"
+                                 Color="Color.Primary">@item.Name</MudChip>
+                    }
+                }
+                @if (!ScenarioItem.PlaylistTracks.Any())
+                { <span style="color:grey; font-size:small; align-self:center;">None selected</span> }
+            </div>
+
+            <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.MusicNote"
+                       OnClick="() => _ambiencePicker?.Show(new[] { AudioKind.Music, AudioKind.Ambiance })">Pick music files…</MudButton>
+        }
+
+        @* ── Sound effects (scenes carry their own SFX layers) ── *@
+        @if (ScenarioItem.Type != DAScenarioItem.ItemType.Scene)
+        {
+        <MudDivider Style="margin:12px 0;" />
+        <MudText Typo="Typo.subtitle2" Style="margin-bottom:8px;">Sound effects</MudText>
+
+        <div style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; min-height:28px;">
+            @foreach (var usage in ScenarioItem.SoundEffects)
+            {
+                var captured = usage;
+                var item = DAService.AudioItems.FirstOrDefault(a => a.Id == captured.AudioItemId);
+                if (item != null)
+                {
+                    <MudChip T="string" OnClick="() => OpenClipEditor(captured, item)"
+                             OnClose="() => ScenarioItem.SoundEffects.Remove(captured)"
+                             Icon="@(captured.IsClipped ? Icons.Material.Filled.ContentCut : null)"
+                             Color="Color.Secondary">@item.Name</MudChip>
+                }
+            }
+            @if (!ScenarioItem.SoundEffects.Any())
+            { <span style="color:grey; font-size:small; align-self:center;">None selected</span> }
+        </div>
+
+        <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.VolumeUp"
+                   OnClick="() => _soundsPicker?.Show(new[] { AudioKind.SoundEffect })">Pick sound effects…</MudButton>
+        }
+
+        @* ── Footer ── *@
+        <div style="display:flex; align-items:center; gap:8px; margin-top:24px; flex-wrap:wrap;">
+            <MudTextField @bind-Value="_presetCategory" Label="Preset category" Placeholder="e.g. Town, Combat"
+                          Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width:180px;" />
+            <MudButton Variant="Variant.Outlined" Color="Color.Secondary"
+                       StartIcon="@Icons.Material.Filled.BookmarkAdd"
+                       OnClick="SaveAsPreset">Save as preset</MudButton>
+            @if (_presetSaved)
+            {
+                <MudText Typo="Typo.caption" Style="color:#4caf50;">Saved to catalogue ✓</MudText>
+            }
+            <div style="flex:1;"></div>
+            <MudButton Variant="Variant.Filled" Color="Color.Success"
+                       StartIcon="@Icons.Material.Filled.Check"
+                       OnClick="Close">OK</MudButton>
+        </div>
+    </div>
+</div>
+}
+
+@* Always-rendered picker modals (z-index 5000 > editor 3000) *@
+<AudioPicker @ref="_ambiencePicker" Title="Pick ambience / music" SelectionList="ScenarioItem.PlaylistTracks" OnClosed="StateHasChanged" />
+<AudioPicker @ref="_soundsPicker" Title="Pick sound effects" SelectionList="ScenarioItem.SoundEffects" OnClosed="StateHasChanged" />
+<AudioClipEditor @ref="_clipEditor" OnClosed="StateHasChanged" />
+<SceneEditor @ref="_sceneEditor" OnClose="StateHasChanged" />
+<ScenePicker @ref="_scenePicker" OnPicked="CopySceneFromCatalogue" OnClosed="StateHasChanged" />
+
+@code {
+    [Parameter] public DAScenarioItem ScenarioItem { get; set; } = default!;
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private bool _visible;
+    private AudioPicker? _ambiencePicker;
+    private AudioPicker? _soundsPicker;
+    private AudioClipEditor? _clipEditor;
+    private SceneEditor? _sceneEditor;
+    private ScenePicker? _scenePicker;
+
+    void OpenClipEditor(DAAudioUsage usage, DAAudioItem item) => _clipEditor?.Show(usage, item);
+
+    void EditScene()
+    {
+        ScenarioItem.Scene ??= new DAScene { Name = ScenarioItem.Name };
+        _sceneEditor?.Show(ScenarioItem.Scene);
+    }
+
+    void OnDefaultContextChanged(Guid? contextId)
+    {
+        if (ScenarioItem.Scene != null)
+            ScenarioItem.Scene.DefaultContextId = contextId;
+        StateHasChanged();
+    }
+
+    void CopySceneFromCatalogue(DAScene source)
+    {
+        // Deep copy with fresh ids so later edits never affect the catalogue scene.
+        ScenarioItem.Scene = DAPreset.FromScene(source).ToScene();
+        StateHasChanged();
+    }
+
+    private string _presetCategory = "";
+    private bool _presetSaved;
+
+    void OnTypeChanged(DAScenarioItem.ItemType newType)
+    {
+        ScenarioItem.Type = newType;
+        StateHasChanged();
+    }
+
+    async Task SaveAsPreset()
+    {
+        DAService.Presets.Add(DAPreset.FromScenarioItem(ScenarioItem, _presetCategory.Trim()));
+        await DAService.SavePresetsAsync();
+        _presetSaved = true;
+        StateHasChanged();
+    }
+
+    public void Show()
+    {
+        _visible = true;
+        _presetSaved = false;
+        StateHasChanged();
+    }
+
+    async Task Close()
+    {
+        _visible = false;
+        StateHasChanged();          // hide overlay immediately
+        await OnClose.InvokeAsync();
+    }
+}

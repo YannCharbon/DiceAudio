@@ -1,0 +1,121 @@
+@*
+ * DiceAudio - Copyright (C) 2025 Yann Charbon
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ *
+ * This file is part of DiceAudio, released under the GNU GPL v3.
+ * See the LICENSE file in the repository root for details.
+*@
+
+@page "/scenarios/{groupId}"
+@inject DiceAudioService DAService
+@inject DAPlaybackCoordinator Coordinator
+@inject NavigationManager NavManager
+
+<style>
+    .scm-header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+        margin-bottom: 16px;
+    }
+</style>
+
+@if (_group == null)
+{
+    <p style="padding:20px; color:grey;">Scenario group not found.</p>
+    <MudButton StartIcon="@Icons.Material.Filled.ArrowBack"
+               OnClick='() => NavManager.NavigateTo("scenarios")'>Back to scenarios</MudButton>
+}
+else
+{
+    <div class="scm-header">
+        <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Filled.ArrowBack"
+                   OnClick='() => NavManager.NavigateTo("scenarios")'>Back</MudButton>
+
+        <MudTextField @bind-Value="_group.Name" Label="Group name"
+                      Variant="Variant.Outlined" Margin="Margin.Dense"
+                      Style="max-width:380px;" />
+
+        <MudButton Variant="Variant.Filled" Color="Color.Success"
+                   StartIcon="@Icons.Material.Filled.Save"
+                   OnClick="Save">Save</MudButton>
+
+        <MudButton Variant="Variant.Filled" Color="Color.Error"
+                   StartIcon="@Icons.Material.Filled.Delete"
+                   OnClick="DeleteGroup">Delete group</MudButton>
+    </div>
+
+    @foreach (var scenario in _group.Scenarios)
+    {
+        <ScenarioCreator Scenario="scenario"
+                         DAService="DAService"
+                         MoveScenario="MoveScenario"
+                         DeleteScenario="DeleteScenario" />
+    }
+
+    <div style="padding:10px;">
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.Add"
+                   OnClick="AddScenario">Add scenario</MudButton>
+    </div>
+}
+
+@code {
+    [Parameter] public string GroupId { get; set; } = "";
+
+    private DAScenarioGroup? _group;
+
+    protected override void OnInitialized()
+    {
+        if (Guid.TryParse(GroupId, out var id))
+            _group = DAService.ScenarioGroups.FirstOrDefault(g => g.Id == id);
+    }
+
+    async Task Save()
+    {
+        await DAService.SaveScenarioGroupsAsync();
+    }
+
+    void AddScenario()
+    {
+        _group?.Scenarios.Add(new DAScenario());
+        StateHasChanged();
+    }
+
+    void MoveScenario(DAScenario scenario, bool upNotDown)
+    {
+        if (_group == null) return;
+        int idx = _group.Scenarios.IndexOf(scenario);
+        if (idx < 0) return;
+        if (upNotDown && idx > 0)
+        {
+            _group.Scenarios.RemoveAt(idx);
+            _group.Scenarios.Insert(idx - 1, scenario);
+        }
+        else if (!upNotDown && idx < _group.Scenarios.Count - 1)
+        {
+            _group.Scenarios.RemoveAt(idx);
+            _group.Scenarios.Insert(idx + 1, scenario);
+        }
+        StateHasChanged();
+    }
+
+    void DeleteScenario(DAScenario scenario)
+    {
+        Coordinator.RemoveScenarioPlayer(scenario);   // stop + dispose its audio
+        _group?.Scenarios.Remove(scenario);
+        StateHasChanged();
+    }
+
+    void DeleteGroup()
+    {
+        if (_group != null)
+        {
+            foreach (var scenario in _group.Scenarios)
+                Coordinator.RemoveScenarioPlayer(scenario);
+            DAService.ScenarioGroups.Remove(_group);
+        }
+        NavManager.NavigateTo("scenarios");
+    }
+}

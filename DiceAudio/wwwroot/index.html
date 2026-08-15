@@ -27,20 +27,35 @@
         html {
             zoom: 1.0; /* Adjust zoom level */
         }
+
+        /* The window never scrolls; <main id="mainscroll"> (below the fixed
+           app bar) is the scroller, so the scrollbar starts under the bar and
+           the bar spans the full window width. */
+        html, body {
+            height: 100%;
+            overflow: hidden;
+        }
     </style>
 
     <script>
+        function getScroller() {
+            return document.getElementById('mainscroll') || document.scrollingElement;
+        }
+
         function scrollToBottom() {
-            window.scrollTo(0, document.body.scrollHeight);
+            var s = getScroller();
+            s.scrollTo(0, s.scrollHeight);
         }
 
         function scrollToElementById(id) {
             var element = document.getElementById(id);
             if (element) {
-                var elementPosition = element.getBoundingClientRect().top + window.scrollY;
+                var s = getScroller();
+                var elementPosition = element.getBoundingClientRect().top
+                    - s.getBoundingClientRect().top + s.scrollTop;
                 var offsetPosition = elementPosition - 150;
 
-                window.scrollTo({
+                s.scrollTo({
                     top: offsetPosition,
                     behavior: 'smooth'
                 });
@@ -71,6 +86,9 @@
 
     <!--MudBlazor-->
     <script src="_content/MudBlazor/MudBlazor.min.js"></script>
+
+    <!--Waveform rendering for the clip editor-->
+    <script src="js/waveform.js"></script>
 
 </body>
 

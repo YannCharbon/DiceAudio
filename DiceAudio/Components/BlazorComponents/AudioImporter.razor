@@ -1,0 +1,276 @@
+@*
+ * DiceAudio - Copyright (C) 2025 Yann Charbon
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ *
+ * This file is part of DiceAudio, released under the GNU GPL v3.
+ * See the LICENSE file in the repository root for details.
+*@
+
+@inject DiceAudioService DAService
+
+@* ── Import existing audio files from disk into the library.
+     Single files go to the chosen target folder; folder imports recreate the
+     folder structure (with subfolders) as virtual folders. Optionally reads
+     tags embedded in the files' Genre metadata (TRPG-Audio-Manager format). ── *@
+@if (_visible)
+{
+<div style="position:fixed; top:0; left:0; width:100%; height:100%;
+            background:rgba(0,0,0,0.82); z-index:3000; overflow-y:auto;"
+     @onclick="Hide">
+    <div style="background:#232338; margin:4% auto; max-width:860px; border-radius:12px;
+                padding:20px 24px; position:relative;"
+         @onclick:stopPropagation="true">
+
+        <MudText Typo="Typo.h6" Style="margin-bottom:4px;">Import audio from disk</MudText>
+        <MudText Typo="Typo.body2" Style="color:grey; margin-bottom:14px;">
+            Files are copied into the DiceAudio library — the originals are not touched.
+        </MudText>
+
+        @* ── Source pickers ── *@
+        <MudStack Row="true" Style="gap:8px; flex-wrap:wrap; margin-bottom:12px;">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.AudioFile"
+                       Disabled="_importing" OnClick="AddFiles">Add files…</MudButton>
+            @if (DAImportHelper.CanPickFolder)
+            {
+                <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.DriveFolderUpload"
+                           Disabled="_importing" OnClick="AddFolder">Add folder (with subfolders)…</MudButton>
+            }
+            @if (_entries.Count > 0)
+            {
+                <MudButton Variant="Variant.Outlined" Color="Color.Default"
+                           StartIcon="@Icons.Material.Filled.Delete"
+                           Disabled="_importing" OnClick="() => _entries.Clear()">Clear list</MudButton>
+            }
+        </MudStack>
+
+        @* ── Options ── *@
+        <div style="background:#1a1a2e; border-radius:8px; padding:10px 14px; margin-bottom:12px;">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Style="gap:16px; flex-wrap:wrap;">
+                <MudCheckBox T="bool" @bind-Value="_importTags" Dense="true"
+                             Label="Import tags from file metadata (Genre)" />
+                <MudCheckBox T="bool" @bind-Value="_detectKind" Dense="true" Disabled="!_importTags"
+                             Label="Detect kind from tags (Music / Ambience / SFX)" />
+                <MudSelect T="AudioKind" @bind-Value="_kind" Label="Default kind" Variant="Variant.Outlined"
+                           Margin="Margin.Dense" Style="max-width:170px;">
+                    <MudSelectItem T="AudioKind" Value="AudioKind.Music">Music</MudSelectItem>
+                    <MudSelectItem T="AudioKind" Value="AudioKind.Ambiance">Ambiance</MudSelectItem>
+                    <MudSelectItem T="AudioKind" Value="AudioKind.SoundEffect">Sound effect</MudSelectItem>
+                </MudSelect>
+                <MudTextField T="string" @bind-Value="_targetFolder" Label="Folder for single files"
+                              Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width:200px;" />
+            </MudStack>
+            <MudText Typo="Typo.caption" Style="color:grey;">
+                Folder imports keep their own structure; the "Folder for single files" only applies to files added individually.
+            </MudText>
+        </div>
+
+        @* ── Staged files ── *@
+        @if (_entries.Count == 0)
+        {
+            <p style="color:grey; padding:14px;">No files staged yet.</p>
+        }
+        else
+        {
+            <div style="max-height:320px; overflow-y:auto; border:1px solid #2a2a4a; border-radius:8px;">
+                @foreach (var entry in _entries)
+                {
+                    var e = entry;
+                    <div style="display:flex; align-items:center; gap:10px; padding:6px 12px;
+                                border-bottom:1px solid #1e1e32; font-size:13px;">
+                        <MudIcon Icon="@Icons.Material.Filled.AudioFile" Style="font-size:16px; color:#23a6d5;" />
+                        <span style="flex:1; word-break:break-all;">@e.Name</span>
+                        <span style="color:grey; font-size:12px;">@e.DisplayFolder</span>
+                        <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small"
+                                       Disabled="_importing" OnClick="() => _entries.Remove(e)" />
+                    </div>
+                }
+            </div>
+            <MudText Typo="Typo.caption" Style="color:grey;">@_entries.Count file(s) staged</MudText>
+        }
+
+        @* ── Import ── *@
+        <MudStack Row="true" AlignItems="AlignItems.Center" Style="gap:12px; margin-top:14px; flex-wrap:wrap;">
+            <MudButton Variant="Variant.Filled" Color="Color.Success"
+                       StartIcon="@Icons.Material.Filled.Download"
+                       Disabled="_importing || _entries.Count == 0"
+                       OnClick="ImportAsync">Import @(_entries.Count > 0 ? $"{_entries.Count} file(s)" : "")</MudButton>
+            @if (_importing)
+            {
+                <MudProgressLinear Value="@_progress" Max="@Math.Max(1, _progressTotal)" Style="flex:1; min-width:160px;" />
+                <MudText Typo="Typo.caption">@_progress / @_progressTotal</MudText>
+            }
+            @if (!string.IsNullOrEmpty(_resultMessage))
+            {
+                <MudText Typo="Typo.body2" Style="color:#90caf9;">@_resultMessage</MudText>
+            }
+            <div style="flex:1;"></div>
+            <MudButton Variant="Variant.Text" Disabled="_importing" OnClick="Hide">Close</MudButton>
+        </MudStack>
+    </div>
+</div>
+}
+
+@code {
+    [Parameter] public EventCallback OnImported { get; set; }
+
+    private sealed class ImportEntry
+    {
+        public string FullPath = "";
+        public string Name = "";
+        public string[] FolderSegments = Array.Empty<string>();   // empty = use target folder
+        public string DisplayFolder = "";
+    }
+
+    private bool _visible;
+    private readonly List<ImportEntry> _entries = new();
+
+    private bool _importTags = true;
+    private bool _detectKind = true;
+    private AudioKind _kind = AudioKind.Music;
+    private string _targetFolder = "Imported";
+
+    private bool _importing;
+    private int _progress;
+    private int _progressTotal;
+    private string _resultMessage = "";
+
+    public void Show()
+    {
+        _visible = true;
+        _resultMessage = "";
+        StateHasChanged();
+    }
+
+    async Task Hide()
+    {
+        if (_importing) return;
+        _visible = false;
+        StateHasChanged();
+        await OnImported.InvokeAsync();
+    }
+
+    // ── Staging ─────────────────────────────────────────────────────────────
+
+    async Task AddFiles()
+    {
+        var files = await DAImportHelper.PickFilesAsync();
+        foreach (var path in files)
+            Stage(path, Array.Empty<string>(), "(target folder)");
+        StateHasChanged();
+    }
+
+    async Task AddFolder()
+    {
+        var root = await DAImportHelper.PickFolderAsync();
+        if (root == null) return;
+
+        var rootName = new DirectoryInfo(root).Name;
+        foreach (var path in Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories)
+                                      .Where(DAImportHelper.IsAudioFile)
+                                      .OrderBy(p => p))
+        {
+            var relativeDir = Path.GetRelativePath(root, Path.GetDirectoryName(path)!);
+            var segments = relativeDir == "."
+                ? new[] { rootName }
+                : new[] { rootName }.Concat(relativeDir.Split(Path.DirectorySeparatorChar)).ToArray();
+            Stage(path, segments, string.Join(" / ", segments));
+        }
+        StateHasChanged();
+    }
+
+    void Stage(string path, string[] segments, string displayFolder)
+    {
+        if (_entries.Any(e => e.FullPath.Equals(path, StringComparison.OrdinalIgnoreCase))) return;
+        _entries.Add(new ImportEntry
+        {
+            FullPath = path,
+            Name = Path.GetFileName(path),
+            FolderSegments = segments,
+            DisplayFolder = displayFolder,
+        });
+    }
+
+    // ── Import ──────────────────────────────────────────────────────────────
+
+    async Task ImportAsync()
+    {
+        _importing = true;
+        _progress = 0;
+        _progressTotal = _entries.Count;
+        _resultMessage = "";
+        int imported = 0, skipped = 0, failed = 0;
+
+        var audioDir = Path.Combine(FileSystem.AppDataDirectory, "Audio");
+        Directory.CreateDirectory(audioDir);
+
+        foreach (var entry in _entries)
+        {
+            try
+            {
+                var itemName = Path.GetFileNameWithoutExtension(entry.Name);
+                var folder = entry.FolderSegments.Length > 0
+                    ? DAService.GetOrCreateFolderPath(entry.FolderSegments)
+                    : DAService.GetOrCreateFolderPath(new[] { _targetFolder.Trim() });
+                var folderName = folder?.Name ?? ".";
+
+                // Skip files already in the library (same name in the same folder).
+                if (DAService.AudioItems.Any(a => a.Name == itemName && a.Folder.Name == folderName))
+                {
+                    skipped++;
+                    continue;
+                }
+
+                var destName = DAImportHelper.GetUniqueLibraryFileName(entry.Name);
+                var sourcePath = entry.FullPath;
+                await Task.Run(() => File.Copy(sourcePath, Path.Combine(audioDir, destName)));
+
+                var tagNames = _importTags
+                    ? DAImportHelper.ReadEmbeddedTagNames(sourcePath)
+                    : new List<string>();
+
+                var item = new DAAudioItem(itemName)
+                {
+                    LocalFileName = destName,
+                    IsLocallyAvailable = true,
+                    Kind = ResolveKind(tagNames),
+                    Tags = tagNames.Select(t => new DAAudioTag(t)).ToList(),
+                    Folder = folder ?? new DAVirtualAudioFolder("."),
+                };
+                DAService.AudioItems.Add(item);
+                imported++;
+            }
+            catch
+            {
+                failed++;
+            }
+
+            _progress++;
+            if (_progress % 5 == 0 || _progress == _progressTotal)
+                await InvokeAsync(StateHasChanged);
+        }
+
+        await DAService.SaveAudioItemListAsync();
+        await DAService.SaveAudioVirtualFoldersAsync();
+
+        _entries.Clear();
+        _importing = false;
+        _resultMessage = $"Imported {imported} file(s)" +
+                         (skipped > 0 ? $", skipped {skipped} duplicate(s)" : "") +
+                         (failed > 0 ? $", {failed} failed" : "") + ".";
+        await InvokeAsync(StateHasChanged);
+    }
+
+    // Tags written by the old TRPG-Audio-Manager include a "Type" category tag
+    // (Music / Ambience / SFX) — use it to pick the right audio kind.
+    AudioKind ResolveKind(List<string> tagNames)
+    {
+        if (!_importTags || !_detectKind) return _kind;
+        if (tagNames.Any(t => t.Equals("SFX", StringComparison.OrdinalIgnoreCase))) return AudioKind.SoundEffect;
+        if (tagNames.Any(t => t.Equals("Ambience", StringComparison.OrdinalIgnoreCase) ||
+                              t.Equals("Ambiance", StringComparison.OrdinalIgnoreCase))) return AudioKind.Ambiance;
+        if (tagNames.Any(t => t.Equals("Music", StringComparison.OrdinalIgnoreCase))) return AudioKind.Music;
+        return _kind;
+    }
+}

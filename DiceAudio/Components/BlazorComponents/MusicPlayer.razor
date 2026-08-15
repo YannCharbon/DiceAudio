@@ -1,95 +1,188 @@
-﻿@using Plugin.Maui.Audio
+@*
+ * DiceAudio - Copyright (C) 2025 Yann Charbon
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ *
+ * This file is part of DiceAudio, released under the GNU GPL v3.
+ * See the LICENSE file in the repository root for details.
+*@
+
+@using Plugin.Maui.Audio
 @inject IAudioManager AudioManager
+@implements IDisposable
 
-<div class="row">
-    <div class="col col-md-2">
-        @if (IsPlaying)
-        {
-            <span class="oi oi-media-pause command-button command-button-pause" @onclick="pauseAudio"></span>
-        }
-        else
-        {
-            <span class="oi oi-media-play command-button command-button-play" @onclick="playAudio"></span>
-        }
+@* ── Animated gradient banner ── *@
+<div class="@(_isPlaying ? "da-playing-banner" : "da-stopped-banner")">
+    @if (_isPlaying)
+    {
+        <div style="font-size:11px; font-weight:bold; word-break:break-word;
+                    text-shadow:0 1px 3px rgba(0,0,0,0.8); text-align:center;">
+            @AudioItem.Name
+        </div>
+    }
+    else
+    {
+        <MudIcon Icon="@Icons.Material.Filled.MusicNote" Style="font-size:32px; opacity:0.35;" />
+    }
+</div>
+
+@if (!string.IsNullOrEmpty(_errorMessage))
+{
+    <div style="color:#ff6b6b; font-size:10px; padding:2px 4px; word-break:break-all;" title="@_errorMessage">
+        ⚠ @_errorMessage
     </div>
-    <div class="col col-sm-2">
-        <span class="oi oi-media-stop command-button command-button-stop" @onclick="stopAudio"></span>
+}
+
+@* ── Transport controls ── *@
+<div style="display:flex; justify-content:center; margin:6px 0;">
+    @if (_isPlaying)
+    {
+        <div class="da-cmd-btn" @onclick="PauseAudio" title="Pause">
+            <MudIcon Icon="@Icons.Material.Filled.Pause" Class="da-pause" />
+        </div>
+    }
+    else
+    {
+        <div class="da-cmd-btn" @onclick="PlayAudio" title="Play">
+            <MudIcon Icon="@Icons.Material.Filled.PlayArrow" Class="da-play" />
+        </div>
+    }
+    <div class="da-cmd-btn" @onclick="StopAudio" title="Stop">
+        <MudIcon Icon="@Icons.Material.Filled.Stop" Class="da-stop" />
     </div>
 </div>
 
-<div>
-    Duration: @TimeSpan.FromSeconds(_duration).ToString("hh\\:mm\\:ss")
+@* ── Duration + progress ── *@
+<div style="font-size:11px; color:grey; margin:2px 0;">
+    Duration: @TimeSpan.FromSeconds(_duration).ToString(@"hh\:mm\:ss")
 </div>
-
-<MudSlider @bind-Value="@playbackTimeSeconds" Min="0" Max="(int)_duration" @onchange="ProgressionChangedByUser" />
+<MudSlider T="int" @bind-Value="_position"
+           Min="0" Max="@((int)Math.Max(_duration, 1))"
+           @onchange="SeekFromSlider"
+           Style="margin:0;" />
 
 @code {
     [Parameter] public DAAudioItem AudioItem { get; set; } = default!;
 
-    private IAudioPlayer? _audioPlayer;
-    private bool IsPlaying = false;
-    private double _duration = 0;
+    private DAAudioPlayer? _player;
+    private bool            _isPlaying;
+    private double          _duration;
+    private int             _position;
+    private string          _errorMessage = string.Empty;
 
-    private System.Timers.Timer tickerTimer1 = new System.Timers.Timer(1000);
-    private int playbackTimeSeconds = 0;
+    private readonly System.Timers.Timer _ticker = new(500);
+
+    // Cache probed durations by file name so re-renders (and other cards showing
+    // the same file) don't re-scan the mp3.
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, double> _durationCache = new();
+    private DAAudioItem? _probedItem;
 
     protected override void OnInitialized()
     {
-        tickerTimer1.Elapsed += async (sender, args) =>
+        _ticker.Elapsed += async (_, _) =>
         {
-            if (_audioPlayer != null && _audioPlayer.IsPlaying)
+            if (_player?.IsPlaying == true)
             {
-                playbackTimeSeconds = (int)_audioPlayer.CurrentPosition;
+                _position = (int)_player.CurrentPosition;
                 await InvokeAsync(StateHasChanged);
             }
         };
     }
 
-    void playAudio()
+    protected override void OnParametersSet()
     {
-        stopAudio();
-
-        var filePath = Path.Combine(FileSystem.AppDataDirectory, "Audio", AudioItem.LocalFileName);
-        var tmpFilePath = Path.Combine(FileSystem.CacheDirectory, AudioItem.Name);
-        File.Copy(filePath, tmpFilePath, true);
-
-        var fileStream = File.OpenRead(tmpFilePath);
-        _audioPlayer = AudioManager.CreatePlayer(fileStream);
-        _audioPlayer.Volume = 1.0;
-        _duration = _audioPlayer.Duration;
-
-        _audioPlayer.Play();
-        tickerTimer1.Start();
-        IsPlaying = true;
-    }
-
-    void pauseAudio()
-    {
-        _audioPlayer?.Pause();
-        tickerTimer1.Stop();
-        IsPlaying = false;
-    }
-
-    void stopAudio()
-    {
-        _audioPlayer?.Stop();
-        tickerTimer1.Stop();
-        IsPlaying = false;
-        playbackTimeSeconds = 0;
-        StateHasChanged();
-    }
-
-    void ProgressionChangedByUser(object val)
-    {
-        if (_audioPlayer != null)
+        // Show the real track length before the user presses play.
+        if (!ReferenceEquals(AudioItem, _probedItem))
         {
-            _audioPlayer.Seek(playbackTimeSeconds);
+            _probedItem = AudioItem;
+            if (_player == null) _duration = 0;
+            _ = ProbeDurationAsync();
         }
+    }
+
+    private async Task ProbeDurationAsync()
+    {
+        var item = AudioItem;
+        if (item == null || !item.IsLocallyAvailable || string.IsNullOrEmpty(item.LocalFileName)) return;
+
+        if (_durationCache.TryGetValue(item.LocalFileName, out var cached))
+        {
+            if (_player == null) { _duration = cached; await InvokeAsync(StateHasChanged); }
+            return;
+        }
+
+        var probed = await Task.Run(() =>
+        {
+            var cachePath = DAScenarioItemPlayer.GetPlayableCachePath(item.LocalFileName);
+            return cachePath == null ? 0 : DAAudioPlayer.ProbeDurationSeconds(cachePath, AudioManager);
+        });
+
+        if (probed > 0) _durationCache[item.LocalFileName] = probed;
+
+        // Don't clobber a live player's duration, and only apply if we're still on the same item.
+        if (_player == null && ReferenceEquals(item, AudioItem))
+        {
+            _duration = probed;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    void PlayAudio()
+    {
+        _errorMessage = string.Empty;
+        StopAudio();
+        try
+        {
+            var cachePath = DAScenarioItemPlayer.GetPlayableCachePath(AudioItem.LocalFileName);
+            if (cachePath == null) { _errorMessage = "File not found on disk"; return; }
+
+            _player = DAAudioPlayer.Create(cachePath, AudioManager);
+            _player.Volume = 1.0;
+            _player.PlaybackEnded += OnPlaybackEnded;
+            _duration = _player.Duration;
+            _player.Play();
+            _ticker.Start();
+            _isPlaying = true;
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = ex.GetType().Name + ": " + ex.Message;
+            _isPlaying = false;
+        }
+    }
+
+    void PauseAudio()
+    {
+        _player?.Pause();
+        _ticker.Stop();
+        _isPlaying = false;
+    }
+
+    void StopAudio()
+    {
+        _ticker.Stop();
+        if (_player != null)
+        {
+            _player.PlaybackEnded -= OnPlaybackEnded;
+            _player.Stop();
+            _player.Dispose();
+            _player = null;
+        }
+        _isPlaying = false;
+        _position = 0;
+    }
+
+    void SeekFromSlider(object _) => _player?.Seek(_position);
+
+    void OnPlaybackEnded(object? s, EventArgs e)
+    {
+        _ticker.Stop();
+        _isPlaying = false;
+        InvokeAsync(StateHasChanged);
     }
 
     public void Dispose()
     {
-        stopAudio();
-        _audioPlayer?.Dispose();
+        _ticker.Dispose();
+        StopAudio();
     }
 }

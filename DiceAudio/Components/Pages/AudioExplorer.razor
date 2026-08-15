@@ -1,5 +1,14 @@
-﻿@page "/audioexplorer"
+﻿@*
+ * DiceAudio - Copyright (C) 2025 Yann Charbon
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ *
+ * This file is part of DiceAudio, released under the GNU GPL v3.
+ * See the LICENSE file in the repository root for details.
+*@
+
+@page "/audioexplorer"
 @inject DiceAudioService DAService
+@inject IDialogService DialogService
 
 <style>
   /*  cards ---------------------------------------------------------- */
@@ -24,16 +33,49 @@
 <GenericModal TContent="AudioTagsPicker"  @ref="AudioTagsPickerModalRef"  OnClose="HandleAudioTagsPickerModalClose"><AudioTagsPicker AudioItem="_currentAudioItemForTagsPicker" /></GenericModal>
 <GenericModal TContent="MoveToFolder"     @ref="MoveToFolderModalRef"     OnClose="HandleMoveToFolderModalClose"><MoveToFolder AudioItem="_currentAudioItemForMoveToFolder" /></GenericModal>
 <GenericModal TContent="AudioTagsEditor"  @ref="AudioTagsEditorModalRef"  OnClose="HandleAudioTagsEditorModalClose"><AudioTagsEditor /></GenericModal>
+<AudioImporter @ref="_audioImporterRef" OnImported="OnImportFinished" />
 
 <!-- ─────────────────────  TOOLBAR  ───────────────────── -->
 <h3>Explorer</h3>
-<MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Download"
-           OnClick="@(() => AudioDownloaderModalRef.Show())">Audio downloader</MudButton>
-<MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Label"
-           OnClick="@(() => AudioTagsEditorModalRef.Show())">Add/Remove tags</MudButton>
+<MudStack Row="true" Style="gap:8px; flex-wrap:wrap; margin-bottom:10px;">
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Download"
+               OnClick="@(() => AudioDownloaderModalRef.Show())">Audio downloader</MudButton>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.DriveFolderUpload"
+               OnClick="@(() => _audioImporterRef?.Show())">Import from disk</MudButton>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Label"
+               OnClick="@(() => AudioTagsEditorModalRef.Show())">Add/Remove tags</MudButton>
+</MudStack>
+
+<!-- ─────────────────────  SEARCH  ───────────────────── -->
+<MudTextField T="string" Value="_search" ValueChanged="OnSearchChanged"
+              Placeholder="Search all audio items by name…" Variant="Variant.Outlined" Margin="Margin.Dense"
+              Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+              Immediate="true" DebounceInterval="300" Clearable="true" Style="max-width:420px; margin-bottom:10px;" />
+
+<!-- ─────────────────────  KIND FILTER  ───────────────────── -->
+<MudStack Row="true" Style="gap:6px; margin-bottom:10px;">
+    <MudButton Variant="@(_kindFilter == null ? Variant.Filled : Variant.Outlined)"
+               Color="Color.Default" Size="Size.Small"
+               OnClick="() => _kindFilter = null">All</MudButton>
+    @foreach (var kind in new[] { AudioKind.Music, AudioKind.Ambiance, AudioKind.SoundEffect })
+    {
+        var k = kind;
+        <MudButton Variant="@(_kindFilter == k ? Variant.Filled : Variant.Outlined)"
+                   Color="@k.Color()" Size="Size.Small"
+                   StartIcon="@k.Icon()"
+                   OnClick="() => _kindFilter = k">@k.Label()</MudButton>
+    }
+</MudStack>
 
 <!-- ────────────────────  NAV + BREADCRUMBS ─────────────────── -->
-@if (_breadcrumb.Any())
+@if (!string.IsNullOrWhiteSpace(_search))
+{
+    <div class="nav-bar">
+        <MudIcon Icon="@Icons.Material.Filled.Search" Style="color:#90caf9;" />
+        <span style="color:#90caf9;">Search results for "<b>@_search</b>" across all folders</span>
+    </div>
+}
+else if (_breadcrumb.Any())
 {
     <div class="nav-bar">
         <MudIconButton Icon="@Icons.Material.Filled.ArrowBack"
@@ -68,35 +110,68 @@
 
 <!-- ─────────────────────  MAIN GRID  ───────────────────── -->
 <div class="row">
-    @foreach (var folder in (IsRoot ? _folderTree : _currentFolder.VirtualAudioSubFolders))
+    @if (string.IsNullOrWhiteSpace(_search))
     {
-        @RenderFolderCard(folder)
+        @foreach (var folder in (IsRoot ? _folderTree : _currentFolder.VirtualAudioSubFolders))
+        {
+            @RenderFolderCard(folder)
+        }
     }
-    
-    @foreach (var item in DAService.AudioItems.Where(ai => ai.Folder.Name == _currentFolder.Name))
+
+    @{
+        var matches = GetFilteredItems().ToList();
+        var shown = matches.Count > MaxRenderedItems ? matches.Take(MaxRenderedItems).ToList() : matches;
+    }
+    @foreach (var item in shown)
     {
         <div class="col col-md-3">
             <div class="audio-item-top"
                     style="background-image:linear-gradient(-45deg,rgba(238,119,82,.2),rgba(231,60,126,.6),
-                                                        rgba(35,166,213,.9),rgba(35,166,171,1));">
+                                                        rgba(35,166,213,.9),rgba(35,166,171,1));
+                           position:relative;">
+                @* Kind badge top-right — click cycles Music → Ambiance → SFX *@
+                <div style="position:absolute; top:6px; right:6px;">
+                    <MudIconButton Icon="@item.Kind.Icon()"
+                                   Color="@item.Kind.Color()"
+                                   Size="Size.Small"
+                                   Title="@($"{item.Kind.Label()} — click to change kind")"
+                                   OnClick="@(() => ToggleKind(item))"
+                                   Style="background:rgba(0,0,0,0.5); border-radius:50%;" />
+                </div>
             </div>
             <div class="audio-item-bottom">
                 <b>@item.Name</b>
-                <MudStack Row="true" Style="padding:5px;">
+                <MudStack Row="true" Style="padding:5px; flex-wrap:wrap;">
                     @foreach (var tag in item.Tags)
                     { <MudItem><span class="audio-item-tag">@tag.Name</span></MudItem> }
                 </MudStack>
-                <MudStack Row="true">
+                <MudStack Row="true" Style="flex-wrap:wrap;">
                     <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Tag"
                                 OnClick="@(() => OpenAudioTagsPicker(item))">Edit tags</MudButton>
                     <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Folder"
                                 OnClick="@(() => OpenMoveToFolderPicker(item))">Move</MudButton>
+                    <MudButton Variant="Variant.Filled" Color="Color.Error" StartIcon="@Icons.Material.Filled.Delete"
+                                OnClick="@(() => DeleteAudioItem(item))">Delete</MudButton>
                 </MudStack>
-                <MusicPlayer AudioItem="@item"></MusicPlayer>
+                @if (item.IsLocallyAvailable)
+                {
+                    <MusicPlayer AudioItem="@item"></MusicPlayer>
+                }
+                else
+                {
+                    <div style="color:grey; font-size:x-small; padding:4px 0;">Not downloaded yet</div>
+                }
             </div>
         </div>
     }
 </div>
+
+@if (matches.Count > shown.Count)
+{
+    <MudText Typo="Typo.body2" Style="color:#f0a03c; margin:8px 2px;">
+        Showing the first @shown.Count of @matches.Count items — narrow down with the search box or kind filter to see the rest.
+    </MudText>
+}
 
 @code {
     // modal refs
@@ -265,9 +340,33 @@
     void OpenMoveToFolderPicker(DAAudioItem item){ _currentAudioItemForMoveToFolder = item; MoveToFolderModalRef?.Show(); }
 
     // modal callbacks
-    void HandleAudioDownloaderModalClose(bool _) { }
+    private AudioImporter? _audioImporterRef;
+
+    void OnImportFinished()
+    {
+        BuildFolderTree();       // imported folders must appear in the tree
+        StateHasChanged();
+    }
+
+    async Task HandleAudioDownloaderModalClose(bool _)
+    {
+        // A download may have added items and created a folder; make the tree
+        // reflect them (the downloader already persisted the changes).
+        BuildFolderTree();
+        await InvokeAsync(StateHasChanged);
+    }
+
     void HandleAudioTagsPickerModalClose(bool _) { }
-    void HandleMoveToFolderModalClose(bool _) { }
+
+    async Task HandleMoveToFolderModalClose(bool _)
+    {
+        // Persist the new folder assignment (and any folder created in the
+        // picker) so a move survives an app restart.
+        await DAService.SaveAudioItemListAsync();
+        await DAService.SaveAudioVirtualFoldersAsync();
+        BuildFolderTree();
+        await InvokeAsync(StateHasChanged);
+    }
     void HandleAudioTagsEditorModalClose(bool saved) { if (saved) DAAudioTagsProvider.Instance.SaveTags(); }
 
     // folder rename state
@@ -299,6 +398,79 @@
     {
         _renamingFolder = null;
         _renameValue = string.Empty;
+    }
+
+    // kind filter + text search
+    private AudioKind? _kindFilter = null;
+    private string _search = "";
+
+    // Cap how many cards are rendered at once. Each card mounts a MusicPlayer, so
+    // rendering an unbounded result set froze the UI on large libraries.
+    private const int MaxRenderedItems = 200;
+
+    void OnSearchChanged(string value)
+    {
+        _search = value ?? "";
+        StateHasChanged();
+    }
+
+    IEnumerable<DAAudioItem> GetFilteredItems()
+    {
+        IEnumerable<DAAudioItem> items = DAService.AudioItems;
+
+        if (!string.IsNullOrWhiteSpace(_search))
+            // Search is global across every folder; folder view is bypassed.
+            items = items.Where(ai => ai.Name.Contains(_search.Trim(), StringComparison.OrdinalIgnoreCase));
+        else
+            items = items.Where(ai => ai.Folder.Name == _currentFolder.Name);
+
+        if (_kindFilter is AudioKind k) items = items.Where(ai => ai.Kind == k);
+        return items;
+    }
+
+    async Task DeleteAudioItem(DAAudioItem item)
+    {
+        bool? confirm = await DialogService.ShowMessageBox(
+            "Delete audio item",
+            $"Delete \"{item.Name}\" from the library? The downloaded file is also removed from disk.",
+            yesText: "Delete", cancelText: "Cancel");
+        if (confirm != true) return;
+
+        DAService.AudioItems.Remove(item);
+
+        // Remove the underlying file only if no other item still references it.
+        if (!string.IsNullOrEmpty(item.LocalFileName) &&
+            !DAService.AudioItems.Any(a => string.Equals(a.LocalFileName, item.LocalFileName, StringComparison.OrdinalIgnoreCase)))
+        {
+            TryDeleteAudioFile(item.LocalFileName);
+        }
+
+        await DAService.SaveAudioItemListAsync();
+        StateHasChanged();
+    }
+
+    static void TryDeleteAudioFile(string localFileName)
+    {
+        try
+        {
+            var src = Path.Combine(FileSystem.AppDataDirectory, "Audio", localFileName);
+            if (File.Exists(src)) File.Delete(src);
+            // Best-effort cache cleanup; may be locked if a player holds it (ignored).
+            var cache = Path.Combine(FileSystem.CacheDirectory, localFileName);
+            if (File.Exists(cache)) File.Delete(cache);
+        }
+        catch (Exception ex) { Debug.WriteLine($"Delete audio file failed: {ex.Message}"); }
+    }
+
+    void ToggleKind(DAAudioItem item)
+    {
+        // Cycle Music → Ambiance → SoundEffect → Music
+        item.Kind = item.Kind switch
+        {
+            AudioKind.Music => AudioKind.Ambiance,
+            AudioKind.Ambiance => AudioKind.SoundEffect,
+            _ => AudioKind.Music,
+        };
     }
 
     // misc

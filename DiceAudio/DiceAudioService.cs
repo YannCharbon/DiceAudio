@@ -12,6 +12,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Diagnostics;
 using System.Reflection;
 using System.Net.Http.Headers;
@@ -29,15 +30,56 @@ namespace DiceAudio
 
         readonly IAudioManager audioManager;
 
+        /// <summary>
+        /// Enums are written by name rather than by their position, so adding a
+        /// value to any of them later cannot silently reinterpret the files that
+        /// are already on disk. Reading still accepts the numbers written by the
+        /// versions before this.
+        /// </summary>
+        private static readonly JsonSerializerOptions WriteOptions = new()
+        {
+            WriteIndented = true,
+            DefaultBufferSize = 15 * 1024 * 1024, // 15MiB
+            Converters = { new JsonStringEnumConverter() }
+        };
+
+        private static readonly JsonSerializerOptions ReadOptions = new()
+        {
+            DefaultBufferSize = 15 * 1024 * 1024, // 15MiB
+            Converters = { new JsonStringEnumConverter() }
+        };
+
+        /// <summary>
+        /// The lists are loaded in the background when the service is created.
+        /// Until that is done, saving would write an empty list over a file that
+        /// has not been read yet, so every save waits for this.
+        /// </summary>
+        private readonly Task _loaded;
+
+        public bool IsLoaded => _loaded.IsCompleted;
+
         public DiceAudioService(IAudioManager audioManager)
         {
             this.audioManager = audioManager;
 
-            LoadAudioItemListAsync();
-            LoadAudioVirtualFoldersListAsync();
-            LoadScenarioGroupsAsync();
-            LoadScenesAsync();
-            LoadPresetsAsync();
+            _loaded = LoadEverythingAsync();
+        }
+
+        private async Task LoadEverythingAsync()
+        {
+            try
+            {
+                await LoadAudioItemListAsync();
+                await LoadAudioVirtualFoldersListAsync();
+                await LoadScenarioGroupsAsync();
+                await LoadScenesAsync();
+                await LoadPresetsAsync();
+            }
+            catch (Exception ex)
+            {
+                // Starting with empty lists is better than not starting at all.
+                Debug.WriteLine($"Initial load failed: {ex.Message}");
+            }
         }
 
         public void AddAudioItem(DAAudioItem audioItem)
@@ -85,12 +127,9 @@ namespace DiceAudio
 
         public async Task SaveAudioItemListAsync()
         {
-            var options = new JsonSerializerOptions
-            {
-                WriteIndented = true,
-                DefaultBufferSize = 15 * 1024 * 1024 // 15MiB
-            };
-            string json = JsonSerializer.Serialize(AudioItems, options);
+            await _loaded;
+
+            string json = JsonSerializer.Serialize(AudioItems, WriteOptions);
             await File.WriteAllTextAsync(audioItemsFilePath, json);
             Debug.WriteLine($"Write file to {audioItemsFilePath}");
         }
@@ -101,11 +140,7 @@ namespace DiceAudio
             {
                 Debug.WriteLine("File exists");
                 string json = await File.ReadAllTextAsync(audioItemsFilePath);
-                var options = new JsonSerializerOptions
-                {
-                    DefaultBufferSize = 15 * 1024 * 1024 // 15MiB
-                };
-                var temp = JsonSerializer.Deserialize<List<DAAudioItem>>(json, options);
+                var temp = JsonSerializer.Deserialize<List<DAAudioItem>>(json, ReadOptions);
                 if (temp != null)
                 {
                     AudioItems = temp;
@@ -117,12 +152,9 @@ namespace DiceAudio
 
         public async Task SaveAudioVirtualFoldersAsync()
         {
-            var options = new JsonSerializerOptions
-            {
-                WriteIndented = true,
-                DefaultBufferSize = 15 * 1024 * 1024 // 15MiB
-            };
-            string json = JsonSerializer.Serialize(AudioVirtualFolders, options);
+            await _loaded;
+
+            string json = JsonSerializer.Serialize(AudioVirtualFolders, WriteOptions);
             await File.WriteAllTextAsync(audioVirtualFoldersFilePath, json);
             Debug.WriteLine($"Write file to {audioVirtualFoldersFilePath}");
         }
@@ -133,11 +165,7 @@ namespace DiceAudio
             {
                 Debug.WriteLine("File exists");
                 string json = await File.ReadAllTextAsync(audioVirtualFoldersFilePath);
-                var options = new JsonSerializerOptions
-                {
-                    DefaultBufferSize = 15 * 1024 * 1024 // 15MiB
-                };
-                var temp = JsonSerializer.Deserialize<List<DAVirtualAudioFolder>>(json, options);
+                var temp = JsonSerializer.Deserialize<List<DAVirtualAudioFolder>>(json, ReadOptions);
                 if (temp != null)
                 {
                     AudioVirtualFolders = temp;
@@ -149,12 +177,9 @@ namespace DiceAudio
 
         public async Task SaveScenarioGroupsAsync()
         {
-            var options = new JsonSerializerOptions
-            {
-                WriteIndented = true,
-                DefaultBufferSize = 15 * 1024 * 1024
-            };
-            string json = JsonSerializer.Serialize(ScenarioGroups, options);
+            await _loaded;
+
+            string json = JsonSerializer.Serialize(ScenarioGroups, WriteOptions);
             await File.WriteAllTextAsync(scenarioGroupsFilePath, json);
             Debug.WriteLine($"Write file to {scenarioGroupsFilePath}");
         }
@@ -166,7 +191,11 @@ namespace DiceAudio
 
         private static string scenesFilePath = Path.Combine(FileSystem.AppDataDirectory, "scenes.json");
 
-        public async Task SaveScenesAsync() => await SaveListAsync(Scenes, scenesFilePath);
+        public async Task SaveScenesAsync()
+        {
+            await _loaded;
+            await SaveListAsync(Scenes, scenesFilePath);
+        }
 
         public async Task LoadScenesAsync()
         {
@@ -175,7 +204,11 @@ namespace DiceAudio
 
         private static string presetsFilePath = Path.Combine(FileSystem.AppDataDirectory, "presets.json");
 
-        public async Task SavePresetsAsync() => await SaveListAsync(Presets, presetsFilePath);
+        public async Task SavePresetsAsync()
+        {
+            await _loaded;
+            await SaveListAsync(Presets, presetsFilePath);
+        }
 
         public async Task LoadPresetsAsync()
         {
@@ -186,12 +219,7 @@ namespace DiceAudio
 
         private static async Task SaveListAsync<T>(List<T> list, string filePath)
         {
-            var options = new JsonSerializerOptions
-            {
-                WriteIndented = true,
-                DefaultBufferSize = 15 * 1024 * 1024
-            };
-            string json = JsonSerializer.Serialize(list, options);
+            string json = JsonSerializer.Serialize(list, WriteOptions);
             await File.WriteAllTextAsync(filePath, json);
             Debug.WriteLine($"Write file to {filePath}");
         }
@@ -202,11 +230,7 @@ namespace DiceAudio
             try
             {
                 string json = await File.ReadAllTextAsync(filePath);
-                var options = new JsonSerializerOptions
-                {
-                    DefaultBufferSize = 15 * 1024 * 1024
-                };
-                return JsonSerializer.Deserialize<List<T>>(json, options);
+                return JsonSerializer.Deserialize<List<T>>(json, ReadOptions);
             }
             catch (Exception ex)
             {

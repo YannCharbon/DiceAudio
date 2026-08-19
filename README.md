@@ -28,7 +28,8 @@ and drive the whole evening from one window instead of juggling media players.
 
 - **The audio library.** Your audio files are organised in folders and tagged in three categories: type
   (music, ambience or sound effect), location and expression. A search covers the whole library, filters
-  narrow it down by type, and the files themselves stay where you put them on your disk.
+  narrow it down by type or by a tag expression such as "ambiance and mysterious and not combat", and
+  the files themselves stay where you put them on your disk.
 - **Importing your audio.** Download from YouTube, SoundCloud and thousands of other sites with the
   built-in downloader: stage several links, choose the destination folder and start. You can also import
   files you already have on your disk.
@@ -95,6 +96,7 @@ Every item keeps its tags, its place in the folders and its playback settings, a
 moved or deleted from its card.
 
 ![The library](docs/img/audio-library.jpg)
+
 
 ### The audio downloader
 

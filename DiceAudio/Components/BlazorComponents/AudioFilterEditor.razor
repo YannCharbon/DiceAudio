@@ -1,0 +1,186 @@
+@*
+ * DiceAudio - Copyright (C) 2025 Yann Charbon
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ *
+ * This file is part of DiceAudio, released under the GNU GPL v3.
+ * See the LICENSE file in the repository root for details.
+*@
+
+<style>
+    .filter-tag-chip {
+        color: black; background: #aaa; border-radius: 3px;
+        padding: 2px 6px; margin: 2px; cursor: pointer; font-size: small;
+    }
+    .filter-tag-chip-selected {
+        color: black; background: #e73c7e; border-radius: 3px;
+        padding: 2px 6px; margin: 2px; cursor: pointer; font-size: small;
+    }
+    .filter-expression {
+        background: #1b1b2b; border: 1px solid #363660; border-radius: 8px;
+        padding: 10px 12px; margin-bottom: 12px;
+    }
+    .filter-expression-text { color: #e2b6ff; font-weight: 600; }
+</style>
+
+<h4 style="margin-bottom:6px;">Filter by tags</h4>
+
+<div class="filter-expression">
+    @if (Filter.IsActive)
+    {
+        <span style="color:grey;">Show all audio items matching:&nbsp;</span>
+        <span class="filter-expression-text">@Filter.Describe()</span>
+    }
+    else
+    {
+        <span style="color:grey;">No filter yet — add a criteria and click tags to build an expression.</span>
+    }
+    @if (MatchCount != null)
+    {
+        <div style="color:#8fa3b8; font-size:small; margin-top:6px;">
+            @MatchCount() item(s) match in @(Filter.IncludeSubfolders ? "this folder and its subfolders" : "this folder")
+        </div>
+    }
+</div>
+
+<MudCheckBox T="bool" Value="Filter.IncludeSubfolders"
+             ValueChanged="@((bool v) => { Filter.IncludeSubfolders = v; UpdateParent?.Invoke(); })"
+             Color="Color.Secondary"
+             Label="Include the subfolders (their matches are shown next to the current folder's items)" />
+
+<div style="margin-top:10px;">
+    @if (Filter.Criterias.Count == 0)
+    {
+        <p style="color:grey;">No criteria added yet.</p>
+    }
+
+    @foreach (var criteria in Filter.Criterias)
+    {
+        <div style="background:#252535; border-radius:8px; padding:10px; margin-bottom:10px;">
+            <MudStack Row="true" Style="margin-bottom:8px;">
+                @if (criteria.EditionModeEnabled)
+                {
+                    <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Success"
+                               StartIcon="@Icons.Material.Filled.Check"
+                               OnClick="() => { criteria.EditionModeEnabled = false; UpdateParent?.Invoke(); }">
+                        Validate
+                    </MudButton>
+                }
+                else
+                {
+                    <MudButton Size="Size.Small" Variant="Variant.Outlined"
+                               StartIcon="@Icons.Material.Filled.Edit"
+                               OnClick="() => criteria.EditionModeEnabled = true">
+                        Edit
+                    </MudButton>
+                }
+                <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Error"
+                           StartIcon="@Icons.Material.Filled.Delete"
+                           OnClick="() => { Filter.Criterias.Remove(criteria); UpdateParent?.Invoke(); }">
+                    Delete
+                </MudButton>
+            </MudStack>
+
+            @if (criteria.EditionModeEnabled)
+            {
+                <MudSelect T="int" Label="Condition" Variant="Variant.Outlined"
+                           Value="@GetCondInt(criteria)"
+                           ValueChanged="@((int v) => { SetCondInt(criteria, v); UpdateParent?.Invoke(); })"
+                           PopoverClass="da-popover-top"
+                           Style="max-width:150px; margin-bottom:8px;">
+                    <MudSelectItem T="int" Value="0">NOT</MudSelectItem>
+                    <MudSelectItem T="int" Value="1">AND</MudSelectItem>
+                    <MudSelectItem T="int" Value="2">OR</MudSelectItem>
+                </MudSelect>
+
+                <MudText Typo="Typo.caption" Style="color:grey;">Type</MudText>
+                <div style="display:flex; flex-wrap:wrap; padding:4px 0 8px 0;">
+                    @foreach (var tag in DAAudioTag.GetAllCategoryTypeTags())
+                    {
+                        <span class="@CriteriaTagClass(criteria, tag)"
+                              @onclick="() => ToggleCriteriaTag(criteria, tag)">@tag</span>
+                    }
+                </div>
+                <MudText Typo="Typo.caption" Style="color:grey;">Location</MudText>
+                <div style="display:flex; flex-wrap:wrap; padding:4px 0 8px 0;">
+                    @foreach (var tag in DAAudioTag.GetAllCategoryLocationTags())
+                    {
+                        <span class="@CriteriaTagClass(criteria, tag)"
+                              @onclick="() => ToggleCriteriaTag(criteria, tag)">@tag</span>
+                    }
+                </div>
+                <MudText Typo="Typo.caption" Style="color:grey;">Expression</MudText>
+                <div style="display:flex; flex-wrap:wrap; padding:4px 0 4px 0;">
+                    @foreach (var tag in DAAudioTag.GetAllCategoryExpressionTags())
+                    {
+                        <span class="@CriteriaTagClass(criteria, tag)"
+                              @onclick="() => ToggleCriteriaTag(criteria, tag)">@tag</span>
+                    }
+                </div>
+            }
+            else
+            {
+                <MudStack Row="true" AlignItems="AlignItems.Center">
+                    <MudChip T="string" Color="Color.Warning">@criteria.Condition.ToString()</MudChip>
+                    @foreach (var tag in criteria.TagNames)
+                    {
+                        <span class="filter-tag-chip-selected">@tag</span>
+                    }
+                </MudStack>
+            }
+        </div>
+    }
+
+    <MudStack Row="true" Style="gap:8px; flex-wrap:wrap;">
+        <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Add"
+                   OnClick="AddCriteria">Add criteria</MudButton>
+        @if (Filter.Criterias.Count > 0)
+        {
+            <MudButton Variant="Variant.Outlined" Color="Color.Error"
+                       StartIcon="@Icons.Material.Filled.FilterAltOff"
+                       OnClick="ClearAll">Clear filter</MudButton>
+        }
+    </MudStack>
+</div>
+
+@code {
+    [Parameter] public DAAudioFilter Filter { get; set; } = new();
+
+    /// <summary>How many items the filter currently matches — evaluated by the page.</summary>
+    [Parameter] public Func<int>? MatchCount { get; set; }
+
+    [Parameter] public Action? UpdateParent { get; set; }
+
+    static int GetCondInt(DARandomPlayCriteria c) => (int)c.Condition;
+    static void SetCondInt(DARandomPlayCriteria c, int v) => c.Condition = (DARandomPlayCriteria.ConditionType)v;
+
+    void AddCriteria()
+    {
+        // AND first: "show me the items carrying these tags" is what a filter is
+        // asked for most of the time; NOT and OR are one click away.
+        Filter.Criterias.Add(new DARandomPlayCriteria
+        {
+            Condition = DARandomPlayCriteria.ConditionType.And
+        });
+        UpdateParent?.Invoke();
+    }
+
+    void ClearAll()
+    {
+        Filter.Criterias.Clear();
+        UpdateParent?.Invoke();
+    }
+
+    void ToggleCriteriaTag(DARandomPlayCriteria criteria, string tag)
+    {
+        if (criteria.TagNames.Contains(tag))
+            criteria.TagNames.Remove(tag);
+        else
+            criteria.TagNames.Add(tag);
+
+        // Live feedback: the expression line and the match count follow every click.
+        UpdateParent?.Invoke();
+    }
+
+    string CriteriaTagClass(DARandomPlayCriteria criteria, string tag) =>
+        criteria.TagNames.Contains(tag) ? "filter-tag-chip-selected" : "filter-tag-chip";
+}

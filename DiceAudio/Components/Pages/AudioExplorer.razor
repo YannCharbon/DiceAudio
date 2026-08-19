@@ -26,6 +26,15 @@
   .crumb-link  { cursor:pointer; color:#90caf9; }
   .crumb-link:hover { text-decoration:underline; }
   .crumb-sep   { color:#888; }
+
+  /*  tag filter ---------------------------------------------------- */
+  .filter-bar  { display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+                 background:#1b1b2b; border:1px solid #363660; border-radius:8px;
+                 padding:6px 10px; margin-bottom:10px; }
+  .filter-expr { color:#e2b6ff; font-weight:600; }
+  /*  folder an item was hoisted from while filtering across subfolders  */
+  .hoisted-folder { display:inline-flex; align-items:center; gap:3px;
+                    color:#8fa3b8; font-size:x-small; margin-top:2px; }
 </style>
 
 <!-- ─────────────────────  MODALS  ───────────────────── -->
@@ -33,6 +42,7 @@
 <GenericModal TContent="AudioTagsPicker"  @ref="AudioTagsPickerModalRef"  OnClose="HandleAudioTagsPickerModalClose"><AudioTagsPicker AudioItem="_currentAudioItemForTagsPicker" /></GenericModal>
 <GenericModal TContent="MoveToFolder"     @ref="MoveToFolderModalRef"     OnClose="HandleMoveToFolderModalClose"><MoveToFolder AudioItem="_currentAudioItemForMoveToFolder" /></GenericModal>
 <GenericModal TContent="AudioTagsEditor"  @ref="AudioTagsEditorModalRef"  OnClose="HandleAudioTagsEditorModalClose"><AudioTagsEditor /></GenericModal>
+<GenericModal TContent="AudioFilterEditor" @ref="AudioFilterModalRef"    OnClose="HandleAudioFilterModalClose"><AudioFilterEditor Filter="_filter" MatchCount="CountFilterMatches" UpdateParent="StateHasChanged" /></GenericModal>
 <AudioImporter @ref="_audioImporterRef" OnImported="OnImportFinished" />
 
 <!-- ─────────────────────  TOOLBAR  ───────────────────── -->
@@ -44,6 +54,10 @@
                OnClick="@(() => _audioImporterRef?.Show())">Import from disk</MudButton>
     <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Label"
                OnClick="@(() => AudioTagsEditorModalRef.Show())">Add/Remove tags</MudButton>
+    <MudButton Variant="@(_filter.IsActive ? Variant.Filled : Variant.Outlined)"
+               Color="@(_filter.IsActive ? Color.Secondary : Color.Primary)"
+               StartIcon="@Icons.Material.Filled.FilterAlt"
+               OnClick="@(() => AudioFilterModalRef?.Show())">Filter by tags</MudButton>
 </MudStack>
 
 <!-- ─────────────────────  SEARCH  ───────────────────── -->
@@ -66,6 +80,25 @@
                    OnClick="() => _kindFilter = k">@k.Label()</MudButton>
     }
 </MudStack>
+
+<!-- ─────────────────────  ACTIVE TAG FILTER  ───────────────────── -->
+@if (_filter.IsActive)
+{
+    <div class="filter-bar">
+        <MudIcon Icon="@Icons.Material.Filled.FilterAlt" Style="color:#e2b6ff;" />
+        <span style="color:grey;">Showing items matching</span>
+        <span class="filter-expr">@_filter.Describe()</span>
+        <span style="color:grey;">
+            @(!string.IsNullOrWhiteSpace(_search)
+                ? "across all folders (search is on)"
+                : _filter.IncludeSubfolders ? "in this folder and its subfolders" : "in this folder only")
+        </span>
+        <MudButton Size="Size.Small" Variant="Variant.Text" StartIcon="@Icons.Material.Filled.Edit"
+                   OnClick="@(() => AudioFilterModalRef?.Show())">Edit</MudButton>
+        <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Error"
+                   StartIcon="@Icons.Material.Filled.Close" OnClick="ClearFilter">Clear</MudButton>
+    </div>
+}
 
 <!-- ────────────────────  NAV + BREADCRUMBS ─────────────────── -->
 @if (!string.IsNullOrWhiteSpace(_search))
@@ -141,6 +174,12 @@ else if (_breadcrumb.Any())
             </div>
             <div class="audio-item-bottom">
                 <b>@item.Name</b>
+                @if (ShowsHoistedItems && item.Folder.Name != _currentFolder.Name)
+                {
+                    <div class="hoisted-folder">
+                        <MudIcon Icon="@Icons.Material.Filled.Folder" Size="Size.Small" />@item.Folder.Name
+                    </div>
+                }
                 <MudStack Row="true" Style="padding:5px; flex-wrap:wrap;">
                     @foreach (var tag in item.Tags)
                     { <MudItem><span class="audio-item-tag">@tag.Name</span></MudItem> }
@@ -169,7 +208,7 @@ else if (_breadcrumb.Any())
 @if (matches.Count > shown.Count)
 {
     <MudText Typo="Typo.body2" Style="color:#f0a03c; margin:8px 2px;">
-        Showing the first @shown.Count of @matches.Count items — narrow down with the search box or kind filter to see the rest.
+        Showing the first @shown.Count of @matches.Count items — narrow down with the search box, the kind filter or the tag filter to see the rest.
     </MudText>
 }
 
@@ -179,6 +218,7 @@ else if (_breadcrumb.Any())
     private GenericModal<AudioTagsPicker>?  AudioTagsPickerModalRef;
     private GenericModal<AudioTagsEditor>?  AudioTagsEditorModalRef;
     private GenericModal<MoveToFolder>?     MoveToFolderModalRef;
+    private GenericModal<AudioFilterEditor>? AudioFilterModalRef;
 
     // tree + navigation state
     private readonly DAVirtualAudioFolder _rootFolder = new() { Name = "." };
@@ -369,6 +409,8 @@ else if (_breadcrumb.Any())
     }
     void HandleAudioTagsEditorModalClose(bool saved) { if (saved) DAAudioTagsProvider.Instance.SaveTags(); }
 
+    void HandleAudioFilterModalClose(bool _) => StateHasChanged();   // view state only, nothing to persist
+
     // folder rename state
     private DAVirtualAudioFolder? _renamingFolder = null;
     private string _renameValue = string.Empty;
@@ -414,6 +456,48 @@ else if (_breadcrumb.Any())
         StateHasChanged();
     }
 
+    // tag filter (view state, not persisted)
+    private readonly DAAudioFilter _filter = new();
+
+    /// <summary>
+    /// True while matches from the sub-folders are shown next to the current
+    /// folder's own items: the filter is on, set to reach into sub-folders, and
+    /// the global search is not already flattening everything.
+    /// </summary>
+    private bool ShowsHoistedItems =>
+        _filter.IsActive && _filter.IncludeSubfolders && string.IsNullOrWhiteSpace(_search);
+
+    void ClearFilter()
+    {
+        _filter.Criterias.Clear();
+        StateHasChanged();
+    }
+
+    /// <summary>The current folder plus, when the filter asks for it, every folder below it.</summary>
+    HashSet<string> CurrentScopeFolderNames()
+    {
+        var names = new HashSet<string> { _currentFolder.Name };
+        if (!_filter.IncludeSubfolders) return names;
+
+        // At the root the whole tree is below us; deeper, only the current branch.
+        foreach (var folder in IsRoot ? _folderTree : _currentFolder.VirtualAudioSubFolders)
+            AddBranch(folder, names);
+        return names;
+
+        static void AddBranch(DAVirtualAudioFolder folder, HashSet<string> acc)
+        {
+            acc.Add(folder.Name);
+            foreach (var sub in folder.VirtualAudioSubFolders) AddBranch(sub, acc);
+        }
+    }
+
+    /// <summary>Live match count for the filter modal, over the scope it targets.</summary>
+    int CountFilterMatches()
+    {
+        var scope = CurrentScopeFolderNames();
+        return _filter.Apply(DAService.AudioItems.Where(ai => scope.Contains(ai.Folder.Name))).Count();
+    }
+
     IEnumerable<DAAudioItem> GetFilteredItems()
     {
         IEnumerable<DAAudioItem> items = DAService.AudioItems;
@@ -421,10 +505,18 @@ else if (_breadcrumb.Any())
         if (!string.IsNullOrWhiteSpace(_search))
             // Search is global across every folder; folder view is bypassed.
             items = items.Where(ai => ai.Name.Contains(_search.Trim(), StringComparison.OrdinalIgnoreCase));
+        else if (ShowsHoistedItems)
+        {
+            // Filtering across sub-folders: every match below the current folder
+            // is temporarily hoisted to this level (each card says where it lives).
+            var scope = CurrentScopeFolderNames();
+            items = items.Where(ai => scope.Contains(ai.Folder.Name));
+        }
         else
             items = items.Where(ai => ai.Folder.Name == _currentFolder.Name);
 
         if (_kindFilter is AudioKind k) items = items.Where(ai => ai.Kind == k);
+        if (_filter.IsActive) items = _filter.Apply(items);
         return items;
     }
 

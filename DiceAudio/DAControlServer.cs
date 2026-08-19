@@ -137,6 +137,7 @@ namespace DiceAudio
                     ("POST", "/api/prev") => await OnNextPrevAsync(Parse(body), -1),
                     ("POST", "/api/scene/advance") => await OnSceneAdvanceAsync(Parse(body)),
                     ("POST", "/api/scene/goto") => await OnSceneGotoAsync(Parse(body)),
+                    ("POST", "/api/volume") => await OnVolumeAsync(Parse(body)),
                     _ => null,
                 };
 
@@ -177,13 +178,16 @@ namespace DiceAudio
             response.Close();
         }
 
-        private sealed record ControlRequest(Guid? ScenarioId, Guid? ItemId, int? StepIndex);
+        private sealed record ControlRequest(Guid? ScenarioId, Guid? ItemId, int? StepIndex,
+                                             double? Volume, bool? Muted);
+
+        private static readonly ControlRequest EmptyRequest = new(null, null, null, null, null);
 
         private static ControlRequest Parse(string body)
         {
-            if (string.IsNullOrWhiteSpace(body)) return new ControlRequest(null, null, null);
-            try { return JsonSerializer.Deserialize<ControlRequest>(body, JsonOptions) ?? new ControlRequest(null, null, null); }
-            catch { return new ControlRequest(null, null, null); }
+            if (string.IsNullOrWhiteSpace(body)) return EmptyRequest;
+            try { return JsonSerializer.Deserialize<ControlRequest>(body, JsonOptions) ?? EmptyRequest; }
+            catch { return EmptyRequest; }
         }
 
         // ── Lookups ──────────────────────────────────────────────────────────
@@ -215,11 +219,21 @@ namespace DiceAudio
                         sceneStepIndex = scenePlayer?.CurrentCueIndex,
                         sceneStepName = scenePlayer?.CurrentCueName,
                         sceneStepCount = scenePlayer?.CueCount,
+                        volume = p.Volume,
+                        muted = p.IsMuted,
                     };
                 })
                 .ToList();
 
-            return new { active };
+            // Master level of every scenario that has a player, playing or not, so a
+            // widget can show the right volume for its selection before pressing play.
+            // Scenarios never played yet have no player and are simply absent (the
+            // widget then shows the default, 100 %).
+            var volumes = _coordinator.ScenarioPlayers
+                .Select(p => new { scenarioId = p.Scenario.Id, volume = p.Volume, muted = p.IsMuted })
+                .ToList();
+
+            return new { active, volumes };
         }
 
         private object BuildGroups()
@@ -331,6 +345,45 @@ namespace DiceAudio
             // entered directly at any context).
             await MainThread.InvokeOnMainThreadAsync(() => player.GoToSceneCueAsync(req.StepIndex.Value));
             return new { ok = true };
+        }
+
+        /// <summary>
+        /// Sets the master level of one scenario (or of every active one when no
+        /// scenarioId is given). Volume and mute are independent: sending only
+        /// "muted" keeps the stored level, so unmuting restores it.
+        /// </summary>
+        private async Task<object> OnVolumeAsync(ControlRequest req)
+        {
+            if (req.Volume == null && req.Muted == null)
+                return new { ok = false, error = "volume or muted required" };
+
+            DAScenarioPlayer? player = null;
+            await MainThread.InvokeOnMainThreadAsync(() =>
+            {
+                var scenario = FindScenario(req.ScenarioId);
+                if (scenario != null)
+                {
+                    player = _coordinator.GetOrCreateScenarioPlayer(scenario);
+                    Apply(player);
+                }
+                else
+                {
+                    foreach (var p in _coordinator.ActiveScenarioPlayers) Apply(p);
+                }
+
+                void Apply(DAScenarioPlayer p)
+                {
+                    if (req.Volume != null) p.Volume = req.Volume.Value;
+                    if (req.Muted != null) p.IsMuted = req.Muted.Value;
+                }
+            });
+
+            if (req.ScenarioId != null && player == null)
+                return new { ok = false, error = "scenario not found" };
+
+            return player == null
+                ? new { ok = true, volume = (double?)null, muted = (bool?)null }
+                : new { ok = true, volume = (double?)player.Volume, muted = (bool?)player.IsMuted };
         }
 
         private async Task<(DAScenarioItemPlayer? player, string? error)> GetSceneItemPlayerAsync(ControlRequest req)

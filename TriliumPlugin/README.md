@@ -122,25 +122,75 @@ DiceAudioWidgetHTML
 DiceAudioWidgetJS.frontend
 ```
 
+## Layout
+
+The widget is a fixed 2×2 grid — wide rather than tall, so it sits between two
+paragraphs without eating the note:
+
+```text
+┌────────────────────────┬─────────────────────────────┐
+│ icon + scenario        │ player · volume · status    │
+├────────────────────────┼─────────────────────────────┤
+│ item                   │ scene steps / contexts      │
+└────────────────────────┴─────────────────────────────┘
+```
+
+Nothing ever moves between cells. The left column is a single cell holding both
+dropdowns in a fixed-gap stack, so a cue row that wraps onto a second line never
+pushes them apart; cue chips wrap centred and nothing scrolls. Below ~500 px of
+note width the grid collapses to one column, in the same reading order.
+
+Scenarios are listed flat — the group level is not shown, since a scenario name
+is what identifies a selection during play.
+
+When the selected item is the one playing, the whole widget background runs the
+same sliding gradient the app shows behind a playing scenario item — same
+keyframes, same 3 s cadence, at about a third of the opacity so it stays quiet
+inside a note. The play button becomes a pause button at the same moment, and
+loses its highlight so it weighs no more than stop. Both stop when the item
+stops, or when you select something else. The animation is disabled (the tint
+stays) under `prefers-reduced-motion`.
+
+The palette follows the Trilium theme: the widget measures the brightness of the
+note background at mount time and picks its light or dark token set accordingly.
+
+## Volume
+
+The speaker + slider next to the transport drive the **master level of the
+selected scenario** through `POST /api/volume`. Clicking the speaker mutes and
+unmutes while remembering the level; the icon turns red and the track greys out
+while muted.
+
+The level is a bus gain applied on top of everything that scenario plays —
+tracks, scene layers and one-shots — so it scales playback without touching the
+per-usage volumes stored in the scenario, and fades and crossfades keep working
+unchanged. It lives for the app session and is *not* saved to disk.
+
+While you drag, the widget stops accepting the polled value for 1.5 s so the
+server cannot fight the slider; otherwise it always shows the app's real level
+(including changes made by another widget pointing at the same scenario).
+
 ## Widget state persistence
 
-Each widget instance remembers its selected scenario item across note refreshes
-and Trilium restarts (stored in `localStorage`).
-
-The saved state also shows the selection's **scenario group / scenario** names on
-a summary line under the dropdown.
+Each widget instance remembers its selected scenario and item across note
+refreshes and Trilium restarts (stored in `localStorage`).
 
 ## Scene items
 
-Scene items are marked with a 🎬 in the item dropdown. The widget adapts its
-controls to the scene's driving model:
+The widget adapts its controls to the scene's driving model, shown in the
+bottom-right cell:
 
-- **Linear scenes** — a step dropdown plus an **⏭ Step** button. Advancing (or
-  picking a step) walks through the ordered steps. Play starts at step 1.
-- **Contextual scenes** — a row of **context buttons**, one per named state
-  (e.g. *fireplace*, *crowded*, *brawl*). Click one to crossfade the whole scene
-  into that state; the currently active context is highlighted. Play (▶) starts
-  the scene in its configured **default context**.
+- **Linear scenes** — numbered step chips plus an **advance** button. Picking a
+  chip jumps to that step; advancing walks through them in order and steps
+  already passed are dimmed. Play starts at step 1.
+- **Contextual scenes** — one chip per named state (e.g. *fireplace*,
+  *crowded*, *brawl*). Click one to crossfade the whole scene into that state;
+  the active context is highlighted. Play (▶) starts the scene in its configured
+  **default context**.
+
+Non-scene items get the now-playing line in that cell instead, so it is never
+empty. Highlighting only follows the *selected* item: when another item is
+playing, the chips stay neutral rather than reporting someone else's state.
 
 The widget learns the model from the `sceneMode` field returned by
 `/api/groups`, so no manual configuration is needed.
@@ -227,6 +277,7 @@ http://localhost:{port}
 | POST | `/api/prev` | `{scenarioId}` | Moves to the previous item. |
 | POST | `/api/scene/advance` | `{scenarioId, itemId}` | Advances a linear scene to the next step (cycles contexts for contextual scenes). |
 | POST | `/api/scene/goto` | `{scenarioId, itemId, stepIndex}` | Jumps to a scene cue: a step (linear) or a context (contextual), by index. |
+| POST | `/api/volume` | `{scenarioId?, volume?, muted?}` | Sets the master level of one scenario, or of every active one when `scenarioId` is omitted. `volume` is `0..1`; `volume` and `muted` are independent, so sending only `muted` keeps the stored level. Replies `{ok, volume, muted}`. |
 
 Scene cue fields:
 
@@ -235,3 +286,11 @@ Scene cue fields:
   scenes, or the context names for contextual scenes).
 - `/api/state` → the active entry carries `sceneMode`, `sceneStepIndex`,
   `sceneStepName`, and `sceneStepCount`, unified across steps and contexts.
+
+Volume fields:
+
+- `/api/state` → each active entry carries `volume` and `muted`, and a top-level
+  `volumes` array reports `{scenarioId, volume, muted}` for **every scenario that
+  has a player**, playing or not — so a widget can show the right level for its
+  selection before pressing play. A scenario never played yet has no player and
+  is simply absent; the widget then shows the default, 100 %.

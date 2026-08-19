@@ -1,4 +1,4 @@
-/*
+﻿/*
  * DiceAudio - Copyright (C) 2025 Yann Charbon
  * SPDX-License-Identifier: GPL-3.0-or-later
  *
@@ -40,6 +40,28 @@ namespace DiceAudio
             set { _volume = Math.Clamp(value, 0.0, 1.0); ApplyVolume(); }
         }
 
+        private DAAudioBus? _bus;
+        /// <summary>
+        /// Optional master fader this player is routed through (the owning
+        /// scenario's bus). <see cref="Volume"/> keeps its own meaning — fades and
+        /// per-usage levels write it — and the bus scales the result.
+        /// </summary>
+        public DAAudioBus? Bus
+        {
+            get => _bus;
+            set
+            {
+                if (ReferenceEquals(_bus, value)) return;
+                if (_bus != null) _bus.GainChanged -= ApplyVolume;
+                _bus = value;
+                if (_bus != null) _bus.GainChanged += ApplyVolume;
+                ApplyVolume();
+            }
+        }
+
+        /// <summary>Level actually handed to the backend: own volume × bus gain.</summary>
+        private float EffectiveVolume => (float)(_volume * (_bus?.Gain ?? 1.0));
+
         // Watches for the clip end while playing (also drives clip looping).
         private System.Timers.Timer? _clipTimer;
 
@@ -57,17 +79,18 @@ namespace DiceAudio
         // ── Factory ──────────────────────────────────────────────────────────
 
         /// <summary>Creates a player from an absolute file path.</summary>
-        public static DAAudioPlayer Create(string filePath, IAudioManager? audioManager = null)
+        public static DAAudioPlayer Create(string filePath, IAudioManager? audioManager = null, DAAudioBus? bus = null)
         {
             var p = new DAAudioPlayer();
             p.Init(filePath, audioManager);
+            p.Bus = bus;
             return p;
         }
 
         /// <summary>Creates a player configured from a per-usage settings object.</summary>
-        public static DAAudioPlayer Create(string filePath, DAAudioUsage usage, IAudioManager? audioManager = null)
+        public static DAAudioPlayer Create(string filePath, DAAudioUsage usage, IAudioManager? audioManager = null, DAAudioBus? bus = null)
         {
-            var p = Create(filePath, audioManager);
+            var p = Create(filePath, audioManager, bus);
             p.Volume = usage.Volume;
             p.Loop = usage.Loop;
             p.ClipStart = usage.ClipStartSeconds;
@@ -113,7 +136,7 @@ namespace DiceAudio
             // (fades, crossfades, layer levels) goes through AudioFileReader.Volume,
             // a per-stream sample multiplier — never ramp WaveOutEvent.Volume.
             try { _waveOut.Volume = 1.0f; } catch { /* not supported on some devices */ }
-            _reader.Volume = (float)_volume;
+            _reader.Volume = EffectiveVolume;
             _waveOut.PlaybackStopped += OnWindowsPlaybackStopped;
 #else
             _maui = audioManager!.CreatePlayer(filePath);
@@ -197,13 +220,13 @@ namespace DiceAudio
 
 #if WINDOWS
             if (_waveOut == null) return;
-            if (_reader != null) _reader.Volume = (float)_volume;
+            if (_reader != null) _reader.Volume = EffectiveVolume;
             _explicitStop = false;
             _waveOut.Play();
             IsPlaying = true;
 #else
             if (_maui == null) return;
-            _maui.Volume = _volume;
+            _maui.Volume = EffectiveVolume;
             // Looping is handled by this class (clip-aware); never by the backend.
             _maui.Play();
             IsPlaying = true;
@@ -240,9 +263,9 @@ namespace DiceAudio
         private void ApplyVolume()
         {
 #if WINDOWS
-            if (_reader != null) _reader.Volume = (float)_volume;
+            if (_reader != null) _reader.Volume = EffectiveVolume;
 #else
-            if (_maui != null) _maui.Volume = _volume;
+            if (_maui != null) _maui.Volume = EffectiveVolume;
 #endif
         }
 
@@ -339,7 +362,7 @@ namespace DiceAudio
                     Thread.Sleep(20);
                     if (_reader == null || _waveOut == null) return;
                     _reader.CurrentTime = TimeSpan.FromSeconds(restartAt);
-                    _reader.Volume = (float)_volume;
+                    _reader.Volume = EffectiveVolume;
                     _waveOut.Init(_reader);
                     _waveOut.Play();
                 });
@@ -371,6 +394,7 @@ namespace DiceAudio
 
         public void Dispose()
         {
+            Bus = null;   // unsubscribes from GainChanged
             _clipTimer?.Dispose();
             _clipTimer = null;
 #if WINDOWS

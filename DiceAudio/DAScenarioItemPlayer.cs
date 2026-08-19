@@ -1,4 +1,4 @@
-/*
+﻿/*
  * DiceAudio - Copyright (C) 2025 Yann Charbon
  * SPDX-License-Identifier: GPL-3.0-or-later
  *
@@ -22,6 +22,8 @@ namespace DiceAudio
         public readonly DAScenarioItem Item;
 
         private DAAudioPlayer? _currentPlayer;
+        /// <summary>Master fader of the owning scenario; applied to every player created here.</summary>
+        private readonly DAAudioBus? _bus;
         private readonly List<DAAudioPlayer?> _soundPlayers = new();
         private List<DAResolvedTrack> _resolvedPlaylist = new();
         private List<DAResolvedTrack> _resolvedSounds = new();
@@ -78,11 +80,13 @@ namespace DiceAudio
             (_currentIndex + 1 < _resolvedPlaylist.Count) ? _resolvedPlaylist[_currentIndex + 1].Item : null;
         public IReadOnlyList<DAResolvedTrack> ResolvedSounds => _resolvedSounds;
 
-        public DAScenarioItemPlayer(IAudioManager audioManager, DiceAudioService service, DAScenarioItem item)
+        public DAScenarioItemPlayer(IAudioManager audioManager, DiceAudioService service, DAScenarioItem item,
+                                   DAAudioBus? bus = null)
         {
             _audioManager = audioManager;
             _service = service;
             Item = item;
+            _bus = bus;
             _progressTimer.Elapsed += (_, _) => PlayProgressionChanged?.Invoke(this, EventArgs.Empty);
         }
 
@@ -113,7 +117,7 @@ namespace DiceAudio
             if (Item.Scene == null) return null;
             if (ScenePlayer == null)
             {
-                ScenePlayer = new DAScenePlayer(_audioManager, _service, Item.Scene);
+                ScenePlayer = new DAScenePlayer(_audioManager, _service, Item.Scene, _bus);
                 ScenePlayer.StateChanged += OnSceneStateChanged;
             }
             return ScenePlayer;
@@ -320,7 +324,7 @@ namespace DiceAudio
                 var cachePath = GetPlayableCachePath(audio.LocalFileName);
                 if (cachePath == null) return;
 
-                var player = DAAudioPlayer.Create(cachePath, usage, _audioManager);
+                var player = DAAudioPlayer.Create(cachePath, usage, _audioManager, _bus);
                 player.Play();
                 _soundPlayers[soundIndex] = player;
             }
@@ -362,7 +366,7 @@ namespace DiceAudio
                 var cachePath = GetPlayableCachePath(audioItem.LocalFileName);
                 if (cachePath == null) return;
 
-                _currentPlayer = DAAudioPlayer.Create(cachePath, usage, _audioManager);
+                _currentPlayer = DAAudioPlayer.Create(cachePath, usage, _audioManager, _bus);
                 // In a scenario, looping is an item-level setting (a looping playlist
                 // advances between tracks; only a Single item loops its one track).
                 _currentPlayer.Loop = Item.PlayInLoop && Item.Type == DAScenarioItem.ItemType.Single;

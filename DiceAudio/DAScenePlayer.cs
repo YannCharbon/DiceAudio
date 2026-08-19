@@ -1,4 +1,4 @@
-/*
+﻿/*
  * DiceAudio - Copyright (C) 2025 Yann Charbon
  * SPDX-License-Identifier: GPL-3.0-or-later
  *
@@ -26,6 +26,8 @@ namespace DiceAudio
 
         private readonly IAudioManager _audioManager;
         private readonly DiceAudioService _service;
+        /// <summary>Master fader of the owning scenario; applied to every layer and one-shot.</summary>
+        private readonly DAAudioBus? _bus;
         public DAScene Scene { get; }
 
         private readonly object _lock = new();
@@ -62,11 +64,13 @@ namespace DiceAudio
             ? Scene.Contexts.Count
             : Scene.Steps.Count;
 
-        public DAScenePlayer(IAudioManager audioManager, DiceAudioService service, DAScene scene)
+        public DAScenePlayer(IAudioManager audioManager, DiceAudioService service, DAScene scene,
+                             DAAudioBus? bus = null)
         {
             _audioManager = audioManager;
             _service = service;
             Scene = scene;
+            _bus = bus;
         }
 
         public DASceneStep? CurrentStep =>
@@ -499,7 +503,7 @@ namespace DiceAudio
             var cachePath = DAScenarioItemPlayer.GetPlayableCachePath(item.LocalFileName);
             if (cachePath == null) return null;
 
-            try { return DAAudioPlayer.Create(cachePath, usage, _audioManager); }
+            try { return DAAudioPlayer.Create(cachePath, usage, _audioManager, _bus); }
             catch { return null; }
         }
 

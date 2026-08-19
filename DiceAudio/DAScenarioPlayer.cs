@@ -1,4 +1,4 @@
-/*
+﻿/*
  * DiceAudio - Copyright (C) 2025 Yann Charbon
  * SPDX-License-Identifier: GPL-3.0-or-later
  *
@@ -31,6 +31,29 @@ namespace DiceAudio
 
         public bool IsPlaying { get; private set; }
         public event Action? StateChanged;
+
+        /// <summary>
+        /// Master fader for everything this scenario plays — tracks, scene layers
+        /// and one-shots alike. Driven by the remote control API (see
+        /// <see cref="DAControlServer"/>); it scales playback without touching the
+        /// per-usage volumes stored in the scenario, so fades and crossfades keep
+        /// working unchanged. Lives as long as the player, i.e. for the app session.
+        /// </summary>
+        public DAAudioBus Bus { get; } = new();
+
+        /// <summary>Master level 0..1 of this scenario.</summary>
+        public double Volume
+        {
+            get => Bus.Volume;
+            set => Bus.Volume = value;
+        }
+
+        /// <summary>Silences the scenario while remembering <see cref="Volume"/>.</summary>
+        public bool IsMuted
+        {
+            get => Bus.IsMuted;
+            set => Bus.IsMuted = value;
+        }
 
         public DAScenarioPlayer(IAudioManager audioManager, DiceAudioService service, DAScenario scenario)
         {
@@ -76,7 +99,7 @@ namespace DiceAudio
                 }
                 else
                 {
-                    var player = new DAScenarioItemPlayer(_audioManager, _service, item);
+                    var player = new DAScenarioItemPlayer(_audioManager, _service, item, Bus);
                     player.PlayStateChanged += OnItemPlayStateChanged;
                     _itemPlayers[item.Id] = player;
                 }

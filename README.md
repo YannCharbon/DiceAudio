@@ -151,6 +151,7 @@ The control server is disabled by default and is switched on in the settings. On
 | `POST /api/play`, `/api/pause`, `/api/stop` | Transport |
 | `POST /api/next`, `/api/prev` | Move through the current scenario |
 | `POST /api/scene/advance`, `/api/scene/goto` | Move a scene to another context |
+| `POST /api/volume` | Set the master level of a scenario (`{scenarioId?, volume?, muted?}`, volume `0..1`) |
 
 ---
 

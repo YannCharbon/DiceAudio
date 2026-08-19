@@ -115,10 +115,20 @@ namespace DiceAudio
         /// <summary>
         /// Plays the given item, fading out (2 s) whatever else is active first.
         /// All play requests — transport panel and item cards alike — route here.
+        /// The handover is sequential for every item type, scenes included: the
+        /// outgoing item is silent before the next one is started.
         /// </summary>
         public async Task PlayItemAsync(DAScenarioItem item)
         {
             if (!_itemPlayers.TryGetValue(item.Id, out var target)) return;
+
+            // Claim the target before fading: the fade below lasts seconds, and a
+            // "next" pressed meanwhile must step on from here rather than from the
+            // item that is still fading out. It also lets a newer request supersede
+            // this one (see the check after the fade).
+            _currentItemId = item.Id;
+            IsPlaying = true;
+            StateChanged?.Invoke();
 
             // Fade out every other item that is currently audible.
             var others = _itemPlayers.Values
@@ -126,20 +136,22 @@ namespace DiceAudio
                             (p.State == DAScenarioItemPlayer.PlayState.Play ||
                              p.State == DAScenarioItemPlayer.PlayState.Pause))
                 .ToList();
-            var fadeOut = Task.WhenAll(others.Select(p => p.StopWithFadeAsync(HandoverFadeSeconds)));
 
-            // Scenes crossfade: start the next item while the scene fades out.
-            // Plain items hand over sequentially (fade, then start).
-            bool crossfade = others.Any(o => o.Item.Type == DAScenarioItem.ItemType.Scene)
-                          || target.Item.Type == DAScenarioItem.ItemType.Scene;
-            if (!crossfade)
-                await fadeOut;
-            else
-                _ = fadeOut;   // let it complete in the background
+            try
+            {
+                await Task.WhenAll(others.Select(p => p.StopWithFadeAsync(HandoverFadeSeconds)));
+            }
+            catch (Exception ex)
+            {
+                // One item failing to stop must never strand the scenario on silence.
+                System.Diagnostics.Debug.WriteLine($"Handover fade-out failed: {ex.Message}");
+            }
 
-            _currentItemId = item.Id;
+            // Superseded while fading (the user pressed next again): that request
+            // owns the transport now, so do not start over the top of it.
+            if (_currentItemId != item.Id) return;
+
             target.Play();
-            IsPlaying = true;
             StateChanged?.Invoke();
         }
 

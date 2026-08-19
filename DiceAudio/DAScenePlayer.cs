@@ -398,7 +398,19 @@ namespace DiceAudio
             var player = CreatePlayerFor(layer.Audio);
             if (player == null) return;
 
-            lock (_lock) _layerPlayers[layer.Id] = player;
+            lock (_lock)
+            {
+                // StopAsync cancels the session before it takes this lock to collect
+                // the players it has to fade out. Registering after that point would
+                // leave this layer playing with nothing left to stop it, so the
+                // check and the insert must happen under the same lock.
+                if (ct.IsCancellationRequested)
+                {
+                    player.Dispose();
+                    return;
+                }
+                _layerPlayers[layer.Id] = player;
+            }
             await player.FadeInAndPlayAsync(Math.Clamp(targetVolume, 0.0, 1.0), fadeSeconds, ct);
         }
 
@@ -440,7 +452,7 @@ namespace DiceAudio
                         }
                         first = false;
 
-                        PlayOneShot(layer);
+                        PlayOneShot(layer, ct);
                         StateChanged?.Invoke();
 
                         if (!layer.RandomRepeat) break;
@@ -463,7 +475,7 @@ namespace DiceAudio
         }
 
         /// <summary>Plays one overlapping instance of the layer's audio (SFX may stack).</summary>
-        private void PlayOneShot(DASceneLayer layer)
+        private void PlayOneShot(DASceneLayer layer, CancellationToken ct)
         {
             var player = CreatePlayerFor(layer.Audio);
             if (player == null) return;
@@ -478,7 +490,17 @@ namespace DiceAudio
             }
 
             player.Loop = false;   // one-shots never loop
-            lock (_lock) _oneShots.Add(player);
+            lock (_lock)
+            {
+                // Same race as StartLayerAsync: a one-shot fired just as the scene
+                // stops must not outlive it.
+                if (ct.IsCancellationRequested)
+                {
+                    player.Dispose();
+                    return;
+                }
+                _oneShots.Add(player);
+            }
 
             player.PlaybackEnded += (_, _) =>
             {

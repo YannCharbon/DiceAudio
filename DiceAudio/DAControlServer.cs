@@ -246,21 +246,26 @@ namespace DiceAudio
                 {
                     id = s.Id,
                     name = s.Name,
-                    items = s.Items.Select(i => new
+                    items = s.Items.Select(i =>
                     {
-                        id = i.Id,
-                        name = i.Name,
-                        type = i.Type.ToString(),
-                        // Scene driving model, so the widget can render a linear
-                        // step selector vs. contextual state buttons. Null for
-                        // non-scene items.
-                        sceneMode = i.Scene?.Mode.ToString(),
-                        // Cue names: steps (linear) or contexts (contextual) — the
-                        // widget drives both via /api/scene/goto.
-                        steps = i.Scene == null ? null
-                              : i.Scene.Mode == DASceneMode.Contextual
-                                  ? i.Scene.Contexts.Select(c => c.Name).ToList()
-                                  : i.Scene.Steps.Select(st => st.Name).ToList(),
+                        // Resolves group-local scenes as well as embedded ones.
+                        var scene = g.ResolveScene(i);
+                        return new
+                        {
+                            id = i.Id,
+                            name = i.Name,
+                            type = i.Type.ToString(),
+                            // Scene driving model, so the widget can render a linear
+                            // step selector vs. contextual state buttons. Null for
+                            // non-scene items.
+                            sceneMode = scene?.Mode.ToString(),
+                            // Cue names: steps (linear) or contexts (contextual) — the
+                            // widget drives both via /api/scene/goto.
+                            steps = scene == null ? null
+                                  : scene.Mode == DASceneMode.Contextual
+                                      ? scene.Contexts.Select(c => c.Name).ToList()
+                                      : scene.Steps.Select(st => st.Name).ToList(),
+                        };
                     }).ToList(),
                 }).ToList(),
             }).ToList();

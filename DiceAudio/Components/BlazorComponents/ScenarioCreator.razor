@@ -143,6 +143,7 @@
                         </div>
                         <ScenarioItemComp ScenarioItem="context"
                                           Scenario="Scenario"
+                                          Group="Group"
                                           Player="_player.GetItemPlayer(context)"
                                           OnRequestPlay="_player.PlayItemAsync"
                                           DeleteItem="DeleteItem"
@@ -178,6 +179,8 @@
 
 @code {
     [Parameter] public DAScenario Scenario { get; set; } = default!;
+    /// <summary>Owning group — holds the local scenes the items can reference.</summary>
+    [Parameter] public DAScenarioGroup? Group { get; set; }
     [Parameter] public DiceAudioService DAService { get; set; } = default!;
     [Parameter] public Action<DAScenario, bool>? MoveScenario { get; set; }
     [Parameter] public Action<DAScenario>? DeleteScenario { get; set; }

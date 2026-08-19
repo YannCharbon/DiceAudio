@@ -39,6 +39,12 @@ namespace DiceAudio
 
         private bool IsSceneItem => Item.Type == DAScenarioItem.ItemType.Scene;
 
+        /// <summary>
+        /// The scene this item plays: the group-local scene it references, or its
+        /// own embedded copy. Never read <c>Item.Scene</c> directly.
+        /// </summary>
+        private DAScene? EffectiveScene => _service.ResolveScene(Item);
+
         private readonly System.Timers.Timer _progressTimer = new(500);
 
         public double CurrentPosition => _currentPlayer?.CurrentPosition ?? 0;
@@ -103,8 +109,9 @@ namespace DiceAudio
             _probedDuration = -1;   // re-probe: the first track may have changed
             ResolveSounds();
 
-            // The embedded scene object may have been replaced (preset insert).
-            if (ScenePlayer != null && !ReferenceEquals(ScenePlayer.Scene, Item.Scene))
+            // The scene object may have been replaced (preset insert) or the item
+            // re-pointed at a different group-local scene.
+            if (ScenePlayer != null && !ReferenceEquals(ScenePlayer.Scene, EffectiveScene))
             {
                 ScenePlayer.StateChanged -= OnSceneStateChanged;
                 ScenePlayer.Dispose();
@@ -114,10 +121,11 @@ namespace DiceAudio
 
         private DAScenePlayer? EnsureScenePlayer()
         {
-            if (Item.Scene == null) return null;
+            var scene = EffectiveScene;
+            if (scene == null) return null;
             if (ScenePlayer == null)
             {
-                ScenePlayer = new DAScenePlayer(_audioManager, _service, Item.Scene, _bus);
+                ScenePlayer = new DAScenePlayer(_audioManager, _service, scene, _bus);
                 ScenePlayer.StateChanged += OnSceneStateChanged;
             }
             return ScenePlayer;

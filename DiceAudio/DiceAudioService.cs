@@ -189,6 +189,30 @@ namespace DiceAudio
             ScenarioGroups = await LoadListAsync<DAScenarioGroup>(scenarioGroupsFilePath) ?? ScenarioGroups;
         }
 
+        /// <summary>
+        /// The scene a scenario item plays: the group-local scene it references,
+        /// or its own embedded copy. Local scenes are looked up by id across every
+        /// group, so callers that do not know the owning group — the playback and
+        /// remote-control paths — can resolve without carrying it around. UI code
+        /// that already has the group should use
+        /// <see cref="DAScenarioGroup.ResolveScene"/> instead.
+        /// </summary>
+        public DAScene? ResolveScene(DAScenarioItem item)
+        {
+            if (item.LocalSceneId is not Guid id) return item.Scene;
+
+            foreach (var group in ScenarioGroups)
+            {
+                var scene = group.LocalScenes.FirstOrDefault(s => s.Id == id);
+                if (scene != null) return scene;
+            }
+            return null;
+        }
+
+        /// <summary>The group a scenario belongs to, or null if it is detached.</summary>
+        public DAScenarioGroup? FindGroupOfScenario(DAScenario scenario) =>
+            ScenarioGroups.FirstOrDefault(g => g.Scenarios.Contains(scenario));
+
         private static string scenesFilePath = Path.Combine(FileSystem.AppDataDirectory, "scenes.json");
 
         public async Task SaveScenesAsync()

@@ -9,6 +9,7 @@
 @page "/scenarios/{groupId}"
 @inject DiceAudioService DAService
 @inject DAPlaybackCoordinator Coordinator
+@inject PopupNotificationService Notifications
 @inject NavigationManager NavManager
 
 <style>
@@ -18,6 +19,66 @@
         gap: 12px;
         flex-wrap: wrap;
         margin-bottom: 16px;
+    }
+
+    /* Group-level tab strip */
+    .scm-tabs {
+        display: flex;
+        gap: 4px;
+        border-bottom: 1px solid #2a2a4a;
+        margin-bottom: 14px;
+    }
+    .scm-tab {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 8px 16px;
+        font-size: 14px;
+        color: #9a9ab5;
+        border: 1px solid transparent;
+        border-bottom: none;
+        border-radius: 8px 8px 0 0;
+        cursor: pointer;
+        user-select: none;
+        transition: background 0.15s, color 0.15s;
+    }
+    .scm-tab:hover { background: #1a1a30; color: #d0d0e5; }
+    .scm-tab-active {
+        background: #12121f;
+        border-color: #2a2a4a;
+        color: #23a6d5;
+        font-weight: bold;
+        margin-bottom: -1px;
+    }
+
+    /* Local scene cards — same responsive grid as the Scenes catalogue page */
+    .gls-card {
+        border-radius: 12px;
+        background: #12121f;
+        border: 1px solid #2a2a4a;
+        padding: 16px 18px;
+        margin: 10px;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        transition: box-shadow 0.2s, border-color 0.2s;
+    }
+    .gls-card:hover {
+        box-shadow: 0 4px 16px rgba(255,255,255,0.08);
+        border-color: #444470;
+    }
+    .gls-icon {
+        width: 52px; height: 52px; border-radius: 10px; flex-shrink: 0;
+        display: flex; align-items: center; justify-content: center;
+        background: linear-gradient(-45deg, rgba(238,119,82,0.35), rgba(231,60,126,0.45),
+                    rgba(35,166,213,0.55), rgba(35,166,171,0.65));
+    }
+    .gls-name { font-weight: bold; font-size: 15px; word-break: break-word; }
+    .gls-meta { font-size: 12px; color: grey; }
+    .gls-cat-header {
+        font-size: 15px; font-weight: bold; color: #23a6ab;
+        border-bottom: 1px solid #2a2a4a;
+        padding: 14px 4px 4px 4px; margin: 4px 8px;
     }
 </style>
 
@@ -46,25 +107,133 @@ else
                    OnClick="DeleteGroup">Delete group</MudButton>
     </div>
 
-    @foreach (var scenario in _group.Scenarios)
+    <div class="scm-tabs">
+        <div class="scm-tab @(_tab == GroupTab.Scenarios ? "scm-tab-active" : "")"
+             @onclick="() => _tab = GroupTab.Scenarios">
+            <MudIcon Icon="@Icons.Material.Filled.QueueMusic" Style="font-size:18px;" />
+            Scenarios (@_group.Scenarios.Count)
+        </div>
+        <div class="scm-tab @(_tab == GroupTab.LocalScenes ? "scm-tab-active" : "")"
+             @onclick="() => _tab = GroupTab.LocalScenes">
+            <MudIcon Icon="@Icons.Material.Filled.Theaters" Style="font-size:18px;" />
+            Local scenes (@_group.LocalScenes.Count)
+        </div>
+    </div>
+
+    @* Kept mounted while the other tab shows, so the playback transports and the
+       drag-to-reorder JS of every scenario survive tab switches. *@
+    <div style="@(_tab == GroupTab.Scenarios ? "" : "display:none;")">
+        @foreach (var scenario in _group.Scenarios)
+        {
+            <ScenarioCreator Scenario="scenario"
+                             Group="_group"
+                             DAService="DAService"
+                             MoveScenario="MoveScenario"
+                             DeleteScenario="DeleteScenario" />
+        }
+
+        <div style="padding:10px;">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.Add"
+                       OnClick="AddScenario">Add scenario</MudButton>
+        </div>
+    </div>
+
+    @* Local scenes: the private scene catalogue of this scenario group *@
+    @if (_tab == GroupTab.LocalScenes)
     {
-        <ScenarioCreator Scenario="scenario"
-                         DAService="DAService"
-                         MoveScenario="MoveScenario"
-                         DeleteScenario="DeleteScenario" />
+        <MudText Typo="Typo.body2" Style="color:grey; margin-bottom:12px;">
+            Scenes that belong to this scenario group only. They behave exactly like
+            catalogue scenes and can be picked by any item of any scenario in the group —
+            several items may share one, so editing it here updates all of them.
+        </MudText>
+
+        <MudStack Row="true" Style="gap:8px; margin-bottom:12px; flex-wrap:wrap;">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.Add"
+                       OnClick="CreateLocalScene">New local scene</MudButton>
+
+            @if (DAService.Scenes.Count > 0)
+            {
+                <MudButton Variant="Variant.Outlined" Color="Color.Secondary"
+                           StartIcon="@Icons.Material.Filled.LibraryBooks"
+                           OnClick="() => _scenePicker?.Show()">Copy from catalogue…</MudButton>
+            }
+
+            @{ var scenePresets = DAService.Presets.Where(p => p.Kind == DAPresetKind.Scene).ToList(); }
+            @if (scenePresets.Count > 0)
+            {
+                <MudMenu Label="From preset" Variant="Variant.Outlined" Color="Color.Secondary"
+                         StartIcon="@Icons.Material.Filled.Bookmark" Dense="true">
+                    @foreach (var preset in scenePresets)
+                    {
+                        var p = preset;
+                        <MudMenuItem OnClick="() => InsertScenePreset(p)">
+                            @(string.IsNullOrEmpty(p.Category) ? p.Name : $"{p.Category} / {p.Name}")
+                        </MudMenuItem>
+                    }
+                </MudMenu>
+            }
+        </MudStack>
+
+        @if (_group.LocalScenes.Count == 0)
+        {
+            <p style="color:grey; padding:12px 4px;">
+                No local scene yet. Create one here, or build a scene inside a scenario item
+                and press “Move to local scenes” in its editor.
+            </p>
+        }
+
+        @foreach (var category in _group.LocalScenes
+            .GroupBy(s => string.IsNullOrWhiteSpace(s.Category) ? "(uncategorized)" : s.Category)
+            .OrderBy(g => g.Key))
+        {
+            <div class="gls-cat-header">@category.Key</div>
+            <div class="row">
+                @foreach (var localScene in category)
+                {
+                    var sc = localScene;
+                    var users = _group.ItemsUsingLocalScene(sc).Count();
+                    <div class="col col-md-5 gls-card">
+                        <div class="gls-icon"><MudIcon Icon="@Icons.Material.Filled.Theaters" /></div>
+                        <div style="flex:1; min-width:0;">
+                            <div class="gls-name">@sc.Name</div>
+                            <div class="gls-meta">
+                                @(sc.Mode == DASceneMode.Contextual ? "Contextual" : "Linear") · @sc.CueSummary
+                            </div>
+                            <div class="gls-meta">
+                                @(users == 0 ? "unused" : $"used by {users} item(s)")
+                            </div>
+                        </div>
+                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Title="Edit scene"
+                                       OnClick="() => EditLocalScene(sc)" />
+                        <MudIconButton Icon="@Icons.Material.Filled.ContentCopy" Title="Duplicate"
+                                       OnClick="() => DuplicateLocalScene(sc)" />
+                        <MudIconButton Icon="@Icons.Material.Filled.Public" Color="Color.Info"
+                                       Title="Make global — copy this scene into the scene catalogue so every scenario group can use it"
+                                       OnClick="() => MakeLocalSceneGlobalAsync(sc)" />
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Title="Delete"
+                                       OnClick="() => DeleteLocalScene(sc)" />
+                    </div>
+                }
+            </div>
+        }
     }
 
-    <div style="padding:10px;">
-        <MudButton Variant="Variant.Filled" Color="Color.Primary"
-                   StartIcon="@Icons.Material.Filled.Add"
-                   OnClick="AddScenario">Add scenario</MudButton>
-    </div>
+    <SceneEditor @ref="_sceneEditor" OnClose="OnLocalSceneEditorClosed" />
+    <ScenePicker @ref="_scenePicker" OnPicked="CopySceneFromCatalogue" OnClosed="StateHasChanged" />
 }
 
 @code {
     [Parameter] public string GroupId { get; set; } = "";
 
     private DAScenarioGroup? _group;
+
+    private enum GroupTab { Scenarios, LocalScenes }
+    private GroupTab _tab = GroupTab.Scenarios;
+
+    private SceneEditor? _sceneEditor;
+    private ScenePicker? _scenePicker;
 
     protected override void OnInitialized()
     {
@@ -117,5 +286,97 @@ else
             DAService.ScenarioGroups.Remove(_group);
         }
         NavManager.NavigateTo("scenarios");
+    }
+
+    // ── Local scenes ────────────────────────────────────────────────────────
+
+    void CreateLocalScene()
+    {
+        if (_group == null) return;
+        var scene = new DAScene { Name = "New local scene" };
+        _group.LocalScenes.Add(scene);
+        _sceneEditor?.Show(scene);
+    }
+
+    void EditLocalScene(DAScene scene) => _sceneEditor?.Show(scene);
+
+    void InsertScenePreset(DAPreset preset)
+    {
+        var scene = preset.ToScene();   // independent deep copy, fresh ids
+        if (scene == null || _group == null) return;
+        _group.LocalScenes.Add(scene);
+        StateHasChanged();
+    }
+
+    void CopySceneFromCatalogue(DAScene source)
+    {
+        // Deep copy with fresh ids: the local scene is independent from the
+        // catalogue one, so editing it never touches the global scene.
+        var copy = DAPreset.FromScene(source).ToScene();
+        if (copy == null || _group == null) return;
+        _group.LocalScenes.Add(copy);
+        StateHasChanged();
+    }
+
+    void DuplicateLocalScene(DAScene scene)
+    {
+        var copy = DAPreset.FromScene(scene).ToScene();
+        if (copy == null || _group == null) return;
+        copy.Name = scene.Name + " (copy)";
+        _group.LocalScenes.Add(copy);
+        StateHasChanged();
+    }
+
+    /// <summary>
+    /// Publishes a copy of the local scene to the global catalogue, so it becomes
+    /// usable from every scenario group. The local scene and the items referencing
+    /// it are left untouched — the two copies then evolve independently.
+    /// </summary>
+    async Task MakeLocalSceneGlobalAsync(DAScene scene)
+    {
+        var copy = DAPreset.FromScene(scene).ToScene();
+        if (copy == null) return;
+        DAService.Scenes.Add(copy);
+        await DAService.SaveScenesAsync();
+        Notifications.Show("Scene made global",
+                           $"\"{copy.Name}\" was copied to the scene catalogue.",
+                           PopupNotificationService.Type.SUCCESS, 3000);
+        StateHasChanged();
+    }
+
+    /// <summary>
+    /// Removes a local scene. Items still referencing it keep playing the same
+    /// content: each gets its own embedded copy, exactly as if the scene had been
+    /// built inside the item.
+    /// </summary>
+    void DeleteLocalScene(DAScene scene)
+    {
+        if (_group == null) return;
+
+        foreach (var item in _group.ItemsUsingLocalScene(scene).ToList())
+        {
+            item.Scene = DAPreset.FromScene(scene).ToScene();
+            item.LocalSceneId = null;
+        }
+        _group.LocalScenes.Remove(scene);
+        RefreshPlayers();
+        StateHasChanged();
+    }
+
+    void OnLocalSceneEditorClosed()
+    {
+        RefreshPlayers();
+        StateHasChanged();
+    }
+
+    /// <summary>
+    /// Reconciles every scenario player of the group after a local scene changed,
+    /// so items pick the edit up on their next play without interrupting playback.
+    /// </summary>
+    void RefreshPlayers()
+    {
+        if (_group == null) return;
+        foreach (var scenario in _group.Scenarios)
+            Coordinator.GetOrCreateScenarioPlayer(scenario).Initialize();
     }
 }

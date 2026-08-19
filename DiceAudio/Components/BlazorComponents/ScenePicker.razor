@@ -19,7 +19,7 @@
                 padding:20px 24px; position:relative;"
          @onclick:stopPropagation="true">
 
-        <MudText Typo="Typo.h6" Style="margin-bottom:10px;">Pick a scene from the catalogue</MudText>
+        <MudText Typo="Typo.h6" Style="margin-bottom:10px;">@_title</MudText>
 
         <MudTextField T="string" @bind-Value="_search" Placeholder="Search by name or category…"
                       Variant="Variant.Outlined" Margin="Margin.Dense" Immediate="true" Clearable="true"
@@ -33,9 +33,7 @@
 
         @if (!groups.Any())
         {
-            <p style="padding:16px; color:grey;">
-                No scenes in the catalogue yet — create some on the Scenes page.
-            </p>
+            <p style="padding:16px; color:grey;">@_emptyMessage</p>
         }
 
         <div style="max-height:520px; overflow-y:auto;">
@@ -86,8 +84,25 @@
     private bool _visible;
     private string _search = "";
 
-    public void Show()
+    /// <summary>Scenes offered by the picker; null means the global catalogue.</summary>
+    private IReadOnlyList<DAScene>? _source;
+    private string _title = "";
+    private string _emptyMessage = "";
+
+    /// <summary>Opens the picker on the global scene catalogue.</summary>
+    public void Show() => Show(null,
+        "Pick a scene from the catalogue",
+        "No scenes in the catalogue yet — create some on the Scenes page.");
+
+    /// <summary>
+    /// Opens the picker on an arbitrary set of scenes — used for the local scenes
+    /// of a scenario group, which are browsed exactly like the catalogue.
+    /// </summary>
+    public void Show(IReadOnlyList<DAScene>? scenes, string title, string emptyMessage)
     {
+        _source = scenes;
+        _title = title;
+        _emptyMessage = emptyMessage;
         _visible = true;
         _search = "";
         StateHasChanged();
@@ -102,7 +117,7 @@
 
     IEnumerable<DAScene> FilteredScenes()
     {
-        var scenes = DAService.Scenes.AsEnumerable();
+        var scenes = (_source ?? DAService.Scenes).AsEnumerable();
         if (!string.IsNullOrWhiteSpace(_search))
         {
             var term = _search.Trim();

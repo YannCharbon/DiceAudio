@@ -25,13 +25,34 @@ namespace DiceAudio
         public DAPresetKind Kind { get; set; }
         public string PayloadJson { get; set; } = "";
 
-        public static DAPreset FromScenarioItem(DAScenarioItem item, string category = "") => new()
+        /// <summary>
+        /// Snapshots a scenario item. <paramref name="resolvedScene"/> is the scene
+        /// the item actually plays (see <see cref="DAScenarioGroup.ResolveScene"/>):
+        /// a group-local scene is baked into the payload, because the preset may be
+        /// inserted into a scenario group where that local scene does not exist.
+        /// </summary>
+        public static DAPreset FromScenarioItem(DAScenarioItem item, string category = "",
+                                                DAScene? resolvedScene = null)
         {
-            Name = item.Name,
-            Category = category,
-            Kind = DAPresetKind.ScenarioItem,
-            PayloadJson = JsonSerializer.Serialize(item),
-        };
+            var payload = item;
+            if (item.LocalSceneId != null)
+            {
+                // Deep copy so flattening the reference never touches the scenario.
+                payload = JsonSerializer.Deserialize<DAScenarioItem>(JsonSerializer.Serialize(item))!;
+                payload.LocalSceneId = null;
+                payload.Scene = resolvedScene == null
+                    ? null
+                    : JsonSerializer.Deserialize<DAScene>(JsonSerializer.Serialize(resolvedScene));
+            }
+
+            return new()
+            {
+                Name = item.Name,
+                Category = category,
+                Kind = DAPresetKind.ScenarioItem,
+                PayloadJson = JsonSerializer.Serialize(payload),
+            };
+        }
 
         public static DAPreset FromScene(DAScene scene, string category = "") => new()
         {
@@ -50,6 +71,9 @@ namespace DiceAudio
                 var item = JsonSerializer.Deserialize<DAScenarioItem>(PayloadJson);
                 if (item == null) return null;
                 item.Id = Guid.NewGuid();
+                // Presets are self-contained: a local-scene reference from an older
+                // payload cannot resolve in the target scenario, so drop it.
+                item.LocalSceneId = null;
                 if (item.Scene != null) RemapScene(item.Scene);
                 return item;
             }

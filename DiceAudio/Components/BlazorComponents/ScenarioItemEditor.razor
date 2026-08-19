@@ -63,33 +63,86 @@
         @* ── Scene ── *@
         @if (ScenarioItem.Type == DAScenarioItem.ItemType.Scene)
         {
+            var currentScene = CurrentScene;
+            bool isLocal = ScenarioItem.LocalSceneId != null;
+
             <MudDivider Style="margin-bottom:10px;" />
             <MudText Typo="Typo.subtitle2" Style="margin-bottom:8px;">Scene</MudText>
+
             <MudStack Row="true" AlignItems="AlignItems.Center" Style="gap:10px; flex-wrap:wrap;">
-                @if (ScenarioItem.Scene != null)
+                @if (currentScene != null)
                 {
                     <MudText Typo="Typo.body2">
-                        <b>@ScenarioItem.Scene.Name</b>
-                        <span style="color:grey;"> — @(ScenarioItem.Scene.Mode == DASceneMode.Contextual ? "contextual" : "linear"), @ScenarioItem.Scene.CueSummary</span>
+                        <b>@currentScene.Name</b>
+                        <span style="color:grey;"> — @(currentScene.Mode == DASceneMode.Contextual ? "contextual" : "linear"), @currentScene.CueSummary</span>
                     </MudText>
                 }
+                else if (isLocal)
+                {
+                    <MudText Typo="Typo.body2" Style="color:orange;">
+                        The referenced local scene no longer exists.
+                    </MudText>
+                }
+
                 <MudButton Variant="Variant.Filled" Color="Color.Secondary"
                            StartIcon="@Icons.Material.Filled.Theaters"
                            OnClick="EditScene">
-                    @(ScenarioItem.Scene == null ? "Create scene…" : "Edit scene…")
+                    @(currentScene == null ? "Create scene…" : isLocal ? "Edit local scene…" : "Edit scene…")
                 </MudButton>
+
+                @if (Group is { LocalScenes.Count: > 0 })
+                {
+                    <MudButton Variant="Variant.Outlined" Color="Color.Info"
+                               StartIcon="@Icons.Material.Filled.Theaters"
+                               Title="Use one of the scenario group's local scenes — the item references it, so editing the scene once updates every item using it"
+                               OnClick="ShowLocalPicker">
+                        Pick locally…
+                    </MudButton>
+                }
+
                 @if (DAService.Scenes.Count > 0)
                 {
                     <MudButton Variant="Variant.Outlined" Color="Color.Secondary"
                                StartIcon="@Icons.Material.Filled.LibraryBooks"
-                               OnClick="() => _scenePicker?.Show()">
+                               Title="Copy a scene from the global catalogue into this item"
+                               OnClick="() => _catalogPicker?.Show()">
                         Pick from catalogue…
+                    </MudButton>
+                }
+
+                @if (!isLocal && Group != null && ScenarioItem.Scene != null)
+                {
+                    <MudButton Variant="Variant.Outlined" Color="Color.Info"
+                               StartIcon="@Icons.Material.Filled.DriveFileMove"
+                               Title="Move this scene into the group's local scenes so any scenario of the group can use it too"
+                               OnClick="MoveSceneToLocal">
+                        Move to local scenes
+                    </MudButton>
+                }
+
+                @if (isLocal && currentScene != null)
+                {
+                    <MudButton Variant="Variant.Outlined" Color="Color.Default"
+                               StartIcon="@Icons.Material.Filled.LinkOff"
+                               Title="Stop sharing: give this item its own private copy of the scene"
+                               OnClick="DetachLocalScene">
+                        Make item-owned copy
                     </MudButton>
                 }
             </MudStack>
 
+            @if (isLocal && currentScene != null)
+            {
+                var otherUsers = Group!.ItemsUsingLocalScene(currentScene).Count() - 1;
+                <MudText Typo="Typo.caption" Style="color:grey; display:block; margin-top:6px;">
+                    Group-local scene — edits apply here and in the “Local scenes” tab of the group@(otherUsers > 0
+                        ? $", and to the {otherUsers} other item(s) playing it"
+                        : "").
+                </MudText>
+            }
+
             @* Which context this item enters when it starts playing. *@
-            @if (ScenarioItem.Scene is { Mode: DASceneMode.Contextual } contextualScene
+            @if (currentScene is { Mode: DASceneMode.Contextual } contextualScene
                  && contextualScene.Contexts.Count > 0)
             {
                 <MudSelect T="Guid?" Value="contextualScene.DefaultContextId"
@@ -203,31 +256,103 @@
 <AudioPicker @ref="_soundsPicker" Title="Pick sound effects" SelectionList="ScenarioItem.SoundEffects" OnClosed="StateHasChanged" />
 <AudioClipEditor @ref="_clipEditor" OnClosed="StateHasChanged" />
 <SceneEditor @ref="_sceneEditor" OnClose="StateHasChanged" />
-<ScenePicker @ref="_scenePicker" OnPicked="CopySceneFromCatalogue" OnClosed="StateHasChanged" />
+<ScenePicker @ref="_catalogPicker" OnPicked="CopySceneFromCatalogue" OnClosed="StateHasChanged" />
+<ScenePicker @ref="_localPicker" OnPicked="PickLocalScene" OnClosed="StateHasChanged" />
 
 @code {
     [Parameter] public DAScenarioItem ScenarioItem { get; set; } = default!;
+    /// <summary>Owning scenario group — gives access to its local scenes.</summary>
+    [Parameter] public DAScenarioGroup? Group { get; set; }
     [Parameter] public EventCallback OnClose { get; set; }
+
+    /// <summary>The scene this item plays: a group-local one, or its own.</summary>
+    private DAScene? CurrentScene => Group?.ResolveScene(ScenarioItem) ?? ScenarioItem.Scene;
 
     private bool _visible;
     private AudioPicker? _ambiencePicker;
     private AudioPicker? _soundsPicker;
     private AudioClipEditor? _clipEditor;
     private SceneEditor? _sceneEditor;
-    private ScenePicker? _scenePicker;
+    private ScenePicker? _catalogPicker;
+    private ScenePicker? _localPicker;
 
     void OpenClipEditor(DAAudioUsage usage, DAAudioItem item) => _clipEditor?.Show(usage, item);
 
     void EditScene()
     {
-        ScenarioItem.Scene ??= new DAScene { Name = ScenarioItem.Name };
-        _sceneEditor?.Show(ScenarioItem.Scene);
+        var scene = CurrentScene;
+        if (scene == null)
+        {
+            if (ScenarioItem.LocalSceneId != null)
+            {
+                // Dangling reference (the local scene was deleted elsewhere):
+                // fall back to an item-owned scene rather than editing nothing.
+                ScenarioItem.LocalSceneId = null;
+            }
+            scene = ScenarioItem.Scene ??= new DAScene { Name = ScenarioItem.Name };
+        }
+        _sceneEditor?.Show(scene);
+    }
+
+    /// <summary>Browses the group's local scenes in the same picker as the catalogue.</summary>
+    void ShowLocalPicker()
+    {
+        // Guard: a null list would make the picker fall back to the global catalogue.
+        if (Group == null) return;
+        _localPicker?.Show(
+            Group.LocalScenes,
+            "Pick a local scene of this scenario group",
+            "This group has no local scene yet — create one in its “Local scenes” tab.");
+    }
+
+    /// <summary>
+    /// Points the item at a group-local scene. Unlike the catalogue picker this
+    /// references rather than copies, so the scene stays shared and editable in one
+    /// place. The item's own embedded scene is kept, so detaching can restore it.
+    /// </summary>
+    void PickLocalScene(DAScene scene)
+    {
+        ScenarioItem.LocalSceneId = scene.Id;
+        StateHasChanged();
+    }
+
+    /// <summary>
+    /// Stops sharing the group-local scene: the item gets an independent deep copy
+    /// of it and no longer follows later edits of the local scene.
+    /// </summary>
+    void DetachLocalScene()
+    {
+        var scene = CurrentScene;
+        if (scene == null) return;
+
+        ScenarioItem.Scene = DAPreset.FromScene(scene).ToScene();
+        ScenarioItem.LocalSceneId = null;
+        StateHasChanged();
+    }
+
+    /// <summary>
+    /// Promotes the item's own scene to a group-local scene and points the item at
+    /// it, so items anywhere in the group can reference the very same scene.
+    /// </summary>
+    void MoveSceneToLocal()
+    {
+        if (Group == null || ScenarioItem.Scene == null) return;
+
+        var scene = ScenarioItem.Scene;
+        if (string.IsNullOrWhiteSpace(scene.Name) || scene.Name == "New scene")
+            scene.Name = ScenarioItem.Name;
+
+        Group.LocalScenes.Add(scene);
+        ScenarioItem.Scene = null;
+        ScenarioItem.LocalSceneId = scene.Id;
+        StateHasChanged();
     }
 
     void OnDefaultContextChanged(Guid? contextId)
     {
-        if (ScenarioItem.Scene != null)
-            ScenarioItem.Scene.DefaultContextId = contextId;
+        var scene = CurrentScene;
+        if (scene != null)
+            scene.DefaultContextId = contextId;
         StateHasChanged();
     }
 
@@ -235,6 +360,7 @@
     {
         // Deep copy with fresh ids so later edits never affect the catalogue scene.
         ScenarioItem.Scene = DAPreset.FromScene(source).ToScene();
+        ScenarioItem.LocalSceneId = null;
         StateHasChanged();
     }
 
@@ -249,7 +375,8 @@
 
     async Task SaveAsPreset()
     {
-        DAService.Presets.Add(DAPreset.FromScenarioItem(ScenarioItem, _presetCategory.Trim()));
+        // Pass the resolved scene so a group-local one is baked into the preset.
+        DAService.Presets.Add(DAPreset.FromScenarioItem(ScenarioItem, _presetCategory.Trim(), CurrentScene));
         await DAService.SavePresetsAsync();
         _presetSaved = true;
         StateHasChanged();

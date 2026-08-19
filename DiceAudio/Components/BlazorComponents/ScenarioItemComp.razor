@@ -55,7 +55,7 @@
             { <MudIcon Icon="@Icons.Material.Filled.Shuffle" Style="font-size:13px; color:lightgreen;" /> }
         </div>
 
-        <ScenarioItemPlayerComp ScenarioItem="ScenarioItem" Player="Player" OnRequestPlay="OnRequestPlay" />
+        <ScenarioItemPlayerComp ScenarioItem="ScenarioItem" Group="Group" Player="Player" OnRequestPlay="OnRequestPlay" />
     </div>
 
     <div class="si-footer">
@@ -65,11 +65,13 @@
     </div>
 </div>
 
-<ScenarioItemEditor @ref="_editorRef" ScenarioItem="ScenarioItem" OnClose="OnEditorClose" />
+<ScenarioItemEditor @ref="_editorRef" ScenarioItem="ScenarioItem" Group="Group" OnClose="OnEditorClose" />
 
 @code {
     [Parameter] public DAScenarioItem ScenarioItem { get; set; } = default!;
     [Parameter] public DAScenario Scenario { get; set; } = default!;
+    /// <summary>Owning group — holds the local scenes this item can reference.</summary>
+    [Parameter] public DAScenarioGroup? Group { get; set; }
     [Parameter] public DAScenarioItemPlayer? Player { get; set; }
     [Parameter] public Func<DAScenarioItem, Task>? OnRequestPlay { get; set; }
     [Parameter] public Action<DAScenarioItem>? DeleteItem { get; set; }

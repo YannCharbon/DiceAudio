@@ -28,7 +28,9 @@
     @* ── Scene transport ── *@
     var scene = Player.ScenePlayer;
     bool scenePlaying = scene?.IsPlaying == true;
-    bool contextual = ScenarioItem.Scene?.Mode == DASceneMode.Contextual;
+    // The item's scene may be a group-local one; always resolve it.
+    var itemScene = Group?.ResolveScene(ScenarioItem) ?? ScenarioItem.Scene;
+    bool contextual = itemScene?.Mode == DASceneMode.Contextual;
 
     <div style="display:flex; justify-content:center; margin:6px 0;">
         @if (!scenePlaying)
@@ -51,7 +53,7 @@
         }
     </div>
 
-    @if (ScenarioItem.Scene == null)
+    @if (itemScene == null)
     {
         <div style="font-size:11px; color:orange; text-align:center;">No scene configured — edit this item</div>
     }
@@ -59,7 +61,7 @@
     {
         @* ── Context navigation buttons ── *@
         <div style="display:flex; flex-wrap:wrap; gap:3px; justify-content:center; margin:2px 0;">
-            @foreach (var context in ScenarioItem.Scene.Contexts)
+            @foreach (var context in itemScene.Contexts)
             {
                 var c = context;
                 bool isCurrent = scenePlaying && scene?.CurrentContext?.Id == c.Id;
@@ -71,14 +73,14 @@
         @if (!scenePlaying)
         {
             <div style="font-size:11px; color:grey; text-align:center;">
-                Click a context to start · @ScenarioItem.Scene.CueSummary
+                Click a context to start · @itemScene.CueSummary
             </div>
         }
     }
     else if (scenePlaying && scene != null)
     {
         <div style="font-size:11px; color:#90caf9; text-align:center; margin:2px 0;">
-            Step @(scene.CurrentStepIndex + 1)/@ScenarioItem.Scene.Steps.Count:
+            Step @(scene.CurrentStepIndex + 1)/@itemScene.Steps.Count:
             <b>@(scene.CurrentStep?.Name ?? "")</b>
         </div>
         @if (scene.NextStep != null)
@@ -92,7 +94,7 @@
     }
     else
     {
-        <div style="font-size:11px; color:grey; text-align:center;">@ScenarioItem.Scene.CueSummary</div>
+        <div style="font-size:11px; color:grey; text-align:center;">@itemScene.CueSummary</div>
     }
 }
 else if (Player != null)
@@ -174,6 +176,8 @@ else if (Player != null)
 
 @code {
     [Parameter] public DAScenarioItem ScenarioItem { get; set; } = default!;
+    /// <summary>Owning scenario group — resolves group-local scenes.</summary>
+    [Parameter] public DAScenarioGroup? Group { get; set; }
     [Parameter] public DAScenarioItemPlayer? Player { get; set; }
     [Parameter] public Func<DAScenarioItem, Task>? OnRequestPlay { get; set; }
 

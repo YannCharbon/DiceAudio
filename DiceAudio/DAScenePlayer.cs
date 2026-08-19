@@ -45,6 +45,11 @@ namespace DiceAudio
         // Per-context volume for SFX one-shots (overrides the layer's own volume).
         private readonly Dictionary<Guid, double> _sfxVolumeOverride = new();
 
+        // Layers the current step must still see end before it advances, used by
+        // DAStepAdvance.OnAllLayersEnd. Filled when the step starts — not as each
+        // layer starts — so a delayed command cannot let the set empty early.
+        private readonly HashSet<Guid> _pendingStepEnds = new();
+
         public int CurrentStepIndex { get; private set; } = -1;
         public bool IsPlaying { get; private set; }
         public event Action? StateChanged;
@@ -134,10 +139,44 @@ namespace DiceAudio
 
             var step = Scene.Steps[CurrentStepIndex];
             var ct = _sessionCts.Token;
+
+            lock (_lock)
+            {
+                _pendingStepEnds.Clear();
+                if (step.AdvanceMode == DAStepAdvance.OnAllLayersEnd)
+                    foreach (var command in step.Commands)
+                        if (command.Type is DACommandType.StartLayer or DACommandType.FadeInLayer
+                            && !CommandLoops(command))
+                            _pendingStepEnds.Add(command.LayerId);
+            }
             foreach (var command in step.Commands)
                 _ = RunCommandAsync(command, ct);
 
+            if (step.AdvanceMode == DAStepAdvance.AfterDuration)
+                _ = AdvanceAfterDelayAsync(CurrentStepIndex, step.AdvanceAfterSeconds, ct);
+
             StateChanged?.Invoke();
+        }
+
+        /// <summary>
+        /// Advances the scene a fixed time after the step started. Voided if the scene
+        /// stops, or if the step was left in the meantime — by the user advancing
+        /// manually or by another trigger — so it can never advance twice.
+        /// </summary>
+        private async Task AdvanceAfterDelayAsync(int armedStep, double seconds, CancellationToken ct)
+        {
+            try
+            {
+                await Task.Delay(TimeSpan.FromSeconds(Math.Max(0, seconds)), ct);
+            }
+            catch (TaskCanceledException) { return; }
+
+            if (ct.IsCancellationRequested) return;
+            if (Scene.Mode != DASceneMode.Linear) return;
+            if (!IsPlaying || CurrentStepIndex != armedStep) return;
+            if (CurrentStep?.AdvanceMode != DAStepAdvance.AfterDuration) return;
+
+            await AdvanceAsync();
         }
 
         /// <summary>
@@ -309,6 +348,7 @@ namespace DiceAudio
             DelaySeconds = 0,
             DurationSeconds = Math.Min(c.DurationSeconds, 0.5),
             TargetVolume = c.TargetVolume,
+            Loop = c.Loop,
         };
 
         /// <summary>Fades out all layers, cancels pending commands and random loops.</summary>
@@ -329,6 +369,7 @@ namespace DiceAudio
                 foreach (var cts in _layerRamps.Values) cts.Cancel();
                 _layerRamps.Clear();
                 _sfxVolumeOverride.Clear();
+                _pendingStepEnds.Clear();
             }
             _currentContextId = null;
 
@@ -359,10 +400,10 @@ namespace DiceAudio
                 switch (command.Type)
                 {
                     case DACommandType.StartLayer:
-                        await StartLayerAsync(layer, 0, command.TargetVolume, ct);
+                        await StartLayerAsync(layer, 0, command.TargetVolume, ct, command.Loop);
                         break;
                     case DACommandType.FadeInLayer:
-                        await StartLayerAsync(layer, command.DurationSeconds, command.TargetVolume, ct);
+                        await StartLayerAsync(layer, command.DurationSeconds, command.TargetVolume, ct, command.Loop);
                         break;
                     case DACommandType.StopLayer:
                         await StopLayerAsync(layer.Id, 0);
@@ -391,12 +432,21 @@ namespace DiceAudio
             catch (TaskCanceledException) { /* scene stopped while waiting */ }
         }
 
-        private async Task StartLayerAsync(DASceneLayer layer, double fadeSeconds, double targetVolume, CancellationToken ct)
+        /// <summary>
+        /// Starts (or restarts) a layer. <paramref name="loopOverride"/> comes from
+        /// the command; null keeps the layer's own setting. A layer that does not
+        /// loop arms the owning step's auto-advance.
+        /// </summary>
+        private async Task StartLayerAsync(DASceneLayer layer, double fadeSeconds, double targetVolume,
+                                           CancellationToken ct, bool? loopOverride = null)
         {
             await StopLayerAsync(layer.Id, 0);   // replace any previous instance
 
             var player = CreatePlayerFor(layer.Audio);
             if (player == null) return;
+
+            if (loopOverride is bool loop) player.Loop = loop;
+            if (!player.Loop) ArmStepAdvance(layer.Id, player, ct);
 
             lock (_lock)
             {
@@ -412,6 +462,66 @@ namespace DiceAudio
                 _layerPlayers[layer.Id] = player;
             }
             await player.FadeInAndPlayAsync(Math.Clamp(targetVolume, 0.0, 1.0), fadeSeconds, ct);
+        }
+
+        /// <summary>
+        /// Whether the layer this command starts will loop: the command's own choice,
+        /// falling back to how the layer's audio is configured.
+        /// </summary>
+        private bool CommandLoops(DASceneCommand command)
+        {
+            if (command.Loop is bool loop) return loop;
+            var layer = Scene.Layers.FirstOrDefault(l => l.Id == command.LayerId);
+            return layer?.Audio.Loop ?? true;
+        }
+
+        /// <summary>
+        /// Makes the end of this layer's audio advance the scene, when the step that
+        /// started it asks for that. Nothing happens for a step set to manual, and
+        /// the trigger is dropped once the scene has moved on: it belongs to the step
+        /// that armed it, not to whatever is running when the audio happens to end.
+        /// </summary>
+        private void ArmStepAdvance(Guid layerId, DAAudioPlayer player, CancellationToken ct)
+        {
+            int armedStep = CurrentStepIndex;
+
+            void OnEnded(object? sender, EventArgs e)
+            {
+                player.PlaybackEnded -= OnEnded;
+
+                if (ct.IsCancellationRequested) return;          // scene stopped/restarted
+                if (Scene.Mode != DASceneMode.Linear) return;
+                if (!IsPlaying || CurrentStepIndex != armedStep) return;
+
+                var step = CurrentStep;
+                if (step == null) return;
+
+                switch (step.AdvanceMode)
+                {
+                    case DAStepAdvance.OnLayerEnd:
+                        if (step.AdvanceOnLayerEndId != layerId) return;
+                        break;
+
+                    case DAStepAdvance.OnAllLayersEnd:
+                        // Wait for the last one — i.e. the longest — rather than the first.
+                        lock (_lock)
+                        {
+                            _pendingStepEnds.Remove(layerId);
+                            if (_pendingStepEnds.Count > 0) return;
+                        }
+                        break;
+
+                    default:
+                        return;   // manual
+                }
+
+                // Hop off the audio backend's callback thread: the next step stops and
+                // disposes players, and doing that from inside the callback deadlocks
+                // (same reason the looping restart below is posted to the thread pool).
+                _ = Task.Run(AdvanceAsync);
+            }
+
+            player.PlaybackEnded += OnEnded;
         }
 
         private async Task StopLayerAsync(Guid layerId, double fadeSeconds)

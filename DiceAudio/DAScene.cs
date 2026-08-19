@@ -99,11 +99,45 @@ namespace DiceAudio
         public bool FireImmediatelyOnStart { get; set; } = false;
     }
 
+    /// <summary>What moves a linear scene from one step to the next.</summary>
+    public enum DAStepAdvance
+    {
+        /// <summary>Only the user pressing "advance".</summary>
+        Manual,
+        /// <summary><see cref="DASceneStep.AdvanceAfterSeconds"/> elapsing from the step's start.</summary>
+        AfterDuration,
+        /// <summary>The layer named by <see cref="DASceneStep.AdvanceOnLayerEndId"/> reaching its end.</summary>
+        OnLayerEnd,
+        /// <summary>Every non-looping layer the step started reaching its end — i.e. the longest one.</summary>
+        OnAllLayersEnd,
+    }
+
     public class DASceneStep
     {
         public Guid Id { get; set; } = Guid.NewGuid();
         public string Name { get; set; } = "Step";               // e.g. "Storm rolls in"
         public List<DASceneCommand> Commands { get; set; } = new();
+
+        /// <summary>
+        /// What advances the scene past this step. Defaults to Manual, which is how
+        /// linear scenes behaved before automatic advancing existed. Only layers this
+        /// step starts without looping can drive it: a looping layer never ends.
+        /// </summary>
+        public DAStepAdvance AdvanceMode { get; set; } = DAStepAdvance.Manual;
+
+        /// <summary>
+        /// The layer whose end advances the step when <see cref="AdvanceMode"/> is
+        /// <see cref="DAStepAdvance.OnLayerEnd"/>. Picking the layer explicitly is
+        /// what lets a step wait for a chosen one rather than whichever ends first.
+        /// </summary>
+        public Guid? AdvanceOnLayerEndId { get; set; }
+
+        /// <summary>
+        /// Seconds from the moment this step starts before it advances, when
+        /// <see cref="AdvanceMode"/> is <see cref="DAStepAdvance.AfterDuration"/>.
+        /// Counted from the step's start, so a command's own delay runs inside it.
+        /// </summary>
+        public double AdvanceAfterSeconds { get; set; } = 10;
     }
 
     public enum DACommandType
@@ -134,5 +168,14 @@ namespace DiceAudio
         /// StartLayer / FadeInLayer, and the ramp target of SetVolume.
         /// </summary>
         public double TargetVolume { get; set; } = 1.0;
+
+        /// <summary>
+        /// Whether the layer started by this command loops. Null keeps the layer's
+        /// own <see cref="DAAudioUsage.Loop"/> setting, which is how scenes written
+        /// before this behaved. A non-looping layer raises an end-of-audio event the
+        /// step can advance on (see <see cref="DASceneStep.AdvanceOnLayerEndId"/>).
+        /// Only meaningful for StartLayer and FadeInLayer.
+        /// </summary>
+        public bool? Loop { get; set; }
     }
 }

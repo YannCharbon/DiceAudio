@@ -34,6 +34,23 @@
     .se-role-badge {
         font-size: 11px; border-radius: 4px; padding: 1px 7px; color: black; font-weight: bold;
     }
+
+    /* Connector drawn between two step cards, carrying the advance trigger. */
+    .se-step-link {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin: -2px 0 -2px 26px;
+        padding: 6px 0 6px 20px;
+        border-left: 2px dashed #363660;
+    }
+    .se-step-link-auto { border-left-color: #23a6d5; }
+    .se-step-link-label {
+        display: flex; align-items: center; gap: 6px;
+        font-size: 12px; color: #7a7a9a; white-space: nowrap;
+    }
+    .se-step-link-auto .se-step-link-label { color: #23a6d5; }
+    .se-step-link-popover { z-index: 5200 !important; }
 </style>
 
 @if (_visible && Scene != null)
@@ -163,7 +180,9 @@
             <MudStack Row="true" AlignItems="AlignItems.Center" Style="gap:10px; margin-bottom:4px;">
                 <MudText Typo="Typo.subtitle1"><b>Steps</b></MudText>
                 <MudText Typo="Typo.caption" Style="color:grey;">
-                    Step 1 runs when the scene starts; each next step is triggered by pressing "advance"
+                    Step 1 runs when the scene starts; each next step is triggered by pressing "advance",
+                    or automatically after a fixed duration or when a layer this step started
+                    without looping reaches its end
                 </MudText>
             </MudStack>
 
@@ -194,7 +213,7 @@
                     {
                         var c = command;
                         <div class="se-cmd-row">
-                            <MudSelect T="DACommandType" Value="c.Type" ValueChanged="t => c.Type = t"
+                            <MudSelect T="DACommandType" Value="c.Type" ValueChanged="t => SetCommandType(step, c, t)"
                                        Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width:170px;" Label="Action">
                                 <MudSelectItem T="DACommandType" Value="DACommandType.FadeInLayer">Fade in</MudSelectItem>
                                 <MudSelectItem T="DACommandType" Value="DACommandType.StartLayer">Start (instant)</MudSelectItem>
@@ -205,13 +224,24 @@
                                 <MudSelectItem T="DACommandType" Value="DACommandType.StopRandom">Stop random SFX</MudSelectItem>
                             </MudSelect>
 
-                            <MudSelect T="Guid" Value="c.LayerId" ValueChanged="id => c.LayerId = id"
+                            <MudSelect T="Guid" Value="c.LayerId" ValueChanged="id => SetCommandLayer(step, c, id)"
                                        Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width:190px;" Label="Layer">
                                 @foreach (var layer in Scene.Layers)
                                 {
                                     <MudSelectItem T="Guid" Value="layer.Id">@layer.Name</MudSelectItem>
                                 }
                             </MudSelect>
+
+                            @* Only a layer that is being started can be told whether to loop.
+                               Unlooped, it reaches an end the step can advance on. *@
+                            @if (c.Type is DACommandType.FadeInLayer or DACommandType.StartLayer)
+                            {
+                                <MudCheckBox T="bool" Value="EffectiveLoop(c)"
+                                             ValueChanged="v => SetCommandLoop(step, c, v)"
+                                             Label="Loop" Dense="true" Size="Size.Small"
+                                             Title="Unchecked: the layer plays once and can trigger the next step when it ends"
+                                             Style="margin:0;" />
+                            }
 
                             <MudNumericField T="double" Value="c.DelaySeconds"
                                              ValueChanged="v => c.DelaySeconds = Math.Max(0, v)"
@@ -238,13 +268,73 @@
                             }
 
                             <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small"
-                                           Title="Remove command" OnClick="() => step.Commands.Remove(c)" />
+                                           Title="Remove command" OnClick="() => RemoveCommand(step, c)" />
                         </div>
                     }
 
                     <MudButton Size="Size.Small" Variant="Variant.Text" StartIcon="@Icons.Material.Filled.Add"
                                OnClick="() => AddCommand(step)">Add action</MudButton>
                 </div>
+
+                @* ── What moves the scene from this step to the next one ── *@
+                @if (stepIndex < Scene.Steps.Count - 1)
+                {
+                    var candidates = AutoAdvanceCandidates(step).ToList();
+                    bool isAuto = step.AdvanceMode != DAStepAdvance.Manual;
+                    <div class="se-step-link @(isAuto ? "se-step-link-auto" : "")">
+                        <div class="se-step-link-label">
+                            <MudIcon Icon="@(step.AdvanceMode switch
+                                             {
+                                                 DAStepAdvance.Manual => Icons.Material.Filled.TouchApp,
+                                                 DAStepAdvance.AfterDuration => Icons.Material.Filled.Timer,
+                                                 _ => Icons.Material.Filled.PlayCircleOutline,
+                                             })"
+                                     Style="font-size:16px;" />
+                            Advance to step @(stepIndex + 2)
+                        </div>
+
+                        <MudSelect T="string" Value="AdvanceTriggerKey(step)"
+                                   ValueChanged="v => SetAdvanceTrigger(step, v)"
+                                   Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true"
+                                   PopoverClass="se-step-link-popover"
+                                   Style="min-width:280px; max-width:360px;">
+                            <MudSelectItem T="string" Value="@AdvanceManualKey">Manual trigger</MudSelectItem>
+                            <MudSelectItem T="string" Value="@AdvanceDurationKey">After a fixed duration</MudSelectItem>
+                            @foreach (var candidate in candidates)
+                            {
+                                <MudSelectItem T="string" Value="@candidate.Id.ToString()">
+                                    When “@candidate.Name” reaches its end
+                                </MudSelectItem>
+                            }
+                            @* Waiting on every layer only says something new beyond one
+                               layer when the step starts more than one — but keep the
+                               option visible if the step is already set to it. *@
+                            @if (candidates.Count > 1 || step.AdvanceMode == DAStepAdvance.OnAllLayersEnd)
+                            {
+                                <MudSelectItem T="string" Value="@AdvanceAllKey">
+                                    When all @candidates.Count layers reach their end (the longest one)
+                                </MudSelectItem>
+                            }
+                        </MudSelect>
+
+                        @if (step.AdvanceMode == DAStepAdvance.AfterDuration)
+                        {
+                            <MudNumericField T="double" Value="step.AdvanceAfterSeconds"
+                                             ValueChanged="v => step.AdvanceAfterSeconds = Math.Max(0, v)"
+                                             Label="Seconds" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                             Min="0" Step="1" Style="max-width:120px;" />
+                            <MudText Typo="Typo.caption" Style="color:#6a6a8a;">
+                                counted from this step's start
+                            </MudText>
+                        }
+                        else if (candidates.Count == 0)
+                        {
+                            <MudText Typo="Typo.caption" Style="color:#6a6a8a;">
+                                uncheck “Loop” on a layer this step starts to offer it here
+                            </MudText>
+                        }
+                    </div>
+                }
             }
 
             <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Add"
@@ -497,6 +587,122 @@
             // Sensible starting point: the layer's own configured volume.
             TargetVolume = firstLayer?.Audio.Volume ?? 1.0,
         });
+    }
+
+    void RemoveCommand(DASceneStep step, DASceneCommand command)
+    {
+        step.Commands.Remove(command);
+        ReconcileAdvanceTrigger(step);
+    }
+
+    void SetCommandType(DASceneStep step, DASceneCommand command, DACommandType type)
+    {
+        command.Type = type;
+        ReconcileAdvanceTrigger(step);
+    }
+
+    void SetCommandLayer(DASceneStep step, DASceneCommand command, Guid layerId)
+    {
+        command.LayerId = layerId;
+        ReconcileAdvanceTrigger(step);
+    }
+
+    void SetCommandLoop(DASceneStep step, DASceneCommand command, bool loop)
+    {
+        command.Loop = loop;
+        ReconcileAdvanceTrigger(step);
+    }
+
+    /// <summary>
+    /// Whether the layer this command starts will loop: the command's own choice,
+    /// falling back to how the layer's audio is configured.
+    /// </summary>
+    bool EffectiveLoop(DASceneCommand command)
+    {
+        if (command.Loop is bool loop) return loop;
+        var layer = Scene?.Layers.FirstOrDefault(l => l.Id == command.LayerId);
+        return layer?.Audio.Loop ?? true;
+    }
+
+    /// <summary>
+    /// Layers this step starts without looping — the only ones that ever reach an
+    /// end, and therefore the only ones the next step can be triggered by.
+    /// </summary>
+    IEnumerable<DASceneLayer> AutoAdvanceCandidates(DASceneStep step)
+    {
+        if (Scene == null) yield break;
+
+        var seen = new HashSet<Guid>();
+        foreach (var command in step.Commands)
+        {
+            if (command.Type is not (DACommandType.StartLayer or DACommandType.FadeInLayer)) continue;
+            if (EffectiveLoop(command)) continue;
+            if (!seen.Add(command.LayerId)) continue;
+
+            var layer = Scene.Layers.FirstOrDefault(l => l.Id == command.LayerId);
+            if (layer != null) yield return layer;
+        }
+    }
+
+    // The trigger dropdown carries three kinds of choice, so its values are keys:
+    // "manual", "all", or a layer id.
+    const string AdvanceManualKey = "manual";
+    const string AdvanceDurationKey = "duration";
+    const string AdvanceAllKey = "all";
+
+    string AdvanceTriggerKey(DASceneStep step) => step.AdvanceMode switch
+    {
+        DAStepAdvance.AfterDuration => AdvanceDurationKey,
+        DAStepAdvance.OnAllLayersEnd when AutoAdvanceCandidates(step).Any() => AdvanceAllKey,
+        DAStepAdvance.OnLayerEnd when ResolvedAdvanceLayer(step) is Guid id => id.ToString(),
+        _ => AdvanceManualKey,
+    };
+
+    void SetAdvanceTrigger(DASceneStep step, string key)
+    {
+        if (key == AdvanceDurationKey)
+        {
+            step.AdvanceMode = DAStepAdvance.AfterDuration;
+            step.AdvanceOnLayerEndId = null;
+        }
+        else if (key == AdvanceAllKey)
+        {
+            step.AdvanceMode = DAStepAdvance.OnAllLayersEnd;
+            step.AdvanceOnLayerEndId = null;
+        }
+        else if (Guid.TryParse(key, out var layerId))
+        {
+            step.AdvanceMode = DAStepAdvance.OnLayerEnd;
+            step.AdvanceOnLayerEndId = layerId;
+        }
+        else
+        {
+            step.AdvanceMode = DAStepAdvance.Manual;
+            step.AdvanceOnLayerEndId = null;
+        }
+    }
+
+    /// <summary>The step's chosen layer, or null when it no longer names a valid one.</summary>
+    Guid? ResolvedAdvanceLayer(DASceneStep step) =>
+        step.AdvanceOnLayerEndId is Guid id && AutoAdvanceCandidates(step).Any(l => l.Id == id)
+            ? id
+            : null;
+
+    /// <summary>
+    /// Drops a trigger that editing has made impossible — the layer now loops, its
+    /// command changed type or target, or it was removed — so the step falls back to
+    /// manual instead of silently never advancing.
+    /// </summary>
+    void ReconcileAdvanceTrigger(DASceneStep step)
+    {
+        switch (step.AdvanceMode)
+        {
+            case DAStepAdvance.OnLayerEnd when ResolvedAdvanceLayer(step) == null:
+            case DAStepAdvance.OnAllLayersEnd when !AutoAdvanceCandidates(step).Any():
+                step.AdvanceMode = DAStepAdvance.Manual;
+                step.AdvanceOnLayerEndId = null;
+                break;
+        }
     }
 
     // ── Contexts ────────────────────────────────────────────────────────────

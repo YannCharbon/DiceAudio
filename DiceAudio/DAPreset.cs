@@ -120,6 +120,10 @@ namespace DiceAudio
                     if (layerIdMap.TryGetValue(command.LayerId, out var mapped))
                         command.LayerId = mapped;
                 }
+                // The auto-advance trigger points at a layer too.
+                if (step.AdvanceOnLayerEndId is Guid advanceOn
+                    && layerIdMap.TryGetValue(advanceOn, out var mappedAdvance))
+                    step.AdvanceOnLayerEndId = mappedAdvance;
             }
 
             var contextIdMap = new Dictionary<Guid, Guid>();

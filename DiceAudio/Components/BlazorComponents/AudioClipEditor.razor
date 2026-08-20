@@ -21,7 +21,19 @@
         overflow: hidden;
         margin: 10px 0 2px 0;
     }
-    .ace-canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+    /* Inset by half a handle width: a range thumb's centre can only travel between
+       6px and width-6px, so the waveform is drawn over exactly that span. Without
+       this the cut lines and the audio under them disagree by up to half a handle.
+
+       width/height MUST stay explicit. A canvas is a replaced element, so `auto`
+       resolves to its intrinsic size — the width/height attributes the draw code
+       sets from clientWidth * devicePixelRatio. That closes a feedback loop where
+       every redraw scales the element up by the pixel ratio, until the WebView
+       renderer dies. */
+    .ace-canvas {
+        position: absolute; top: 0; left: 6px;
+        width: calc(100% - 12px); height: 100%;
+    }
     .ace-shade  { position: absolute; top: 0; bottom: 0; background: rgba(0,0,0,0.65); pointer-events: none; }
     .ace-playhead {
         position: absolute; top: 0; bottom: 0; width: 2px;
@@ -34,14 +46,88 @@
         background: transparent; pointer-events: none;
     }
     .ace-slider::-webkit-slider-runnable-track { background: transparent; }
+    /* Handles stay translucent so the waveform under them keeps reading, and go
+       nearly clear while dragged — that is the moment the detail matters most. */
     .ace-slider::-webkit-slider-thumb {
         -webkit-appearance: none; appearance: none;
         pointer-events: auto; cursor: ew-resize;
-        width: 12px; height: 108px; border-radius: 4px; border: none;
-        background: rgba(231,60,126,0.85);
-        box-shadow: 0 0 4px rgba(0,0,0,0.8);
+        width: 12px; height: 108px; border-radius: 4px;
+        border: 1px solid rgba(255,255,255,0.35);
+        background: rgba(231,60,126,0.55);
+        box-shadow: 0 0 4px rgba(0,0,0,0.6);
+        transition: background 0.1s;
     }
-    .ace-slider-end::-webkit-slider-thumb { background: rgba(35,166,171,0.9); }
+    .ace-slider:hover::-webkit-slider-thumb  { background: rgba(231,60,126,0.35); }
+    .ace-slider:active::-webkit-slider-thumb { background: rgba(231,60,126,0.15); }
+
+    .ace-slider-end::-webkit-slider-thumb        { background: rgba(35,166,171,0.55); }
+    .ace-slider-end:hover::-webkit-slider-thumb  { background: rgba(35,166,171,0.35); }
+    .ace-slider-end:active::-webkit-slider-thumb { background: rgba(35,166,171,0.15); }
+
+    /* A handle whose bound sits outside the zoomed view, parked on the nearest
+       edge. Still grabbable — dragging it brings the bound into the view. */
+    .ace-slider-off::-webkit-slider-thumb {
+        border-style: dashed;
+        border-color: rgba(255,255,255,0.65);
+    }
+
+    /* The exact cut, drawn down the middle of the handle. */
+    .ace-cut {
+        position: absolute; top: 0; bottom: 0;
+        width: 2px; margin-left: -1px; pointer-events: none;
+    }
+    .ace-cut-start { background: #ff5fa2; box-shadow: 0 0 5px rgba(255,95,162,0.95); }
+    .ace-cut-end   { background: #3fd9d9; box-shadow: 0 0 5px rgba(63,217,217,0.95); }
+
+    /* ── Control panel below the waveform ── */
+    .ace-panel {
+        background: #1a1a30;
+        border: 1px solid #2a2a4a;
+        border-radius: 8px;
+        padding: 4px 12px;
+        margin-top: 10px;
+    }
+    .ace-row {
+        display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+        padding: 10px 0;
+    }
+    .ace-row + .ace-row { border-top: 1px solid #26263e; }
+    .ace-spacer { flex: 1 1 auto; }
+
+    .ace-readout {
+        font-size: 12px; color: #9a9ab5; font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+    }
+    /* Fixed width so Bounds / Edges / Preview form one column and every row's
+       controls start on the same vertical line. */
+    .ace-label {
+        flex: 0 0 62px;
+        font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase;
+        color: #6a6a8a; white-space: nowrap;
+    }
+
+    /* Checkbox + its own caption: MudBlazor's built-in label renders at body1
+       (16px), which towered over the field labels around it. */
+    /* The checkbox brings its own padding, so no extra gap is wanted here. */
+    .ace-toggle { display: inline-flex; align-items: center; gap: 0; }
+    .ace-toggle-name {
+        font-size: 13px; color: #d8d8ea; cursor: pointer; user-select: none;
+        white-space: nowrap;
+    }
+    .ace-toggle-name-off { color: #74748f; }
+    .ace-fade-group { display: inline-flex; align-items: center; gap: 8px; }
+
+    /* Zoom / scroll furniture */
+    .ace-toolbar {
+        display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+        margin-top: 6px;
+    }
+    .ace-view-range {
+        display: flex; justify-content: space-between;
+        font-size: 11px; color: #6a6a8a; font-variant-numeric: tabular-nums;
+        padding: 0 2px;
+    }
+    .ace-zoom-hint { font-size: 11px; color: #6a6a8a; margin-left: auto; }
 </style>
 
 @if (_visible && Usage != null && Item != null)
@@ -65,10 +151,12 @@
         {
             <MudStack Row="true" Spacing="3" Style="margin-bottom:8px;">
                 <MudCheckBox T="bool" Value="Usage.Loop" ValueChanged="v => Usage.Loop = v" Label="Loop" />
+                @* Distinct from the clip-edge ramps below: these apply when the layer
+                   itself is brought in or taken out, not at the clip's own bounds. *@
                 <MudNumericField T="double" Value="Usage.FadeInSeconds" ValueChanged="v => Usage.FadeInSeconds = Math.Max(0, v)"
-                                 Label="Fade-in (s)" Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width:120px;" />
+                                 Label="Layer fade-in (s)" Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width:140px;" />
                 <MudNumericField T="double" Value="Usage.FadeOutSeconds" ValueChanged="v => Usage.FadeOutSeconds = Math.Max(0, v)"
-                                 Label="Fade-out (s)" Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width:120px;" />
+                                 Label="Layer fade-out (s)" Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width:140px;" />
             </MudStack>
         }
 
@@ -87,64 +175,186 @@
         else
         {
             <div class="ace-wave-box" @onclick="OnWaveClick"
-                 title="@(_previewPlayer?.IsPlaying == true ? "Click to seek the preview" : "")">
+                 @onwheel="OnWaveWheel" @onwheel:preventDefault="true"
+                 title="@(_previewPlayer?.IsPlaying == true
+                          ? "Click to seek the preview · scroll to zoom"
+                          : "Scroll to zoom around the pointer")">
                 <canvas id="@_canvasId" class="ace-canvas"></canvas>
 
-                @* Shading outside the selected region (percentages must be culture-invariant CSS) *@
-                <div class="ace-shade" style="left:0; width:@Pct(ClipStartValue);"></div>
-                <div class="ace-shade" style="right:0; width:@PctInverse(ClipEndValue);"></div>
-
-                @if (_previewPlayer != null && _previewPlayer.IsPlaying)
-                {
-                    <div class="ace-playhead" style="left:@Pct(ClipStartValue + _previewPosition);"></div>
+                @{
+                    bool startInView = IsInView(ClipStartValue);
+                    bool endInView = IsInView(ClipEndValue);
                 }
 
-                @* Dual-thumb range (two overlaid native sliders).
-                   stopPropagation: releasing a thumb must not trigger the seek-on-click. *@
-                <input type="range" class="ace-slider" min="0" max="@_maxDeci" step="1"
-                       value="@((int)(ClipStartValue * 10))" @oninput="OnStartSliderInput"
-                       @onclick:stopPropagation="true" />
-                <input type="range" class="ace-slider ace-slider-end" min="0" max="@_maxDeci" step="1"
-                       value="@((int)(ClipEndValue * 10))" @oninput="OnEndSliderInput"
-                       @onclick:stopPropagation="true" />
+                @* Shading outside the selected region (positions must be culture-invariant CSS) *@
+                <div class="ace-shade" style="left:0; width:@TrackPos(ClipStartValue);"></div>
+                <div class="ace-shade" style="left:@TrackPos(ClipEndValue); right:0;"></div>
+
+                @if (_previewPlayer != null && _previewPlayer.IsPlaying && IsInView(ClipStartValue + _previewPosition))
+                {
+                    <div class="ace-playhead" style="left:@TrackPos(ClipStartValue + _previewPosition);"></div>
+                }
+
+                @* The exact cut lines, down the middle of each handle. Only drawn for a
+                   bound that is actually in view — a parked handle sits on the edge, not
+                   where its bound really is, and a line there would lie about the cut. *@
+                @if (startInView)
+                {
+                    <div class="ace-cut ace-cut-start" style="left:@TrackPos(ClipStartValue);"></div>
+                }
+                @if (endInView)
+                {
+                    <div class="ace-cut ace-cut-end" style="left:@TrackPos(ClipEndValue);"></div>
+                }
+
+                @* Dual-thumb range (two overlaid native sliders), spanning the visible
+                   window rather than the whole file — that is what makes the handles
+                   precise once zoomed in. Both are always rendered: a bound outside the
+                   view parks its handle on the nearest edge, still grabbable, and
+                   dragging it walks the bound back into the view.
+                   Only the thumbs take pointer events, so the track never jumps on a
+                   stray click. stopPropagation: releasing a thumb must not seek. *@
+                <input type="range" class="ace-slider @(startInView ? "" : "ace-slider-off")"
+                       min="0" max="@SliderSteps" step="1"
+                       value="@SliderValue(ClipStartValue)" @oninput="OnStartSliderInput"
+                       @onclick:stopPropagation="true"
+                       title="@(startInView
+                                ? "Clip start — drag to move"
+                                : "Clip start is outside the view — drag to bring it here")" />
+
+                <input type="range" class="ace-slider ace-slider-end @(endInView ? "" : "ace-slider-off")"
+                       min="0" max="@SliderSteps" step="1"
+                       value="@SliderValue(ClipEndValue)" @oninput="OnEndSliderInput"
+                       @onclick:stopPropagation="true"
+                       title="@(endInView
+                                ? "Clip end — drag to move"
+                                : "Clip end is outside the view — drag to bring it here")" />
             </div>
 
-            <MudStack Row="true" AlignItems="AlignItems.Center" Style="gap:10px; flex-wrap:wrap; margin-top:10px;">
-                <MudNumericField T="double" Value="ClipStartValue" ValueChanged="SetClipStart"
-                                 Label="Start (s)" Variant="Variant.Outlined" Margin="Margin.Dense"
-                                 Min="0" Max="@_fileDuration" Step="0.1" Format="F1" Style="max-width:130px;" />
-                <MudNumericField T="double" Value="ClipEndValue" ValueChanged="SetClipEnd"
-                                 Label="End (s)" Variant="Variant.Outlined" Margin="Margin.Dense"
-                                 Min="0" Max="@_fileDuration" Step="0.1" Format="F1" Style="max-width:130px;" />
-                <MudText Typo="Typo.caption" Style="color:grey;">
-                    Clip: @FormatTime(ClipEndValue - ClipStartValue) / @FormatTime(_fileDuration)
-                </MudText>
-                <MudButton Size="Size.Small" Variant="Variant.Text" StartIcon="@Icons.Material.Filled.Restore"
-                           OnClick="ResetClip">Reset</MudButton>
-            </MudStack>
+            <div class="ace-view-range">
+                <span>@FormatTime(_viewStart)</span>
+                <span>@FormatTime(ViewEnd)</span>
+            </div>
 
-            @* ── Preview ── *@
-            <MudStack Row="true" AlignItems="AlignItems.Center" Style="gap:10px; margin-top:12px; flex-wrap:wrap;">
-                @if (_previewPlayer != null && _previewPlayer.IsPlaying)
-                {
-                    <div class="da-cmd-btn" @onclick="StopPreview" title="Stop preview">
-                        <MudIcon Icon="@Icons.Material.Filled.Stop" Class="da-stop" />
+            @* Horizontal scroll over the file; only meaningful once zoomed in. *@
+            @if (IsZoomed)
+            {
+                <MudSlider T="double" Value="ScrollFraction" ValueChanged="OnScrollChanged"
+                           Min="0" Max="1" Step="0.0005" Style="margin:0 2px;" />
+            }
+
+            <div class="ace-toolbar">
+                <MudIconButton Icon="@Icons.Material.Filled.ZoomOut" Size="Size.Small"
+                               Title="Zoom out" Disabled="@(!IsZoomed)"
+                               OnClick="() => ZoomByAroundCentre(0.5)" />
+                <MudIconButton Icon="@Icons.Material.Filled.ZoomIn" Size="Size.Small"
+                               Title="Zoom in" Disabled="@(_viewDuration <= MinViewDuration + 1e-6)"
+                               OnClick="() => ZoomByAroundCentre(2)" />
+                <MudButton Size="Size.Small" Variant="Variant.Text"
+                           StartIcon="@Icons.Material.Filled.CenterFocusStrong"
+                           OnClick="ZoomToClip">Zoom to clip</MudButton>
+                <MudButton Size="Size.Small" Variant="Variant.Text"
+                           StartIcon="@Icons.Material.Filled.FitScreen"
+                           Disabled="@(!IsZoomed)" OnClick="ZoomFit">Whole track</MudButton>
+                <span class="ace-zoom-hint">
+                    showing @FormatTime(_viewDuration) of @FormatTime(_fileDuration)
+                </span>
+            </div>
+
+            <div class="ace-panel">
+
+                @* Bounds *@
+                <div class="ace-row">
+                    <span class="ace-label">Bounds</span>
+                    <MudNumericField T="double" Value="ClipStartValue" ValueChanged="SetClipStart"
+                                     Label="Start (s)" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                     Min="0" Max="@_fileDuration" Step="0.05" Format="F2"
+                                     Style="width:120px;" />
+                    <MudNumericField T="double" Value="ClipEndValue" ValueChanged="SetClipEnd"
+                                     Label="End (s)" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                     Min="0" Max="@_fileDuration" Step="0.05" Format="F2"
+                                     Style="width:120px;" />
+                    <span class="ace-spacer"></span>
+                    <span class="ace-readout">
+                        @FormatTime(ClipEndValue - ClipStartValue) of @FormatTime(_fileDuration)
+                    </span>
+                    <MudIconButton Icon="@Icons.Material.Filled.Restore" Size="Size.Small"
+                                   Title="Reset the clip to the whole track" OnClick="ResetClip" />
+                </div>
+
+                @* Edge fades. Both fields stay mounted and disable when off, so
+                   toggling never reflows the row. *@
+                <div class="ace-row">
+                    <span class="ace-label">Edges</span>
+
+                    <div class="ace-fade-group">
+                        <span class="ace-toggle">
+                            <MudCheckBox T="bool" Value="@(Usage.ClipFadeInSeconds != null)"
+                                         ValueChanged="ToggleClipFadeIn" Dense="true" Size="Size.Small" />
+                            <span class="ace-toggle-name @(Usage.ClipFadeInSeconds == null ? "ace-toggle-name-off" : "")"
+                                  @onclick="() => ToggleClipFadeIn(Usage.ClipFadeInSeconds == null)">Fade in</span>
+                        </span>
+                        <MudNumericField T="double" Value="@(Usage.ClipFadeInSeconds ?? DefaultClipFadeSeconds)"
+                                         ValueChanged="SetClipFadeIn"
+                                         Disabled="@(Usage.ClipFadeInSeconds == null)"
+                                         Label="Seconds" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                         Min="0" Max="@_fileDuration" Step="0.1" Format="F2"
+                                         Style="width:110px;" />
                     </div>
-                    <MudText Typo="Typo.caption" Style="color:grey;">
-                        @FormatTime(_previewPosition) / @FormatTime(ClipEndValue - ClipStartValue)
-                        — click the waveform to seek
-                    </MudText>
-                }
-                else
-                {
-                    <div class="da-cmd-btn" @onclick="StartPreview" title="Preview the clip">
-                        <MudIcon Icon="@Icons.Material.Filled.PlayArrow" Class="da-play" />
+
+                    <div class="ace-fade-group">
+                        <span class="ace-toggle">
+                            <MudCheckBox T="bool" Value="@(Usage.ClipFadeOutSeconds != null)"
+                                         ValueChanged="ToggleClipFadeOut" Dense="true" Size="Size.Small" />
+                            <span class="ace-toggle-name @(Usage.ClipFadeOutSeconds == null ? "ace-toggle-name-off" : "")"
+                                  @onclick="() => ToggleClipFadeOut(Usage.ClipFadeOutSeconds == null)">Fade out</span>
+                        </span>
+                        <MudNumericField T="double" Value="@(Usage.ClipFadeOutSeconds ?? DefaultClipFadeSeconds)"
+                                         ValueChanged="SetClipFadeOut"
+                                         Disabled="@(Usage.ClipFadeOutSeconds == null)"
+                                         Label="Seconds" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                         Min="0" Max="@_fileDuration" Step="0.1" Format="F2"
+                                         Style="width:110px;" />
                     </div>
-                    <MudText Typo="Typo.caption" Style="color:grey;">Preview plays only the selected region</MudText>
-                }
-                <MudCheckBox T="bool" Value="_previewLoop" ValueChanged="OnPreviewLoopChanged"
-                             Dense="true" Label="Loop the selection" />
-            </MudStack>
+
+                    <span class="ace-spacer"></span>
+                    <MudTooltip Text="A cut rarely lands on a zero crossing, which is what clicks. These ramps apply wherever this clip plays, and on every loop.">
+                        <MudIcon Icon="@Icons.Material.Filled.HelpOutline"
+                                 Style="font-size:17px; color:#6a6a8a;" />
+                    </MudTooltip>
+                </div>
+
+                @* Preview *@
+                <div class="ace-row">
+                    <span class="ace-label">Preview</span>
+
+                    @if (_previewPlayer != null && _previewPlayer.IsPlaying)
+                    {
+                        <div class="da-cmd-btn" @onclick="StopPreview" title="Stop preview">
+                            <MudIcon Icon="@Icons.Material.Filled.Stop" Class="da-stop" />
+                        </div>
+                        <span class="ace-readout">
+                            @FormatTime(_previewPosition) / @FormatTime(ClipEndValue - ClipStartValue)
+                            — click the waveform to seek
+                        </span>
+                    }
+                    else
+                    {
+                        <div class="da-cmd-btn" @onclick="StartPreview" title="Preview the clip">
+                            <MudIcon Icon="@Icons.Material.Filled.PlayArrow" Class="da-play" />
+                        </div>
+                        <span class="ace-readout">Plays the selected region only</span>
+                    }
+
+                    <span class="ace-spacer"></span>
+                    <span class="ace-toggle">
+                        <MudCheckBox T="bool" Value="_previewLoop" ValueChanged="OnPreviewLoopChanged"
+                                     Dense="true" Size="Size.Small" />
+                        <span class="ace-toggle-name @(_previewLoop ? "" : "ace-toggle-name-off")"
+                              @onclick="() => OnPreviewLoopChanged(!_previewLoop)">Loop the selection</span>
+                    </span>
+                </div>
+            </div>
         }
 
         @* ── Footer ── *@
@@ -167,11 +377,26 @@
 
     private bool _visible;
     private double _fileDuration;
-    private int _maxDeci;
     private readonly string _canvasId = $"ace-wave-{Guid.NewGuid():N}";
 
+    // ── Zoomed view over the file ───────────────────────────────────────────
+    // Everything on the waveform — bars, shading, playhead, handles, clicks — is
+    // expressed against this window, which is what makes editing an hour-long
+    // track practical: at full zoom-out a pixel is seconds, zoomed in it is
+    // milliseconds.
+    private double _viewStart;
+    private double _viewDuration;
+    /// <summary>Canvas width in CSS pixels, cached to convert pointer offsets without a round trip.</summary>
+    private double _waveWidthPx;
+
+    private double ViewEnd => _viewStart + _viewDuration;
+    private bool IsZoomed => _fileDuration > 0 && _viewDuration < _fileDuration - 1e-6;
+    /// <summary>Deepest zoom. Below a couple of seconds the peak data has nothing left to show.</summary>
+    private double MinViewDuration => Math.Min(_fileDuration, 2.0);
+
     private float[]? _peaks;
-    private bool _peaksDrawn;
+    private bool _peaksLoaded;
+    private bool _needsRedraw;
 
     private DAAudioPlayer? _previewPlayer;
     private double _previewPosition;
@@ -192,19 +417,52 @@
     private double ClipStartValue => Usage?.ClipStartSeconds ?? 0;
     private double ClipEndValue => Usage?.ClipEndSeconds ?? _fileDuration;
 
-    private double PercentOf(double seconds) =>
-        _fileDuration <= 0 ? 0 : Math.Clamp(seconds / _fileDuration * 100.0, 0, 100);
+    // Position within the visible window as a 0..1 fraction, clamped — an
+    // out-of-view bound pins to an edge, which is what the shading and the parked
+    // handles both want.
+    private double Fraction(double seconds) =>
+        _viewDuration <= 0 ? 0 : Math.Clamp((seconds - _viewStart) / _viewDuration, 0, 1);
 
-    // CSS percentages must use "." as decimal separator regardless of the OS
-    // culture (fr-FR renders doubles with "," which browsers reject silently).
-    private string Pct(double seconds) =>
-        PercentOf(seconds).ToString("F3", System.Globalization.CultureInfo.InvariantCulture) + "%";
+    private bool IsInView(double seconds) =>
+        seconds >= _viewStart - 1e-6 && seconds <= ViewEnd + 1e-6;
 
-    private string PctInverse(double seconds) =>
-        (100.0 - PercentOf(seconds)).ToString("F3", System.Globalization.CultureInfo.InvariantCulture) + "%";
+    // The handles resolve the visible window into a fixed number of steps, so the
+    // precision they offer follows the zoom instead of the file length.
+    private const int SliderSteps = 2000;
 
-    private static string FormatTime(double seconds) =>
-        TimeSpan.FromSeconds(Math.Max(0, seconds)).ToString(@"mm\:ss\.f");
+    private int SliderValue(double seconds) => (int)Math.Round(Fraction(seconds) * SliderSteps);
+
+    private double SecondsFromSlider(double rawStep) =>
+        _viewStart + Math.Clamp(rawStep / SliderSteps, 0, 1) * _viewDuration;
+
+    /// <summary>Width of a range thumb in CSS pixels; must match the stylesheet.</summary>
+    private const int HandleWidthPx = 12;
+
+    /// <summary>
+    /// Where a moment sits inside the waveform box, expressed the way the browser
+    /// lays a range thumb out: the thumb never overhangs the track, so its centre
+    /// runs from half a thumb in to half a thumb short of the end, not 0%..100%.
+    /// Positioning the shading, the cut lines and the playhead with the same
+    /// formula is what keeps them on the very pixel the handle is on — at full
+    /// zoom-out the naive percentage was off by up to half a thumb, which is
+    /// several seconds on an hour-long track.
+    /// Built culture-invariantly: fr-FR would emit "0,42", which browsers drop.
+    /// </summary>
+    private string TrackPos(double seconds)
+    {
+        var fraction = Fraction(seconds)
+            .ToString("F5", System.Globalization.CultureInfo.InvariantCulture);
+        return $"calc({HandleWidthPx / 2}px + (100% - {HandleWidthPx}px) * {fraction})";
+    }
+
+    private static string FormatTime(double seconds)
+    {
+        var span = TimeSpan.FromSeconds(Math.Max(0, seconds));
+        // mm is minutes-within-the-hour: without this an hour-long track reads 00:00.
+        return span.TotalHours >= 1
+            ? span.ToString(@"h\:mm\:ss\.f")
+            : span.ToString(@"mm\:ss\.f");
+    }
 
     public void Show(DAAudioUsage usage, DAAudioItem item)
     {
@@ -212,8 +470,12 @@
         Item = item;
         _visible = true;
         _peaks = null;
-        _peaksDrawn = false;
+        _peaksLoaded = false;
+        _needsRedraw = false;
+        _waveWidthPx = 0;
         _fileDuration = 0;
+        _viewStart = 0;
+        _viewDuration = 0;
         _previewPosition = 0;
 
         var cachePath = DAScenarioItemPlayer.GetPlayableCachePath(item.LocalFileName);
@@ -227,7 +489,8 @@
             }
             catch { _fileDuration = 0; }
 
-            _maxDeci = (int)(_fileDuration * 10);
+            _viewStart = 0;
+            _viewDuration = _fileDuration;
             _ = ComputePeaksAsync(cachePath);
         }
 
@@ -238,6 +501,9 @@
     {
         StopPreview();
         _visible = false;
+        _peaksLoaded = false;
+        try { await JS.InvokeVoidAsync("daWaveform.unload", _canvasId); }
+        catch { /* page already gone — nothing to release */ }
         StateHasChanged();
         await OnClosed.InvokeAsync();
     }
@@ -246,14 +512,16 @@
 
     void OnStartSliderInput(ChangeEventArgs e)
     {
-        if (double.TryParse(e.Value?.ToString(), out var deci))
-            SetClipStart(deci / 10.0);
+        if (double.TryParse(e.Value?.ToString(), System.Globalization.NumberStyles.Any,
+                            System.Globalization.CultureInfo.InvariantCulture, out var step))
+            SetClipStart(SecondsFromSlider(step));
     }
 
     void OnEndSliderInput(ChangeEventArgs e)
     {
-        if (double.TryParse(e.Value?.ToString(), out var deci))
-            SetClipEnd(deci / 10.0);
+        if (double.TryParse(e.Value?.ToString(), System.Globalization.NumberStyles.Any,
+                            System.Globalization.CultureInfo.InvariantCulture, out var step))
+            SetClipEnd(SecondsFromSlider(step));
     }
 
     void SetClipStart(double seconds)
@@ -280,11 +548,120 @@
         SyncPreviewBounds();
     }
 
+    // ── Clip edge ramps ─────────────────────────────────────────────────────
+
+    /// <summary>Half a second is long enough to kill a click, short enough not to be heard as a fade.</summary>
+    private const double DefaultClipFadeSeconds = 0.5;
+
+    void ToggleClipFadeIn(bool enabled)
+    {
+        if (Usage == null) return;
+        Usage.ClipFadeInSeconds = enabled ? DefaultClipFadeSeconds : null;
+        SyncPreviewFades();
+    }
+
+    void ToggleClipFadeOut(bool enabled)
+    {
+        if (Usage == null) return;
+        Usage.ClipFadeOutSeconds = enabled ? DefaultClipFadeSeconds : null;
+        SyncPreviewFades();
+    }
+
+    void SetClipFadeIn(double seconds)
+    {
+        if (Usage == null) return;
+        Usage.ClipFadeInSeconds = Math.Max(0, seconds);
+        SyncPreviewFades();
+    }
+
+    void SetClipFadeOut(double seconds)
+    {
+        if (Usage == null) return;
+        Usage.ClipFadeOutSeconds = Math.Max(0, seconds);
+        SyncPreviewFades();
+    }
+
+    // Lets a running preview audition the ramps without restarting it.
+    void SyncPreviewFades()
+    {
+        if (Usage != null)
+            _previewPlayer?.SetClipFades(Usage.ClipFadeInSeconds, Usage.ClipFadeOutSeconds);
+    }
+
     // Keeps an active preview following the handles as they are dragged.
     void SyncPreviewBounds()
     {
         if (Usage != null)
             _previewPlayer?.SetClipBounds(Usage.ClipStartSeconds, Usage.ClipEndSeconds);
+    }
+
+    // ── Zoom & scroll ───────────────────────────────────────────────────────
+
+    /// <summary>Where the visible window sits in the file, 0..1 (0 when fully zoomed out).</summary>
+    private double ScrollFraction
+    {
+        get
+        {
+            double slack = _fileDuration - _viewDuration;
+            return slack <= 1e-6 ? 0 : Math.Clamp(_viewStart / slack, 0, 1);
+        }
+    }
+
+    void OnScrollChanged(double fraction)
+    {
+        double slack = Math.Max(0, _fileDuration - _viewDuration);
+        _viewStart = Math.Clamp(fraction, 0, 1) * slack;
+        _needsRedraw = true;
+    }
+
+    void ZoomByAroundCentre(double factor) => ZoomAround(_viewStart + _viewDuration / 2, factor);
+
+    /// <summary>
+    /// Scales the window by <paramref name="factor"/> while keeping
+    /// <paramref name="anchorSeconds"/> under the same pixel, so wheel-zoom homes in
+    /// on whatever the pointer is over instead of drifting.
+    /// </summary>
+    void ZoomAround(double anchorSeconds, double factor)
+    {
+        if (_fileDuration <= 0 || _viewDuration <= 0) return;
+
+        double anchorFraction = Math.Clamp((anchorSeconds - _viewStart) / _viewDuration, 0, 1);
+        double newDuration = Math.Clamp(_viewDuration / factor, MinViewDuration, _fileDuration);
+        if (Math.Abs(newDuration - _viewDuration) < 1e-9) return;
+
+        _viewDuration = newDuration;
+        _viewStart = Math.Clamp(anchorSeconds - anchorFraction * newDuration,
+                                0, Math.Max(0, _fileDuration - newDuration));
+        _needsRedraw = true;
+    }
+
+    void ZoomFit()
+    {
+        _viewStart = 0;
+        _viewDuration = _fileDuration;
+        _needsRedraw = true;
+    }
+
+    /// <summary>Frames the current clip with a little air on each side.</summary>
+    void ZoomToClip()
+    {
+        if (_fileDuration <= 0) return;
+
+        double length = Math.Max(MinViewDuration, ClipEndValue - ClipStartValue);
+        double padded = Math.Clamp(length * 1.2, MinViewDuration, _fileDuration);
+        double centre = (ClipStartValue + ClipEndValue) / 2;
+
+        _viewDuration = padded;
+        _viewStart = Math.Clamp(centre - padded / 2, 0, Math.Max(0, _fileDuration - padded));
+        _needsRedraw = true;
+    }
+
+    void OnWaveWheel(WheelEventArgs e)
+    {
+        if (_fileDuration <= 0) return;
+
+        double fraction = _waveWidthPx > 0 ? Math.Clamp(e.OffsetX / _waveWidthPx, 0, 1) : 0.5;
+        ZoomAround(_viewStart + fraction * _viewDuration, e.DeltaY < 0 ? 1.3 : 1 / 1.3);
     }
 
     // ── Preview ─────────────────────────────────────────────────────────────
@@ -322,12 +699,15 @@
     {
         if (_previewPlayer == null || !_previewPlayer.IsPlaying || _fileDuration <= 0) return;
 
-        double width = 0;
-        try { width = await JS.InvokeAsync<double>("daWaveform.width", _canvasId); }
-        catch { }
+        double width = _waveWidthPx;
+        if (width <= 0)
+        {
+            try { width = await JS.InvokeAsync<double>("daWaveform.width", _canvasId); }
+            catch { }
+        }
         if (width <= 0) return;
 
-        double absoluteSeconds = Math.Clamp(e.OffsetX / width, 0, 1) * _fileDuration;
+        double absoluteSeconds = _viewStart + Math.Clamp(e.OffsetX / width, 0, 1) * _viewDuration;
         double clipRelative = Math.Clamp(absoluteSeconds - ClipStartValue, 0, ClipEndValue - ClipStartValue);
         _previewPlayer.Seek(clipRelative);
         _previewPosition = clipRelative;
@@ -360,13 +740,18 @@
 #if WINDOWS
         try
         {
-            _peaks = await Task.Run(() => ComputePeaks(filePath, 600));
+            // Resolution follows the file length so a zoomed-in window still has
+            // detail to show: an hour-long track resolves to ~90 ms per bar. The
+            // decode reads every sample either way, so this costs memory, not time.
+            int buckets = (int)Math.Clamp(_fileDuration * 25, 1200, 40000);
+            _peaks = await Task.Run(() => ComputePeaks(filePath, buckets));
         }
         catch
         {
             _peaks = null;   // decode failed → plain background, still fully usable
         }
-        _peaksDrawn = false;
+        _peaksLoaded = false;
+        _needsRedraw = true;
         await InvokeAsync(StateHasChanged);
 #else
         await Task.CompletedTask;   // no waveform off-Windows (baseline UI only)
@@ -406,12 +791,35 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (_visible && _peaks != null && !_peaksDrawn)
+        if (!_visible || _fileDuration <= 0) return;
+
+        if (_waveWidthPx <= 0)
         {
-            _peaksDrawn = true;
-            try { await JS.InvokeVoidAsync("daWaveform.draw", _canvasId, _peaks); }
-            catch { /* canvas not ready — ignored */ }
+            try { _waveWidthPx = await JS.InvokeAsync<double>("daWaveform.width", _canvasId); }
+            catch { /* canvas not ready — retried on the next render */ }
         }
+
+        if (_peaks == null) return;
+
+        try
+        {
+            if (!_peaksLoaded)
+            {
+                // Handed over once; zooming and scrolling then redraw from the
+                // browser-side copy instead of re-marshalling the whole array.
+                await JS.InvokeVoidAsync("daWaveform.load", _canvasId, _peaks);
+                _peaksLoaded = true;
+                _needsRedraw = true;
+            }
+
+            if (_needsRedraw)
+            {
+                _needsRedraw = false;
+                await JS.InvokeVoidAsync("daWaveform.drawRange", _canvasId,
+                                         _viewStart / _fileDuration, ViewEnd / _fileDuration);
+            }
+        }
+        catch { /* canvas not ready — ignored */ }
     }
 
     public void Dispose()

@@ -32,6 +32,18 @@ namespace DiceAudio
         /// <summary>Non-destructive trim end; null = to file end.</summary>
         public double? ClipEndSeconds { get; set; }
 
+        /// <summary>
+        /// Ramp applied at the clip's own start, in seconds; null = none. A trim
+        /// almost never lands on a zero crossing, so playing from it steps the
+        /// signal and clicks — this ramps in from silence instead. Enforced by
+        /// <see cref="DAAudioPlayer"/>, so it holds wherever the clip is played
+        /// and on every loop, not just on the first play.
+        /// </summary>
+        public double? ClipFadeInSeconds { get; set; }
+
+        /// <summary>Ramp applied into the clip's own end, in seconds; null = none.</summary>
+        public double? ClipFadeOutSeconds { get; set; }
+
         public bool IsClipped => ClipStartSeconds is > 0 || ClipEndSeconds != null;
 
         public DAAudioUsage() { }
@@ -51,6 +63,8 @@ namespace DiceAudio
             StartDelaySeconds = StartDelaySeconds,
             ClipStartSeconds = ClipStartSeconds,
             ClipEndSeconds = ClipEndSeconds,
+            ClipFadeInSeconds = ClipFadeInSeconds,
+            ClipFadeOutSeconds = ClipFadeOutSeconds,
         };
     }
 }

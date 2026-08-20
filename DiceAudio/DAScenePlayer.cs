@@ -197,22 +197,132 @@ namespace DiceAudio
 
             if (stepIndex <= CurrentStepIndex || !IsPlaying)
             {
-                // Backwards (or not started): restart silently and replay up to the target.
+                // Backwards, or starting cold: nothing of the earlier steps should be
+                // heard, so the entering state is worked out on paper and applied in
+                // one go rather than by replaying their cues.
                 await StopAsync(0.3f);
                 _sessionCts = new CancellationTokenSource();
-                CurrentStepIndex = -1;
+                CurrentStepIndex = stepIndex - 1;
                 IsPlaying = true;
+                await RestoreStateForStepAsync(stepIndex, _sessionCts.Token);
+            }
+            else
+            {
+                // Forward jump mid-play: the skipped steps' cues still run, shorn of
+                // their delays, so the scene lands where those steps would leave it.
+                var forwardCt = _sessionCts.Token;
+                while (CurrentStepIndex < stepIndex - 1 && !forwardCt.IsCancellationRequested)
+                {
+                    CurrentStepIndex++;
+                    foreach (var command in Scene.Steps[CurrentStepIndex].Commands)
+                        _ = RunCommandAsync(Compress(command), forwardCt);
+                }
             }
 
             var ct = _sessionCts.Token;
-            while (CurrentStepIndex < stepIndex - 1 && !ct.IsCancellationRequested)
-            {
-                CurrentStepIndex++;
-                foreach (var command in Scene.Steps[CurrentStepIndex].Commands)
-                    _ = RunCommandAsync(Compress(command), ct);
-            }
             if (!ct.IsCancellationRequested)
                 await AdvanceAsync();
+        }
+
+        /// <summary>What the simulation says a layer should be doing on entry.</summary>
+        private sealed class LayerEntryState
+        {
+            public bool Playing;
+            public double Volume = 1.0;
+            public bool? Loop;
+            public bool Random;
+        }
+
+        /// <summary>
+        /// Works out, without playing anything, where the layers stand once the steps
+        /// before <paramref name="stepIndex"/> have run — then applies that state
+        /// instantly.
+        ///
+        /// The target step's own stop cues are folded into the simulation on purpose.
+        /// Starting a layer only so the step being jumped to can immediately fade it
+        /// out is exactly the artefact this avoids: from a standing start there is
+        /// nothing to fade, so those cues should simply find nothing to act on.
+        /// </summary>
+        private async Task RestoreStateForStepAsync(int stepIndex, CancellationToken ct)
+        {
+            var entry = SimulateEntryState(stepIndex);
+            var starts = new List<Task>();
+
+            foreach (var (layerId, state) in entry)
+            {
+                var layer = Scene.Layers.FirstOrDefault(l => l.Id == layerId);
+                if (layer == null) continue;
+
+                if (state.Playing)
+                    starts.Add(StartLayerAsync(layer, 0, state.Volume, ct, state.Loop));
+                if (state.Random)
+                    StartRandomLoop(layer, ct);
+            }
+
+            if (starts.Count > 0) await Task.WhenAll(starts);
+        }
+
+        private Dictionary<Guid, LayerEntryState> SimulateEntryState(int stepIndex)
+        {
+            var state = new Dictionary<Guid, LayerEntryState>();
+
+            LayerEntryState For(Guid id)
+            {
+                if (!state.TryGetValue(id, out var existing))
+                    state[id] = existing = new LayerEntryState();
+                return existing;
+            }
+
+            void Apply(DASceneCommand command, bool stopsOnly)
+            {
+                bool isStop = command.Type is DACommandType.StopLayer or DACommandType.FadeOutLayer;
+                if (stopsOnly && !isStop) return;
+
+                switch (command.Type)
+                {
+                    case DACommandType.StartLayer:
+                    case DACommandType.FadeInLayer:
+                        var started = For(command.LayerId);
+                        started.Playing = true;
+                        started.Volume = command.TargetVolume;
+                        started.Loop = command.Loop;
+                        break;
+
+                    case DACommandType.StopLayer:
+                    case DACommandType.FadeOutLayer:
+                        if (command.AllLayers)
+                        {
+                            foreach (var each in state.Values) each.Playing = false;
+                        }
+                        else
+                        {
+                            For(command.LayerId).Playing = false;
+                        }
+                        break;
+
+                    case DACommandType.SetVolume:
+                        For(command.LayerId).Volume = command.TargetVolume;
+                        break;
+
+                    case DACommandType.StartRandom:
+                        For(command.LayerId).Random = true;
+                        break;
+
+                    case DACommandType.StopRandom:
+                        For(command.LayerId).Random = false;
+                        break;
+                }
+            }
+
+            // Ordered by delay so cues within a step resolve the way they would play.
+            for (int i = 0; i < stepIndex; i++)
+                foreach (var command in Scene.Steps[i].Commands.OrderBy(c => c.DelaySeconds))
+                    Apply(command, stopsOnly: false);
+
+            foreach (var command in Scene.Steps[stepIndex].Commands.OrderBy(c => c.DelaySeconds))
+                Apply(command, stopsOnly: true);
+
+            return state;
         }
 
         // ── Contextual mode ──────────────────────────────────────────────────
@@ -349,6 +459,7 @@ namespace DiceAudio
             DurationSeconds = Math.Min(c.DurationSeconds, 0.5),
             TargetVolume = c.TargetVolume,
             Loop = c.Loop,
+            AllLayers = c.AllLayers,
         };
 
         /// <summary>Fades out all layers, cancels pending commands and random loops.</summary>
@@ -393,6 +504,18 @@ namespace DiceAudio
                 if (command.DelaySeconds > 0)
                     await Task.Delay(TimeSpan.FromSeconds(command.DelaySeconds), ct);
                 if (ct.IsCancellationRequested) return;
+
+                // An "all layers" stop names no layer, so resolve the target first
+                // and only require one for the commands that actually need it.
+                if (command.AllLayers
+                    && command.Type is DACommandType.StopLayer or DACommandType.FadeOutLayer)
+                {
+                    await StopAllLayersAsync(command.Type == DACommandType.StopLayer
+                        ? 0
+                        : command.DurationSeconds);
+                    StateChanged?.Invoke();
+                    return;
+                }
 
                 var layer = Scene.Layers.FirstOrDefault(l => l.Id == command.LayerId);
                 if (layer == null) return;
@@ -522,6 +645,19 @@ namespace DiceAudio
             }
 
             player.PlaybackEnded += OnEnded;
+        }
+
+        /// <summary>
+        /// Stops every layer that is currently playing, over the given fade. Random
+        /// one-shot loops are left alone — they are driven by their own
+        /// StartRandom/StopRandom commands, exactly as a single-layer stop leaves them.
+        /// </summary>
+        private async Task StopAllLayersAsync(double fadeSeconds)
+        {
+            List<Guid> layerIds;
+            lock (_lock) layerIds = _layerPlayers.Keys.ToList();
+
+            await Task.WhenAll(layerIds.Select(id => StopLayerAsync(id, fadeSeconds)));
         }
 
         private async Task StopLayerAsync(Guid layerId, double fadeSeconds)

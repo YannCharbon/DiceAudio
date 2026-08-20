@@ -118,7 +118,18 @@ namespace DiceAudio
         /// The handover is sequential for every item type, scenes included: the
         /// outgoing item is silent before the next one is started.
         /// </summary>
-        public async Task PlayItemAsync(DAScenarioItem item)
+        public Task PlayItemAsync(DAScenarioItem item) => HandOverToAsync(item, null);
+
+        /// <summary>
+        /// Hands over to the item and starts its scene at a chosen cue rather than
+        /// from the top — what clicking a step of a stopped item does. Going through
+        /// the same handover is what stops the previous item first; jumping on the
+        /// item player alone would leave it playing.
+        /// </summary>
+        public Task PlayItemAtCueAsync(DAScenarioItem item, int cueIndex) =>
+            HandOverToAsync(item, cueIndex);
+
+        private async Task HandOverToAsync(DAScenarioItem item, int? sceneCueIndex)
         {
             if (!_itemPlayers.TryGetValue(item.Id, out var target)) return;
 
@@ -151,7 +162,11 @@ namespace DiceAudio
             // owns the transport now, so do not start over the top of it.
             if (_currentItemId != item.Id) return;
 
-            target.Play();
+            if (sceneCueIndex is int cue)
+                await target.GoToSceneCueAsync(cue);   // starts the scene straight at that cue
+            else
+                target.Play();
+
             StateChanged?.Invoke();
         }
 

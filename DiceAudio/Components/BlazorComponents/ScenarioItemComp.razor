@@ -55,7 +55,8 @@
             { <MudIcon Icon="@Icons.Material.Filled.Shuffle" Style="font-size:13px; color:lightgreen;" /> }
         </div>
 
-        <ScenarioItemPlayerComp ScenarioItem="ScenarioItem" Group="Group" Player="Player" OnRequestPlay="OnRequestPlay" />
+        <ScenarioItemPlayerComp ScenarioItem="ScenarioItem" Group="Group" Player="Player"
+                                OnRequestPlay="OnRequestPlay" OnRequestPlayAtCue="OnRequestPlayAtCue" />
     </div>
 
     <div class="si-footer">
@@ -74,6 +75,7 @@
     [Parameter] public DAScenarioGroup? Group { get; set; }
     [Parameter] public DAScenarioItemPlayer? Player { get; set; }
     [Parameter] public Func<DAScenarioItem, Task>? OnRequestPlay { get; set; }
+    [Parameter] public Func<DAScenarioItem, int, Task>? OnRequestPlayAtCue { get; set; }
     [Parameter] public Action<DAScenarioItem>? DeleteItem { get; set; }
     [Parameter] public Action? OnEditorClosed { get; set; }
 

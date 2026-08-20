@@ -19,6 +19,55 @@
         background: rgba(35,166,213,0.3); border-color: #23a6d5; color: #bfe8ff;
         font-weight: bold;
     }
+
+    /* Linear step sequence — numbered chips, so a long scene costs a couple of
+       wrapped rows instead of growing the card by one row per step. The names
+       live in the tooltips and in the caption under the strip. */
+    .da-step-strip {
+        display: flex; flex-wrap: wrap; gap: 3px;
+        justify-content: center; margin: 4px 0 2px 0;
+    }
+    .da-step-chip {
+        flex: 0 1 auto; min-width: 0; height: 19px; padding: 0 5px;
+        display: flex; align-items: center; gap: 4px;
+        background: #1e1e38; border: 1px solid #363660; border-radius: 5px;
+        font-size: 11px; line-height: 1; cursor: pointer; user-select: none;
+        color: #a8a8c8;
+        transition: background 0.15s, border-color 0.15s;
+    }
+    .da-step-chip:hover { background: #2e2e58; border-color: #5555aa; color: #e0e0f5; }
+    .da-step-chip-active {
+        background: rgba(35,166,213,0.35); border-color: #23a6d5; color: #bfe8ff;
+        font-weight: bold;
+    }
+
+    /* The number sits outside the clipped area, so it stays put while a long
+       name scrolls past it. */
+    .da-step-num {
+        flex: 0 0 auto; min-width: 11px; text-align: center;
+        font-variant-numeric: tabular-nums; opacity: 0.8;
+    }
+    .da-step-chip-active .da-step-num { opacity: 1; }
+
+    /* Capped so two chips fit a card row. A name longer than the cap fills the
+       label exactly, which is what makes the scroll distance below exact. */
+    .da-step-label { flex: 0 1 auto; max-width: 88px; overflow: hidden; }
+    .da-step-label-text { display: inline-block; white-space: nowrap; }
+
+    .da-step-scroll .da-step-label-text {
+        animation: da-step-marquee 6s linear infinite;
+    }
+    /* Ends pause before turning round. min() guards the case where the name is
+       narrower than the cap after all — it then simply never moves. */
+    @@keyframes da-step-marquee {
+        0%, 18%   { transform: translateX(0); }
+        50%, 68%  { transform: translateX(min(0px, calc(88px - 100%))); }
+        100%      { transform: translateX(0); }
+    }
+    .da-step-caption {
+        font-size: 11px; text-align: center;
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
 </style>
 
 @* Uses shared da-cmd-btn CSS from app.css *@
@@ -77,24 +126,42 @@
             </div>
         }
     }
-    else if (scenePlaying && scene != null)
+    else
     {
-        <div style="font-size:11px; color:#90caf9; text-align:center; margin:2px 0;">
-            Step @(scene.CurrentStepIndex + 1)/@itemScene.Steps.Count:
-            <b>@(scene.CurrentStep?.Name ?? "")</b>
+        @* ── Step sequence: shows the whole run order, and lets the user jump
+             straight to any step instead of only advancing one at a time. ── *@
+        <div class="da-step-strip">
+            @for (int i = 0; i < itemScene.Steps.Count; i++)
+            {
+                var stepIndex = i;
+                var step = itemScene.Steps[stepIndex];
+                bool isCurrent = scenePlaying && scene?.CurrentStepIndex == stepIndex;
+                <div class="da-step-chip @(isCurrent ? "da-step-chip-active" : "") @(step.Name.Length > StepNameScrollChars ? "da-step-scroll" : "")"
+                     title="@($"Jump to step {stepIndex + 1}: {step.Name}")"
+                     @onclick="() => GoToStepAsync(stepIndex)">
+                    <span class="da-step-num">@(stepIndex + 1)</span>
+                    <span class="da-step-label"><span class="da-step-label-text">@step.Name</span></span>
+                </div>
+            }
         </div>
-        @if (scene.NextStep != null)
+
+        @if (itemScene.Steps.Count == 0)
         {
-            <div style="font-size:11px; color:#888; text-align:center;">Next: @scene.NextStep.Name</div>
+            <div class="da-step-caption" style="color:orange;">No step configured — edit this item</div>
+        }
+        else if (scenePlaying && scene?.CurrentStep != null)
+        {
+            <div class="da-step-caption" style="color:#90caf9;"
+                 title="@scene.CurrentStep.Name">
+                @(scene.CurrentStepIndex + 1)/@itemScene.Steps.Count · <b>@scene.CurrentStep.Name</b>
+            </div>
         }
         else
         {
-            <div style="font-size:11px; color:#666; text-align:center;">(last step)</div>
+            <div class="da-step-caption" style="color:grey;">
+                @itemScene.Steps.Count step(s) · click one to start there
+            </div>
         }
-    }
-    else
-    {
-        <div style="font-size:11px; color:grey; text-align:center;">@itemScene.CueSummary</div>
     }
 }
 else if (Player != null)
@@ -180,8 +247,16 @@ else if (Player != null)
     [Parameter] public DAScenarioGroup? Group { get; set; }
     [Parameter] public DAScenarioItemPlayer? Player { get; set; }
     [Parameter] public Func<DAScenarioItem, Task>? OnRequestPlay { get; set; }
+    /// <summary>Hands over to this item and starts its scene at a given cue.</summary>
+    [Parameter] public Func<DAScenarioItem, int, Task>? OnRequestPlayAtCue { get; set; }
 
     private DAScenarioItemPlayer? _subscribedPlayer;
+
+    /// <summary>
+    /// Beyond this many characters a step name cannot fit the chip, so it scrolls
+    /// instead of being cut off. Sized to the 88px label at 11px type.
+    /// </summary>
+    private const int StepNameScrollChars = 15;
 
     // All play requests route through the scenario player so the previously
     // active item is faded out first (Bug #1).
@@ -204,6 +279,24 @@ else if (Player != null)
             await OnRequestPlay(ScenarioItem);
 
         await Player.EnterSceneContextAsync(context);
+    }
+
+    // Same routing for the linear step buttons: clicking a step on a stopped item
+    // starts the item there rather than doing nothing.
+    async Task GoToStepAsync(int stepIndex)
+    {
+        if (Player == null) return;
+
+        // Idle item: hand over through the scenario so whatever else is playing
+        // fades out, and let it start the scene directly on the clicked step —
+        // starting at step 1 first would fire that step's cues on the way past.
+        if (Player.State != DAScenarioItemPlayer.PlayState.Play && OnRequestPlayAtCue != null)
+        {
+            await OnRequestPlayAtCue(ScenarioItem, stepIndex);
+            return;
+        }
+
+        await Player.GoToSceneCueAsync(stepIndex);
     }
 
     protected override async Task OnParametersSetAsync()

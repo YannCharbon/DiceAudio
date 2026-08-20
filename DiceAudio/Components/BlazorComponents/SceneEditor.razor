@@ -224,11 +224,18 @@
                                 <MudSelectItem T="DACommandType" Value="DACommandType.StopRandom">Stop random SFX</MudSelectItem>
                             </MudSelect>
 
-                            <MudSelect T="Guid" Value="c.LayerId" ValueChanged="id => SetCommandLayer(step, c, id)"
+                            @* Stops can target everything at once, so one command can
+                               clear the scene instead of one per layer. *@
+                            <MudSelect T="string" Value="LayerSelectionKey(c)"
+                                       ValueChanged="v => SetCommandLayerSelection(step, c, v)"
                                        Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width:190px;" Label="Layer">
+                                @if (c.Type is DACommandType.StopLayer or DACommandType.FadeOutLayer)
+                                {
+                                    <MudSelectItem T="string" Value="@AllLayersKey">All layers</MudSelectItem>
+                                }
                                 @foreach (var layer in Scene.Layers)
                                 {
-                                    <MudSelectItem T="Guid" Value="layer.Id">@layer.Name</MudSelectItem>
+                                    <MudSelectItem T="string" Value="@layer.Id.ToString()">@layer.Name</MudSelectItem>
                                 }
                             </MudSelect>
 
@@ -597,13 +604,45 @@
 
     void SetCommandType(DASceneStep step, DASceneCommand command, DACommandType type)
     {
+        bool wasStop = IsStopCommand(command.Type);
         command.Type = type;
+
+        // Stopping everything is the common case, so it is the default a stop
+        // arrives with; anything else can only target one layer.
+        if (IsStopCommand(type))
+        {
+            if (!wasStop) command.AllLayers = true;
+        }
+        else
+        {
+            command.AllLayers = false;
+        }
+
         ReconcileAdvanceTrigger(step);
     }
 
-    void SetCommandLayer(DASceneStep step, DASceneCommand command, Guid layerId)
+    static bool IsStopCommand(DACommandType type) =>
+        type is DACommandType.StopLayer or DACommandType.FadeOutLayer;
+
+    // The layer dropdown carries either a layer id or the "everything" choice.
+    const string AllLayersKey = "all-layers";
+
+    string LayerSelectionKey(DASceneCommand command) =>
+        command.AllLayers && IsStopCommand(command.Type)
+            ? AllLayersKey
+            : command.LayerId.ToString();
+
+    void SetCommandLayerSelection(DASceneStep step, DASceneCommand command, string key)
     {
-        command.LayerId = layerId;
+        if (key == AllLayersKey)
+        {
+            command.AllLayers = true;
+        }
+        else if (Guid.TryParse(key, out var layerId))
+        {
+            command.AllLayers = false;
+            command.LayerId = layerId;
+        }
         ReconcileAdvanceTrigger(step);
     }
 

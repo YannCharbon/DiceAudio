@@ -157,6 +157,13 @@ namespace DiceAudio
         public DACommandType Type { get; set; } = DACommandType.FadeInLayer;
         public Guid LayerId { get; set; }
 
+        /// <summary>
+        /// Targets every layer that is currently playing instead of
+        /// <see cref="LayerId"/>, so one command can clear the scene rather than
+        /// needing one per layer. Only meaningful for StopLayer and FadeOutLayer.
+        /// </summary>
+        public bool AllLayers { get; set; }
+
         /// <summary>Seconds after the step is triggered before this command runs.</summary>
         public double DelaySeconds { get; set; } = 0;
 

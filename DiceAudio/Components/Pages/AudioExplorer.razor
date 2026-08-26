@@ -32,6 +32,16 @@
                  background:#1b1b2b; border:1px solid #363660; border-radius:8px;
                  padding:6px 10px; margin-bottom:10px; }
   .filter-expr { color:#e2b6ff; font-weight:600; }
+  /*  multi-selection ---------------------------------------------- */
+  .audio-card-selected .audio-item-top,
+  .audio-card-selected .audio-item-bottom { box-shadow: inset 0 0 0 3px #23a6d5; }
+  .select-badge { position:absolute; top:6px; left:6px; background:rgba(0,0,0,0.5);
+                  border-radius:50%; line-height:0; }
+  .selection-bar { display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+                   background:#12233a; border:1px solid #23a6d5; border-radius:8px;
+                   padding:6px 10px; margin-bottom:10px; }
+  .selection-count { color:#8fd3ff; font-weight:600; }
+
   /*  folder an item was hoisted from while filtering across subfolders  */
   .hoisted-folder { display:inline-flex; align-items:center; gap:3px;
                     color:#8fa3b8; font-size:x-small; margin-top:2px; }
@@ -43,6 +53,7 @@
 <GenericModal TContent="MoveToFolder"     @ref="MoveToFolderModalRef"     OnClose="HandleMoveToFolderModalClose"><MoveToFolder AudioItem="_currentAudioItemForMoveToFolder" /></GenericModal>
 <GenericModal TContent="AudioTagsEditor"  @ref="AudioTagsEditorModalRef"  OnClose="HandleAudioTagsEditorModalClose"><AudioTagsEditor /></GenericModal>
 <GenericModal TContent="AudioFilterEditor" @ref="AudioFilterModalRef"    OnClose="HandleAudioFilterModalClose"><AudioFilterEditor Filter="_filter" MatchCount="CountFilterMatches" UpdateParent="StateHasChanged" /></GenericModal>
+<GenericModal TContent="MoveToFolder"     @ref="MoveManyToFolderModalRef" OnClose="HandleMoveToFolderModalClose"><MoveToFolder AudioItems="_selectedItemsForMove" OnMoved="OnSelectionMoved" /></GenericModal>
 <AudioImporter @ref="_audioImporterRef" OnImported="OnImportFinished" />
 
 <!-- ─────────────────────  TOOLBAR  ───────────────────── -->
@@ -58,6 +69,11 @@
                Color="@(_filter.IsActive ? Color.Secondary : Color.Primary)"
                StartIcon="@Icons.Material.Filled.FilterAlt"
                OnClick="@(() => AudioFilterModalRef?.Show())">Filter by tags</MudButton>
+    <MudButton Variant="@(_selectionMode ? Variant.Filled : Variant.Outlined)"
+               Color="@(_selectionMode ? Color.Info : Color.Primary)"
+               StartIcon="@(_selectionMode ? Icons.Material.Filled.Close : Icons.Material.Filled.SelectAll)"
+               title="Show a checkbox on every card and start with all of them selected, so you only have to untick what should stay behind"
+               OnClick="ToggleSelectionMode">@(_selectionMode ? "Exit selection" : "Select multiple items")</MudButton>
 </MudStack>
 
 <!-- ─────────────────────  SEARCH  ───────────────────── -->
@@ -80,6 +96,28 @@
                    OnClick="() => _kindFilter = k">@k.Label()</MudButton>
     }
 </MudStack>
+
+<!-- ─────────────────────  SELECTION  ───────────────────── -->
+@{ var shownItems = GetFilteredItems().ToList(); }
+@if (_selectionMode)
+{
+    <div class="selection-bar">
+        <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Style="color:#23a6d5;" />
+        <span class="selection-count">@_selectedIds.Count selected</span>
+        @{ var offScreen = _selectedIds.Count - shownItems.Count(i => _selectedIds.Contains(i.Id)); }
+        @if (offScreen > 0)
+        {
+            <span style="color:grey; font-size:13px;">(@offScreen not shown here)</span>
+        }
+        <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.DriveFileMove"
+                   Disabled="@(_selectedIds.Count == 0)"
+                   OnClick="OpenBulkMove">Move to folder…</MudButton>
+        <MudButton Size="Size.Small" Variant="Variant.Text"
+                   StartIcon="@Icons.Material.Filled.Deselect"
+                   OnClick="ClearSelection">Clear selection</MudButton>
+    </div>
+}
 
 <!-- ─────────────────────  ACTIVE TAG FILTER  ───────────────────── -->
 @if (_filter.IsActive)
@@ -152,18 +190,31 @@ else if (_breadcrumb.Any())
     }
 
     @{
-        var matches = GetFilteredItems().ToList();
+        var matches = shownItems;
         var shown = matches.Count > MaxRenderedItems ? matches.Take(MaxRenderedItems).ToList() : matches;
     }
     @foreach (var item in shown)
     {
-        <div class="col col-md-3">
+        <div class="col col-md-3 @(_selectionMode && IsSelected(item) ? "audio-card-selected" : "")">
             <div class="audio-item-top"
+                    @onclick="@(() => { if (_selectionMode) ToggleSelected(item); })"
+                    title="@(_selectionMode ? "Click to select this item" : null)"
                     style="background-image:linear-gradient(-45deg,rgba(238,119,82,.2),rgba(231,60,126,.6),
                                                         rgba(35,166,213,.9),rgba(35,166,171,1));
-                           position:relative;">
+                           position:relative; @(_selectionMode ? "cursor:pointer;" : "")">
+                @* Selection box top-left, only while selecting — the header toggles it too *@
+                @if (_selectionMode)
+                {
+                    <div class="select-badge" title="Select this item"
+                         @onclick="@(() => { })" @onclick:stopPropagation="true">
+                        <MudCheckBox T="bool" Value="@IsSelected(item)"
+                                     ValueChanged="@((bool v) => SetSelected(item, v))"
+                                     Color="Color.Info" Size="Size.Small" Dense="true" />
+                    </div>
+                }
                 @* Kind badge top-right — click cycles Music → Ambiance → SFX *@
-                <div style="position:absolute; top:6px; right:6px;">
+                <div style="position:absolute; top:6px; right:6px;"
+                     @onclick="@(() => { })" @onclick:stopPropagation="true">
                     <MudIconButton Icon="@item.Kind.Icon()"
                                    Color="@item.Kind.Color()"
                                    Size="Size.Small"
@@ -219,6 +270,7 @@ else if (_breadcrumb.Any())
     private GenericModal<AudioTagsEditor>?  AudioTagsEditorModalRef;
     private GenericModal<MoveToFolder>?     MoveToFolderModalRef;
     private GenericModal<AudioFilterEditor>? AudioFilterModalRef;
+    private GenericModal<MoveToFolder>?     MoveManyToFolderModalRef;
 
     // tree + navigation state
     private readonly DAVirtualAudioFolder _rootFolder = new() { Name = "." };
@@ -456,6 +508,68 @@ else if (_breadcrumb.Any())
         StateHasChanged();
     }
 
+    // ── multi-selection ─────────────────────────────────────────────
+    // Selection is kept by id and survives navigation and filtering on purpose:
+    // it lets you gather items from several folders and move them in one go.
+    private readonly HashSet<Guid> _selectedIds = new();
+    private List<DAAudioItem> _selectedItemsForMove = new();
+
+    // Checkboxes only exist while selecting, so a card stays a card the rest of
+    // the time.
+    private bool _selectionMode;
+
+    bool IsSelected(DAAudioItem item) => _selectedIds.Contains(item.Id);
+
+    void SetSelected(DAAudioItem item, bool selected)
+    {
+        if (selected) _selectedIds.Add(item.Id);
+        else _selectedIds.Remove(item.Id);
+    }
+
+    void ToggleSelected(DAAudioItem item) => SetSelected(item, !IsSelected(item));
+
+    void ToggleSelectionMode()
+    {
+        if (_selectionMode) { ExitSelectionMode(); return; }
+
+        // Entering selects everything the folder, search, kind and tag filters
+        // currently leave: narrowing first, then unticking a few, beats ticking
+        // items one by one. (This covers matches past the render cap as well.)
+        _selectionMode = true;
+        _selectedIds.Clear();
+        foreach (var item in GetFilteredItems()) _selectedIds.Add(item.Id);
+        StateHasChanged();
+    }
+
+    void ExitSelectionMode()
+    {
+        _selectionMode = false;
+        _selectedIds.Clear();
+        StateHasChanged();
+    }
+
+    /// <summary>Unticks everything but stays in the mode, to pick a few by hand.</summary>
+    void ClearSelection()
+    {
+        _selectedIds.Clear();
+        StateHasChanged();
+    }
+
+    void OpenBulkMove()
+    {
+        _selectedItemsForMove = DAService.AudioItems.Where(i => _selectedIds.Contains(i.Id)).ToList();
+        if (_selectedItemsForMove.Count == 0) return;
+        MoveManyToFolderModalRef?.Show();
+    }
+
+    /// <summary>The bulk dialog moved the items: the selection has served its purpose.</summary>
+    void OnSelectionMoved()
+    {
+        _selectionMode = false;
+        _selectedIds.Clear();
+        StateHasChanged();
+    }
+
     // tag filter (view state, not persisted)
     private readonly DAAudioFilter _filter = new();
 
@@ -529,6 +643,7 @@ else if (_breadcrumb.Any())
         if (confirm != true) return;
 
         DAService.AudioItems.Remove(item);
+        _selectedIds.Remove(item.Id);
 
         // Remove the underlying file only if no other item still references it.
         if (!string.IsNullOrEmpty(item.LocalFileName) &&

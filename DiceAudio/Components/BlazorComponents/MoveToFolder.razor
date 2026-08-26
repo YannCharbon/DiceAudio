@@ -1,4 +1,4 @@
-@*
+﻿@*
  * DiceAudio - Copyright (C) 2025 Yann Charbon
  * SPDX-License-Identifier: GPL-3.0-or-later
  *
@@ -23,16 +23,33 @@
     .mtf-navzone   { display:flex; align-items:center; gap:10px; flex:1; cursor:pointer; min-width:0; }
     .mtf-name      { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .mtf-empty     { color:grey; font-size:13px; padding:8px 2px; }
+    .mtf-chip      { background:#2a2a4a; border-radius:4px; padding:2px 7px;
+                     font-size:12px; color:#cfd3dc; }
 </style>
 
 <h3 style="margin-bottom:4px;">Move to folder</h3>
 
-@if (AudioItem is not null)
+@if (_targets.Count > 0)
 {
 <div>
     <MudText Typo="Typo.body2" Style="color:grey; margin-bottom:12px;">
-        <b>@AudioItem.Name</b> — currently in <b>@CurrentFolderLabel</b>
+        <b>@TargetsLabel</b> — currently in <b>@CurrentFolderLabel</b>
     </MudText>
+
+    @* In bulk mode, name what is about to move so the choice is never blind. *@
+    @if (_targets.Count > 1)
+    {
+        <div style="display:flex; flex-wrap:wrap; gap:4px; margin:-6px 0 12px 0;">
+            @foreach (var target in _targets.Take(MaxNamesShown))
+            {
+                <span class="mtf-chip">@target.Name</span>
+            }
+            @if (_targets.Count > MaxNamesShown)
+            {
+                <span class="mtf-chip">+@(_targets.Count - MaxNamesShown) more</span>
+            }
+        </div>
+    }
 
     @* Breadcrumb of the folder being browsed *@
     <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-bottom:8px;">
@@ -70,7 +87,7 @@
         @foreach (var folder in children)
         {
             var f = folder;
-            bool isItemFolder = AudioItem.Folder?.Id == f.Id;
+            bool isItemFolder = AllTargetsIn(f);
             <div class="mtf-row @(isItemFolder ? "mtf-current" : "")">
                 <div class="mtf-navzone" @onclick="() => NavigateTo(f)" title="Open">
                     <MudIcon Icon="@Icons.Material.Filled.Folder" Style="color:#90caf9;" />
@@ -96,7 +113,7 @@
     <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:14px;">
         <MudButton Variant="Variant.Filled" Color="Color.Primary"
                    StartIcon="@Icons.Material.Filled.DriveFileMove"
-                   Disabled="@(_viewFolder == null || AudioItem.Folder?.Id == _viewFolder.Id)"
+                   Disabled="@(_viewFolder == null || AllTargetsIn(_viewFolder))"
                    OnClick="() => MoveTo(_viewFolder!)">
             @(_viewFolder != null ? $"Move here → {_viewFolder.Name}" : "Move here")
         </MudButton>
@@ -128,42 +145,67 @@
     @if (_moved)
     {
         <MudText Style="color:#4caf50; margin-top:12px;" Typo="Typo.body2">
-            Moved to <b>@CurrentFolderLabel</b> ✓
+            Moved @(_movedCount == 1 ? "1 item" : $"{_movedCount} items") to <b>@CurrentFolderLabel</b> ✓
         </MudText>
     }
 </div>
 }
 
 @code {
+    /// <summary>Single-item mode — used when <see cref="AudioItems"/> is empty.</summary>
     [Parameter] public DAAudioItem? AudioItem { get; set; }
 
+    /// <summary>
+    /// Bulk mode: every item of the list is moved together. Takes precedence
+    /// over <see cref="AudioItem"/> as soon as it carries anything.
+    /// </summary>
+    [Parameter] public IReadOnlyList<DAAudioItem>? AudioItems { get; set; }
+
+    /// <summary>
+    /// Raised right after a move so the caller can persist and, in bulk mode,
+    /// drop its selection. The move itself happens on the "Move here" click, not
+    /// when the dialog is closed.
+    /// </summary>
+    [Parameter] public EventCallback OnMoved { get; set; }
+
+    private const int MaxNamesShown = 12;
+
     private DAVirtualAudioFolder? _viewFolder;   // null = root
-    private DAAudioItem? _initializedFor;
+    private List<DAAudioItem> _targets = new();
     private bool _showCreate;
     private string _newFolderName = "";
     private bool _folderExists;
     private bool _moved;
+    private int _movedCount;
 
     protected override void OnParametersSet()
     {
-        // Initialise the browser once per item: start inside the item's current
-        // folder so its neighbours (and the "current" marker) are visible.
-        if (!ReferenceEquals(AudioItem, _initializedFor))
+        var targets = AudioItems is { Count: > 0 }
+            ? AudioItems.ToList()
+            : AudioItem is null ? new List<DAAudioItem>() : new List<DAAudioItem> { AudioItem };
+
+        // Re-initialise whenever the caller points the dialog at another set:
+        // start inside the items' current folder so their neighbours (and the
+        // "current" marker) are visible.
+        if (!targets.SequenceEqual(_targets))
         {
-            _initializedFor = AudioItem;
+            _targets = targets;
             _showCreate = false;
             _newFolderName = "";
             _folderExists = false;
             _moved = false;
+            _movedCount = 0;
             _viewFolder = InitialViewFolder();
         }
     }
 
     private DAVirtualAudioFolder? InitialViewFolder()
     {
-        if (AudioItem?.Folder == null || AudioItem.Folder.Name == ".") return null;
+        // With a mixed selection the first item is as good a starting point as any.
+        var first = _targets.FirstOrDefault();
+        if (first?.Folder == null || first.Folder.Name == ".") return null;
 
-        var itemFolder = DAService.AudioVirtualFolders.FirstOrDefault(f => f.Name == AudioItem.Folder.Name);
+        var itemFolder = DAService.AudioVirtualFolders.FirstOrDefault(f => f.Name == first.Folder.Name);
         if (itemFolder == null) return null;
         // Browse the item folder's parent so the item folder itself is one of the rows.
         return itemFolder.ParentFolderId == Guid.Empty
@@ -171,8 +213,29 @@
             : DAService.AudioVirtualFolders.FirstOrDefault(f => f.Id == itemFolder.ParentFolderId);
     }
 
-    private string CurrentFolderLabel =>
-        AudioItem?.Folder == null || AudioItem.Folder.Name == "." ? "Root" : AudioItem.Folder.Name;
+    private string TargetsLabel =>
+        _targets.Count == 1 ? _targets[0].Name : $"{_targets.Count} items";
+
+    /// <summary>Where the items live now — or how many folders they are spread over.</summary>
+    private string CurrentFolderLabel
+    {
+        get
+        {
+            var folders = _targets
+                .Select(t => t.Folder == null || t.Folder.Name == "." ? "Root" : t.Folder.Name)
+                .Distinct()
+                .ToList();
+            return folders.Count switch
+            {
+                0 => "Root",
+                1 => folders[0],
+                _ => $"{folders.Count} different folders",
+            };
+        }
+    }
+
+    private bool AllTargetsIn(DAVirtualAudioFolder folder) =>
+        _targets.Count > 0 && _targets.All(t => t.Folder?.Id == folder.Id);
 
     private List<DAVirtualAudioFolder> ChildrenOf(DAVirtualAudioFolder? parent)
     {
@@ -207,9 +270,12 @@
 
     private void MoveTo(DAVirtualAudioFolder folder)
     {
-        if (AudioItem == null) return;
-        AudioItem.Folder = folder;   // canonical folder object from the service
+        if (_targets.Count == 0) return;
+        foreach (var target in _targets)
+            target.Folder = folder;   // canonical folder object from the service
+        _movedCount = _targets.Count;
         _moved = true;
+        OnMoved.InvokeAsync();
     }
 
     private void CreateFolder()

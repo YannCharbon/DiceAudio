@@ -79,7 +79,7 @@
         <PackageReference Include="Plugin.Maui.Audio" Version="4.0.0" />
         <!-- NAudio for Windows audio output (same library used in old TRPG-Audio-Manager) -->
         <PackageReference Include="NAudio" Version="2.2.0" Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'" />
-        <PackageReference Include="Soenneker.Libraries.ytdlp" Version="4.0.1037" />
+        <PackageReference Include="Soenneker.Libraries.ytdlp" Version="4.0.1088" />
         <!-- TagLibSharp reads embedded tags (Genre) from audio files on import,
              the same mechanism the old TRPG-Audio-Manager used to store tags -->
         <PackageReference Include="TagLibSharp" Version="2.3.0" />

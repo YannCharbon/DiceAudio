@@ -69,12 +69,12 @@ namespace DiceAudio
             var audioItem = _service.AudioItems.FirstOrDefault(a => a.Id == usage.AudioItemId);
             if (audioItem == null || string.IsNullOrEmpty(audioItem.LocalFileName)) return;
 
-            var cachePath = GetPlayableCachePath(audioItem.LocalFileName);
-            if (cachePath == null) return;
+            var playablePath = GetPlayablePath(audioItem.LocalFileName);
+            if (playablePath == null) return;
 
             _probedDuration = await Task.Run(() =>
             {
-                double full = DAAudioPlayer.ProbeDurationSeconds(cachePath, _audioManager);
+                double full = DAAudioPlayer.ProbeDurationSeconds(playablePath, _audioManager);
                 double start = Math.Clamp(usage.ClipStartSeconds ?? 0, 0, full);
                 double end = Math.Clamp(usage.ClipEndSeconds ?? full, 0, full);
                 return Math.Max(0, end - start);
@@ -171,26 +171,22 @@ namespace DiceAudio
                 .ToList();
 
         /// <summary>
-        /// Returns a playable cached path for the audio file, copying from the app
-        /// data directory only when the cache copy is missing or outdated.
-        /// Returns null when the source file is unavailable.
+        /// Absolute path to play an audio file from, or null when the file is not
+        /// on disk.
+        ///
+        /// Earlier builds copied the file into <see cref="FileSystem.CacheDirectory"/>
+        /// and played the copy. Nothing needed that: both are ordinary read/write
+        /// directories in the same container, and both playback backends take a
+        /// path. It only duplicated the whole library on disk — the copies were
+        /// never evicted — and served stale audio whenever a replacement file
+        /// happened to have the same byte length as the one it replaced.
         /// </summary>
-        internal static string? GetPlayableCachePath(string localFileName)
+        internal static string? GetPlayablePath(string localFileName)
         {
             if (string.IsNullOrEmpty(localFileName)) return null;
 
-            var srcPath = Path.Combine(FileSystem.AppDataDirectory, "Audio", localFileName);
-            if (!File.Exists(srcPath)) return null;
-
-            var cachePath = Path.Combine(FileSystem.CacheDirectory, localFileName);
-            var srcInfo = new FileInfo(srcPath);
-            var cacheInfo = new FileInfo(cachePath);
-            if (!cacheInfo.Exists || cacheInfo.Length != srcInfo.Length)
-            {
-                Directory.CreateDirectory(Path.GetDirectoryName(cachePath)!);
-                File.Copy(srcPath, cachePath, overwrite: true);
-            }
-            return cachePath;
+            var path = Path.Combine(FileSystem.AppDataDirectory, "Audio", localFileName);
+            return File.Exists(path) ? path : null;
         }
 
         public void Play()
@@ -329,10 +325,10 @@ namespace DiceAudio
 
             try
             {
-                var cachePath = GetPlayableCachePath(audio.LocalFileName);
-                if (cachePath == null) return;
+                var playablePath = GetPlayablePath(audio.LocalFileName);
+                if (playablePath == null) return;
 
-                var player = DAAudioPlayer.Create(cachePath, usage, _audioManager, _bus);
+                var player = DAAudioPlayer.Create(playablePath, usage, _audioManager, _bus);
                 player.Play();
                 _soundPlayers[soundIndex] = player;
             }
@@ -371,10 +367,10 @@ namespace DiceAudio
 
             try
             {
-                var cachePath = GetPlayableCachePath(audioItem.LocalFileName);
-                if (cachePath == null) return;
+                var playablePath = GetPlayablePath(audioItem.LocalFileName);
+                if (playablePath == null) return;
 
-                _currentPlayer = DAAudioPlayer.Create(cachePath, usage, _audioManager, _bus);
+                _currentPlayer = DAAudioPlayer.Create(playablePath, usage, _audioManager, _bus);
                 // In a scenario, looping is an item-level setting (a looping playlist
                 // advances between tracks; only a Single item loops its one track).
                 _currentPlayer.Loop = Item.PlayInLoop && Item.Type == DAScenarioItem.ItemType.Single;

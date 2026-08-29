@@ -478,20 +478,20 @@
         _viewDuration = 0;
         _previewPosition = 0;
 
-        var cachePath = DAScenarioItemPlayer.GetPlayableCachePath(item.LocalFileName);
-        if (cachePath != null)
+        var playablePath = DAScenarioItemPlayer.GetPlayablePath(item.LocalFileName);
+        if (playablePath != null)
         {
             try
             {
                 // A throw-away player just to read the file duration.
-                using var probe = DAAudioPlayer.Create(cachePath, AudioManager);
+                using var probe = DAAudioPlayer.Create(playablePath, AudioManager);
                 _fileDuration = probe.FileDuration;
             }
             catch { _fileDuration = 0; }
 
             _viewStart = 0;
             _viewDuration = _fileDuration;
-            _ = ComputePeaksAsync(cachePath);
+            _ = ComputePeaksAsync(playablePath);
         }
 
         StateHasChanged();
@@ -673,12 +673,12 @@
         if (Usage == null || Item == null) return;
         StopPreview();
 
-        var cachePath = DAScenarioItemPlayer.GetPlayableCachePath(Item.LocalFileName);
-        if (cachePath == null) return;
+        var playablePath = DAScenarioItemPlayer.GetPlayablePath(Item.LocalFileName);
+        if (playablePath == null) return;
 
         try
         {
-            _previewPlayer = DAAudioPlayer.Create(cachePath, Usage, AudioManager);
+            _previewPlayer = DAAudioPlayer.Create(playablePath, Usage, AudioManager);
             _previewPlayer.Loop = _previewLoop;             // audition how the selection loops
             _previewPlayer.PlaybackEnded += OnPreviewEnded;
             _previewPlayer.Play();

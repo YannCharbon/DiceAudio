@@ -112,8 +112,8 @@
 
         var probed = await Task.Run(() =>
         {
-            var cachePath = DAScenarioItemPlayer.GetPlayableCachePath(item.LocalFileName);
-            return cachePath == null ? 0 : DAAudioPlayer.ProbeDurationSeconds(cachePath, AudioManager);
+            var playablePath = DAScenarioItemPlayer.GetPlayablePath(item.LocalFileName);
+            return playablePath == null ? 0 : DAAudioPlayer.ProbeDurationSeconds(playablePath, AudioManager);
         });
 
         if (probed > 0) _durationCache[item.LocalFileName] = probed;
@@ -132,10 +132,10 @@
         StopAudio();
         try
         {
-            var cachePath = DAScenarioItemPlayer.GetPlayableCachePath(AudioItem.LocalFileName);
-            if (cachePath == null) { _errorMessage = "File not found on disk"; return; }
+            var playablePath = DAScenarioItemPlayer.GetPlayablePath(AudioItem.LocalFileName);
+            if (playablePath == null) { _errorMessage = "File not found on disk"; return; }
 
-            _player = DAAudioPlayer.Create(cachePath, AudioManager);
+            _player = DAAudioPlayer.Create(playablePath, AudioManager);
             _player.Volume = 1.0;
             _player.PlaybackEnded += OnPlaybackEnded;
             _duration = _player.Duration;

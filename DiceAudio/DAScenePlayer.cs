@@ -768,10 +768,10 @@ namespace DiceAudio
             var item = _service.AudioItems.FirstOrDefault(a => a.Id == usage.AudioItemId);
             if (item == null) return null;
 
-            var cachePath = DAScenarioItemPlayer.GetPlayableCachePath(item.LocalFileName);
-            if (cachePath == null) return null;
+            var playablePath = DAScenarioItemPlayer.GetPlayablePath(item.LocalFileName);
+            if (playablePath == null) return null;
 
-            try { return DAAudioPlayer.Create(cachePath, usage, _audioManager, _bus); }
+            try { return DAAudioPlayer.Create(playablePath, usage, _audioManager, _bus); }
             catch { return null; }
         }
 

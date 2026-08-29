@@ -9,6 +9,7 @@
 @page "/audioexplorer"
 @inject DiceAudioService DAService
 @inject IDialogService DialogService
+@inject PopupNotificationService Notifications
 
 <style>
   /*  cards ---------------------------------------------------------- */
@@ -649,24 +650,50 @@ else if (_breadcrumb.Any())
         if (!string.IsNullOrEmpty(item.LocalFileName) &&
             !DAService.AudioItems.Any(a => string.Equals(a.LocalFileName, item.LocalFileName, StringComparison.OrdinalIgnoreCase)))
         {
-            TryDeleteAudioFile(item.LocalFileName);
+            if (!TryDeleteAudioFile(item.LocalFileName))
+                Notifications.Show(
+                    "File not deleted",
+                    $"\"{item.Name}\" was removed from the library, but \"{item.LocalFileName}\" " +
+                    "could not be deleted from disk. It is still taking up space.",
+                    PopupNotificationService.Type.FAILURE, 6000);
         }
 
         await DAService.SaveAudioItemListAsync();
         StateHasChanged();
     }
 
-    static void TryDeleteAudioFile(string localFileName)
+    /// <summary>
+    /// Deletes the file backing a removed library item. Any player still reading
+    /// it is torn down first: a loaded file is locked, so the delete would
+    /// otherwise throw and leave the file orphaned on disk with nothing in the
+    /// library referencing it. Returns false if the file survived.
+    /// </summary>
+    static bool TryDeleteAudioFile(string localFileName)
     {
+        var path = Path.Combine(FileSystem.AppDataDirectory, "Audio", localFileName);
+
+        DAAudioPlayer.DisposePlayersFor(path);
+
         try
         {
-            var src = Path.Combine(FileSystem.AppDataDirectory, "Audio", localFileName);
-            if (File.Exists(src)) File.Delete(src);
-            // Best-effort cache cleanup; may be locked if a player holds it (ignored).
-            var cache = Path.Combine(FileSystem.CacheDirectory, localFileName);
-            if (File.Exists(cache)) File.Delete(cache);
+            if (File.Exists(path)) File.Delete(path);
         }
-        catch (Exception ex) { Debug.WriteLine($"Delete audio file failed: {ex.Message}"); }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Delete audio file failed: {ex.Message}");
+            return false;
+        }
+
+        // Leftover from the builds that played from a copy under CacheDirectory.
+        // Kept so existing installs shed those duplicates as items are deleted.
+        try
+        {
+            var legacyCopy = Path.Combine(FileSystem.CacheDirectory, localFileName);
+            if (File.Exists(legacyCopy)) File.Delete(legacyCopy);
+        }
+        catch (Exception ex) { Debug.WriteLine($"Legacy cache cleanup failed: {ex.Message}"); }
+
+        return true;
     }
 
     void ToggleKind(DAAudioItem item)

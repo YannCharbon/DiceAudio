@@ -205,6 +205,48 @@ namespace DiceAudio
 
         private DAAudioPlayer() { }
 
+        // ── Live-instance registry ──────────────────────────────────
+
+        /// <summary>
+        /// Every player that is alive right now. A backend holds its file open for
+        /// the player's whole lifetime (NAudio opens with FileShare.Read), so a
+        /// file that is loaded cannot be deleted or overwritten until the player
+        /// is disposed. Players are built in several unrelated places — the
+        /// library's MusicPlayer, the clip editor's preview, scenario and scene
+        /// players — and no single owner knows about all of them, so the
+        /// registry lives here, the one place they are all constructed.
+        /// </summary>
+        private static readonly HashSet<DAAudioPlayer> _live = new();
+        private static readonly object _liveLock = new();
+
+        /// <summary>Absolute path this player reads from; null before Init.</summary>
+        public string? FilePath { get; private set; }
+
+        /// <summary>
+        /// Stops and disposes every live player reading <paramref name="filePath"/>,
+        /// releasing the file handle so the caller can delete or replace the file.
+        /// Returns how many players were torn down.
+        /// </summary>
+        public static int DisposePlayersFor(string filePath)
+        {
+            if (string.IsNullOrEmpty(filePath)) return 0;
+
+            DAAudioPlayer[] matches;
+            lock (_liveLock)
+                matches = _live
+                    .Where(p => string.Equals(p.FilePath, filePath, StringComparison.OrdinalIgnoreCase))
+                    .ToArray();
+
+            // Disposed outside the lock: Dispose() unregisters, and a player being
+            // constructed on another thread would otherwise block behind the
+            // teardown of a whole scene's worth of tracks.
+            foreach (var player in matches)
+            {
+                try { player.Dispose(); } catch { /* already torn down */ }
+            }
+            return matches.Length;
+        }
+
         // ── Factory ──────────────────────────────────────────────────────────
 
         /// <summary>Creates a player from an absolute file path.</summary>
@@ -277,6 +319,10 @@ namespace DiceAudio
             _maui = audioManager!.CreatePlayer(filePath);
             _maui.PlaybackEnded += OnMauiPlaybackEnded;
 #endif
+            // Registered only once the backend is up, so a player that failed to
+            // construct never looks like it is holding the file open.
+            FilePath = filePath;
+            lock (_liveLock) _live.Add(this);
         }
 
         // ── Raw (whole-file) coordinates ─────────────────────────────────────
@@ -578,6 +624,7 @@ namespace DiceAudio
 
         public void Dispose()
         {
+            lock (_liveLock) _live.Remove(this);
             Bus = null;   // unsubscribes from GainChanged
             _clipTimer?.Dispose();
             _clipTimer = null;

@@ -1,4 +1,4 @@
-﻿/*
+/*
  * DiceAudio - Copyright (C) 2025 Yann Charbon
  * SPDX-License-Identifier: GPL-3.0-or-later
  *
@@ -23,6 +23,14 @@ namespace DiceAudio
 
         private readonly IAudioManager _audioManager;
         private readonly DiceAudioService _service;
+        /// <summary>
+        /// Owner of every scenario player — needed to reach the sibling scenarios when
+        /// the group is set to exclusive playback
+        /// (<see cref="DAScenarioGroup.StopOtherScenariosOnPlay"/>), which the
+        /// coordinator decides since it is the one that knows the groups.
+        /// Null for a stand-alone player, which then only governs its own items.
+        /// </summary>
+        private readonly DAPlaybackCoordinator? _coordinator;
         public DAScenario Scenario { get; }
 
         private readonly Dictionary<Guid, DAScenarioItemPlayer> _itemPlayers = new();
@@ -55,11 +63,13 @@ namespace DiceAudio
             set => Bus.IsMuted = value;
         }
 
-        public DAScenarioPlayer(IAudioManager audioManager, DiceAudioService service, DAScenario scenario)
+        public DAScenarioPlayer(IAudioManager audioManager, DiceAudioService service, DAScenario scenario,
+                                DAPlaybackCoordinator? coordinator = null)
         {
             _audioManager = audioManager;
             _service = service;
             Scenario = scenario;
+            _coordinator = coordinator;
         }
 
         public DAScenarioItem? CurrentItem =>
@@ -142,15 +152,21 @@ namespace DiceAudio
             StateChanged?.Invoke();
 
             // Fade out every other item that is currently audible.
-            var others = _itemPlayers.Values
+            var fadeOuts = _itemPlayers.Values
                 .Where(p => p != target &&
                             (p.State == DAScenarioItemPlayer.PlayState.Play ||
                              p.State == DAScenarioItemPlayer.PlayState.Pause))
+                .Select(p => p.StopWithFadeAsync(HandoverFadeSeconds))
                 .ToList();
+
+            // Silence the sibling scenarios too when the group wants a single one
+            // audible — part of the same handover, so it still lasts one fade.
+            if (_coordinator != null)
+                fadeOuts.Add(_coordinator.StopOtherScenariosInGroupAsync(this));
 
             try
             {
-                await Task.WhenAll(others.Select(p => p.StopWithFadeAsync(HandoverFadeSeconds)));
+                await Task.WhenAll(fadeOuts);
             }
             catch (Exception ex)
             {

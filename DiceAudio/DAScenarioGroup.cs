@@ -15,6 +15,17 @@ namespace DiceAudio
         public List<DAScenario> Scenarios { get; set; } = new List<DAScenario>();
 
         /// <summary>
+        /// Governs how the scenarios of this group behave towards each other.
+        /// True — the default — makes them exclusive: starting an item in one
+        /// scenario first fades out whatever the other scenarios of the group are
+        /// playing, so only one of them is ever audible. Turned off, they layer, and
+        /// an ambience scenario keeps playing under a music one, which is what
+        /// DiceAudio did before this setting existed. It is a property of the group
+        /// because the scenarios of one adventure share a single mixing policy.
+        /// </summary>
+        public bool StopOtherScenariosOnPlay { get; set; } = true;
+
+        /// <summary>
         /// Scenes owned by this group alone — the private counterpart of the
         /// global scene catalogue. Any item of any scenario in the group can
         /// reference one (see <see cref="DAScenarioItem.LocalSceneId"/>), so

@@ -46,7 +46,7 @@ namespace DiceAudio
                 RemovePlayer(existing);
             }
 
-            var player = new DAScenarioPlayer(_audioManager, _service, scenario);
+            var player = new DAScenarioPlayer(_audioManager, _service, scenario, this);
             player.StateChanged += OnPlayerStateChanged;
             player.Initialize();
             _scenarioPlayers[scenario.Id] = player;
@@ -75,6 +75,32 @@ namespace DiceAudio
 
         /// <summary>All players the coordinator currently owns.</summary>
         public IReadOnlyCollection<DAScenarioPlayer> ScenarioPlayers => _scenarioPlayers.Values;
+
+        /// <summary>
+        /// Fades out the other scenarios of the group owning <paramref name="origin"/>,
+        /// when that group is set to exclusive playback
+        /// (<see cref="DAScenarioGroup.StopOtherScenariosOnPlay"/>) — so starting an item
+        /// anywhere in the group leaves nothing else audible. Only the owning group is
+        /// touched: scenarios of other adventures are none of its business, and a
+        /// detached scenario (not in any group) stops nothing but itself. The group
+        /// lookup lives here because the scenario player deliberately knows only its
+        /// own scenario.
+        /// </summary>
+        public async Task StopOtherScenariosInGroupAsync(DAScenarioPlayer origin)
+        {
+            var group = _service.FindGroupOfScenario(origin.Scenario);
+            if (group == null || !group.StopOtherScenariosOnPlay) return;
+
+            var others = _scenarioPlayers.Values
+                .Where(p => !ReferenceEquals(p, origin)
+                            && p.IsPlaying
+                            && group.Scenarios.Contains(p.Scenario))
+                .ToList();
+            if (others.Count == 0) return;
+
+            await Task.WhenAll(others.Select(p => p.StopAsync()));
+            StateChanged?.Invoke();
+        }
 
         /// <summary>Fades out and stops everything that is playing.</summary>
         public async Task StopAllAsync()

@@ -102,9 +102,18 @@ else
                    StartIcon="@Icons.Material.Filled.Save"
                    OnClick="Save">Save</MudButton>
 
-        <MudButton Variant="Variant.Filled" Color="Color.Error"
-                   StartIcon="@Icons.Material.Filled.Delete"
-                   OnClick="DeleteGroup">Delete group</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Secondary"
+                   StartIcon="@Icons.Material.Filled.Settings"
+                   OnClick="() => _groupSettings?.Show()">Settings</MudButton>
+
+        @if (!_group.StopOtherScenariosOnPlay)
+        {
+            <MudChip T="string" Size="Size.Small" Color="Color.Info"
+                     Icon="@Icons.Material.Filled.Layers"
+                     Title="The scenarios of this group play on top of each other instead of stopping each other">
+                Scenarios layer
+            </MudChip>
+        }
     </div>
 
     <div class="scm-tabs">
@@ -220,6 +229,9 @@ else
         }
     }
 
+    <ScenarioGroupSettings @ref="_groupSettings" Group="_group"
+                           OnDelete="DeleteGroup" OnClosed="StateHasChanged" />
+
     <SceneEditor @ref="_sceneEditor" OnClose="OnLocalSceneEditorClosed" />
     <ScenePicker @ref="_scenePicker" OnPicked="CopySceneFromCatalogue" OnClosed="StateHasChanged" />
 }
@@ -232,6 +244,7 @@ else
     private enum GroupTab { Scenarios, LocalScenes }
     private GroupTab _tab = GroupTab.Scenarios;
 
+    private ScenarioGroupSettings? _groupSettings;
     private SceneEditor? _sceneEditor;
     private ScenePicker? _scenePicker;
 

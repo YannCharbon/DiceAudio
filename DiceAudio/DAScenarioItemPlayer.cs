@@ -1,4 +1,4 @@
-﻿/*
+/*
  * DiceAudio - Copyright (C) 2025 Yann Charbon
  * SPDX-License-Identifier: GPL-3.0-or-later
  *
@@ -31,6 +31,14 @@ namespace DiceAudio
         private bool _disposed;
 
         public PlayState State { get; private set; } = PlayState.Stop;
+
+        /// <summary>
+        /// A fade to silence is running on this item: still audible, but already on
+        /// its way out. Exposed so the card can answer a stop request immediately
+        /// instead of looking untouched for the whole length of the fade. Covers
+        /// every fade — the stop buttons, a handover, a scenario being taken over.
+        /// </summary>
+        public bool IsFadingOut { get; private set; }
         public event EventHandler<PlayState>? PlayStateChanged;
         public event EventHandler? PlayProgressionChanged;
 
@@ -247,19 +255,31 @@ namespace DiceAudio
 
         public async Task StopWithFadeAsync(float fadeSeconds = DAScenarioPlayer.HandoverFadeSeconds)
         {
-            if (IsSceneItem)
+            // Announce the fade on the usual event before awaiting it: the state is
+            // still Play, so without this the card would only react seconds later.
+            IsFadingOut = true;
+            PlayStateChanged?.Invoke(this, State);
+
+            try
             {
-                if (ScenePlayer != null)
-                    await ScenePlayer.StopAsync(fadeSeconds);
-                State = PlayState.Stop;
-                PlayStateChanged?.Invoke(this, State);
-                return;
+                if (IsSceneItem)
+                {
+                    if (ScenePlayer != null)
+                        await ScenePlayer.StopAsync(fadeSeconds);
+                }
+                else
+                {
+                    _progressTimer.Stop();
+                    await FadeAndDetachCurrentAsync(fadeSeconds);
+                    StopAllSounds();
+                    _currentIndex = -1;
+                }
+            }
+            finally
+            {
+                IsFadingOut = false;
             }
 
-            _progressTimer.Stop();
-            await FadeAndDetachCurrentAsync(fadeSeconds);
-            StopAllSounds();
-            _currentIndex = -1;
             State = PlayState.Stop;
             PlayStateChanged?.Invoke(this, State);
         }

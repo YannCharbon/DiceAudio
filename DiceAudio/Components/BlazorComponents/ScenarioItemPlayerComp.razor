@@ -68,6 +68,19 @@
         font-size: 11px; text-align: center;
         overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
+
+    /* A transport command answered by a fade — play handing over, or stop fading
+       to silence — pulses until the fade is done, so the acknowledgement is where
+       the user is looking rather than seconds away. */
+    .da-cmd-btn-pending {
+        cursor: default;
+        animation: da-pending-blink 1.2s ease-in-out infinite;
+    }
+    .da-cmd-btn-staging { border-color: #e73c7e; }
+    @@keyframes da-pending-blink {
+        0%, 100% { opacity: 0.55; }
+        50%      { opacity: 1; }
+    }
 </style>
 
 @* Uses shared da-cmd-btn CSS from app.css *@
@@ -82,7 +95,13 @@
     bool contextual = itemScene?.Mode == DASceneMode.Contextual;
 
     <div style="display:flex; justify-content:center; margin:6px 0;">
-        @if (!scenePlaying)
+        @if (IsStarting)
+        {
+            <div class="da-cmd-btn da-cmd-btn-pending da-cmd-btn-staging" title="Starting — waiting for the fade out to finish">
+                <MudIcon Icon="@Icons.Material.Filled.HourglassTop" Style="color:#e73c7e;" />
+            </div>
+        }
+        else if (!scenePlaying)
         {
             <div class="da-cmd-btn" @onclick="RequestPlay" title="Start scene">
                 <MudIcon Icon="@Icons.Material.Filled.PlayArrow" Class="da-play" />
@@ -96,9 +115,18 @@
                     <MudIcon Icon="@Icons.Material.Filled.SkipNext" Class="da-skip" />
                 </div>
             }
-            <div class="da-cmd-btn" @onclick="() => Player.StopWithFadeAsync()" title="Stop scene">
-                <MudIcon Icon="@Icons.Material.Filled.Stop" Class="da-stop" />
-            </div>
+            @if (IsFadingOut)
+            {
+                <div class="da-cmd-btn da-cmd-btn-pending" title="Stopping — fading out">
+                    <MudIcon Icon="@Icons.Material.Filled.Stop" Class="da-stop" />
+                </div>
+            }
+            else
+            {
+                <div class="da-cmd-btn" @onclick="() => Player.StopWithFadeAsync()" title="Stop scene">
+                    <MudIcon Icon="@Icons.Material.Filled.Stop" Class="da-stop" />
+                </div>
+            }
         }
     </div>
 
@@ -172,7 +200,13 @@ else if (Player != null)
             <MudIcon Icon="@Icons.Material.Filled.SkipPrevious" Class="da-skip" />
         </div>
 
-        @if (Player.State == DAScenarioItemPlayer.PlayState.Play)
+        @if (IsStarting)
+        {
+            <div class="da-cmd-btn da-cmd-btn-pending da-cmd-btn-staging" title="Starting — waiting for the fade out to finish">
+                <MudIcon Icon="@Icons.Material.Filled.HourglassTop" Style="color:#e73c7e;" />
+            </div>
+        }
+        else if (Player.State == DAScenarioItemPlayer.PlayState.Play)
         {
             <div class="da-cmd-btn" @onclick="() => Player.Pause()" title="Pause">
                 <MudIcon Icon="@Icons.Material.Filled.Pause" Class="da-pause" />
@@ -185,9 +219,18 @@ else if (Player != null)
             </div>
         }
 
-        <div class="da-cmd-btn" @onclick="() => Player.StopWithFadeAsync()" title="Stop">
-            <MudIcon Icon="@Icons.Material.Filled.Stop" Class="da-stop" />
-        </div>
+        @if (IsFadingOut)
+        {
+            <div class="da-cmd-btn da-cmd-btn-pending" title="Stopping — fading out">
+                <MudIcon Icon="@Icons.Material.Filled.Stop" Class="da-stop" />
+            </div>
+        }
+        else
+        {
+            <div class="da-cmd-btn" @onclick="() => Player.StopWithFadeAsync()" title="Stop">
+                <MudIcon Icon="@Icons.Material.Filled.Stop" Class="da-stop" />
+            </div>
+        }
         <div class="da-cmd-btn" @onclick="() => Player.SkipForwardAsync()" title="Skip forward">
             <MudIcon Icon="@Icons.Material.Filled.SkipNext" Class="da-skip" />
         </div>
@@ -246,6 +289,10 @@ else if (Player != null)
     /// <summary>Owning scenario group — resolves group-local scenes.</summary>
     [Parameter] public DAScenarioGroup? Group { get; set; }
     [Parameter] public DAScenarioItemPlayer? Player { get; set; }
+    /// <summary>Play was pressed and the handover fade towards this item is running.</summary>
+    [Parameter] public bool IsStarting { get; set; }
+    /// <summary>This item is fading to silence — stop pressed, or something took over.</summary>
+    [Parameter] public bool IsFadingOut { get; set; }
     [Parameter] public Func<DAScenarioItem, Task>? OnRequestPlay { get; set; }
     /// <summary>Hands over to this item and starts its scene at a given cue.</summary>
     [Parameter] public Func<DAScenarioItem, int, Task>? OnRequestPlayAtCue { get; set; }

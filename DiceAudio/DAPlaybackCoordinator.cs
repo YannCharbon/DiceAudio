@@ -86,6 +86,21 @@ namespace DiceAudio
         /// lookup lives here because the scenario player deliberately knows only its
         /// own scenario.
         /// </summary>
+        /// <summary>
+        /// Whether <see cref="StopOtherScenariosInGroupAsync"/> would actually stop
+        /// something right now. Asked before a handover so the item is only shown as
+        /// waiting when a fade really delays it.
+        /// </summary>
+        public bool WouldStopOtherScenarios(DAScenarioPlayer origin)
+        {
+            var group = _service.FindGroupOfScenario(origin.Scenario);
+            if (group == null || !group.StopOtherScenariosOnPlay) return false;
+
+            return _scenarioPlayers.Values.Any(p => !ReferenceEquals(p, origin)
+                                                    && p.IsPlaying
+                                                    && group.Scenarios.Contains(p.Scenario));
+        }
+
         public async Task StopOtherScenariosInGroupAsync(DAScenarioPlayer origin)
         {
             var group = _service.FindGroupOfScenario(origin.Scenario);

@@ -41,6 +41,19 @@ namespace DiceAudio
         public event Action? StateChanged;
 
         /// <summary>
+        /// The item a handover is currently fading towards, i.e. one the user has
+        /// asked for but that stays silent until the outgoing audio is gone. Null
+        /// whenever playback starts straight away, so the UI only reports a wait
+        /// that actually happens. See <see cref="IsStarting"/>; the outgoing side is
+        /// reported by <see cref="DAScenarioItemPlayer.IsFadingOut"/>.
+        /// </summary>
+        public Guid? StartingItemId { get; private set; }
+
+        /// <summary>The user asked for this item; it starts when the fade ends.</summary>
+        public bool IsStarting(DAScenarioItem item) => StartingItemId == item.Id;
+
+
+        /// <summary>
         /// Master fader for everything this scenario plays — tracks, scene layers
         /// and one-shots alike. Driven by the remote control API (see
         /// <see cref="DAControlServer"/>); it scales playback without touching the
@@ -149,7 +162,6 @@ namespace DiceAudio
             // this one (see the check after the fade).
             _currentItemId = item.Id;
             IsPlaying = true;
-            StateChanged?.Invoke();
 
             // Fade out every other item that is currently audible.
             var fadeOuts = _itemPlayers.Values
@@ -161,8 +173,16 @@ namespace DiceAudio
 
             // Silence the sibling scenarios too when the group wants a single one
             // audible — part of the same handover, so it still lasts one fade.
-            if (_coordinator != null)
+            if (_coordinator != null && _coordinator.WouldStopOtherScenarios(this))
                 fadeOuts.Add(_coordinator.StopOtherScenariosInGroupAsync(this));
+
+            // Something has to fade first, so the item the user just clicked stays
+            // silent for a couple of seconds. Flag it as starting: without it the
+            // card looks untouched and the click seems to have been ignored.
+            if (fadeOuts.Count > 0)
+                StartingItemId = item.Id;
+
+            StateChanged?.Invoke();
 
             try
             {
@@ -175,8 +195,10 @@ namespace DiceAudio
             }
 
             // Superseded while fading (the user pressed next again): that request
-            // owns the transport now, so do not start over the top of it.
+            // owns the transport now — and owns the staged flag as well.
             if (_currentItemId != item.Id) return;
+
+            if (StartingItemId == item.Id) StartingItemId = null;
 
             if (sceneCueIndex is int cue)
                 await target.GoToSceneCueAsync(cue);   // starts the scene straight at that cue
@@ -196,6 +218,7 @@ namespace DiceAudio
 
         public void Pause()
         {
+            StartingItemId = null;
             CurrentItemPlayer?.Pause();
             IsPlaying = false;
             StateChanged?.Invoke();
@@ -204,6 +227,9 @@ namespace DiceAudio
         /// <summary>Fades out the current item, hard-stops any stragglers.</summary>
         public async Task StopAsync()
         {
+            StartingItemId = null;
+            // The item player raises its own event when the fade starts, so the card
+            // dims immediately — nothing to announce from here.
             if (CurrentItemPlayer is { } current)
                 await current.StopWithFadeAsync(HandoverFadeSeconds);
             foreach (var p in _itemPlayers.Values)
@@ -216,6 +242,7 @@ namespace DiceAudio
         /// <summary>Immediate stop of everything (no fade).</summary>
         public void Stop()
         {
+            StartingItemId = null;
             foreach (var p in _itemPlayers.Values)
                 p.Stop();
             _currentItemId = null;

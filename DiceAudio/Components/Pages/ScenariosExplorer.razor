@@ -30,46 +30,361 @@
     }
     .sce-group-name {
         flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
+
+    /* Collection folders: a flat card rather than the group gradient, so the two
+       levels of the explorer never read as the same kind of thing. */
+    .sce-coll-card {
+        border-radius: 12px;
+        background: #12121f;
+        border: 1px solid #2a2a4a;
+        padding: 20px;
+        margin: 10px;
+        cursor: pointer;
+        font-weight: bold;
+        font-size: large;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        transition: box-shadow 0.2s, border-color 0.2s;
+    }
+    .sce-coll-card:hover {
+        box-shadow: 0 4px 16px rgba(255,255,255,0.08);
+        border-color: #444470;
+    }
+    .sce-coll-name {
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .sce-cat-header {
+        font-size: 15px; font-weight: bold; color: #23a6ab;
+        border-bottom: 1px solid #2a2a4a;
+        padding: 14px 4px 4px 4px; margin: 4px 8px;
+    }
+
+    .sce-empty { color: grey; padding: 20px; }
 </style>
 
 <h3>Scenarios</h3>
+<MudText Typo="Typo.body2" Style="color:grey; margin-bottom:14px;">
+    Scenario groups, optionally filed into collections — one per adventure, season,
+    show or whatever else keeps a set of groups together.
+</MudText>
 
-<MudButton Variant="Variant.Filled" Color="Color.Primary"
-           StartIcon="@Icons.Material.Filled.Add"
-           OnClick="CreateNewGroup" Style="margin-bottom:16px;">
-    New scenario group
-</MudButton>
+<MudStack Row="true" Wrap="Wrap.Wrap" AlignItems="AlignItems.Center" Style="gap:10px; margin-bottom:10px;">
+    <MudButton Variant="Variant.Filled" Color="Color.Primary"
+               StartIcon="@Icons.Material.Filled.Add"
+               OnClick="CreateNewGroup">
+        New scenario group
+    </MudButton>
+</MudStack>
+
+<div style="max-width:420px; margin-bottom:6px;">
+    <MudTextField T="string" Immediate="true" Value="@_search"
+                  ValueChanged="@((string v) => _search = v)"
+                  Label="Search scenario groups" Variant="Variant.Outlined" Clearable="true"
+                  Adornment="Adornment.End" AdornmentIcon="@Icons.Material.Filled.Search" />
+</div>
 
 @if (DAService.ScenarioGroups.Count == 0)
 {
-    <p style="color:grey; padding:20px;">
+    <p class="sce-empty">
         No scenario groups yet. Create one to get started.
     </p>
 }
+else if (_openCollection == null && !string.IsNullOrWhiteSpace(_search))
+{
+    @* Searching from the root reaches into the collections: the matching groups
+       are listed themselves, under the collection they belong to. *@
+    var results = SearchResults();
 
-<div class="row">
-    @foreach (var group in DAService.ScenarioGroups)
+    <div class="sce-cat-header" style="font-size:24px;">Search results</div>
+
+    if (results.Count == 0)
     {
-        var g = group;
-        <div class="col col-md-4 sce-group-card"
-             @onclick="() => OpenGroup(g)">
-            <MudIcon Icon="@Icons.Material.Filled.LibraryMusic" />
-            <div class="sce-group-name">@g.Name</div>
-            <MudText Typo="Typo.caption" Style="color:rgba(255,255,255,0.6);">
-                @g.Scenarios.Count scenario(s)
-            </MudText>
+        <p class="sce-empty">Nothing matches the search.</p>
+    }
+
+    foreach (var collection in results
+        .GroupBy(g => string.IsNullOrWhiteSpace(g.Collection) ? string.Empty : g.Collection)
+        .OrderBy(g => g.Key, StringComparer.CurrentCulture))
+    {
+        var name = collection.Key;
+        <div class="sce-cat-header">
+            @if (name.Length == 0)
+            {
+                <span>In no collection</span>
+            }
+            else
+            {
+                <span style="cursor:pointer;" @onclick="() => OpenCollection(name)">
+                    <MudIcon Icon="@Icons.Material.Filled.FolderOpen"
+                             Style="font-size:16px; vertical-align:text-bottom;" />
+                    @name
+                </span>
+            }
+        </div>
+        @RenderGroups(collection.OrderBy(g => g.Name, StringComparer.CurrentCulture).ToList())
+    }
+}
+else if (_openCollection == null)
+{
+    @* Root view: the collection folders first, then the groups that belong to none. *@
+    var collections = DAService.GetCollections();
+    if (collections.Count > 0)
+    {
+        <div class="sce-cat-header" style="font-size:24px;">Collections</div>
+        <div class="row">
+            @foreach (var collection in collections)
+            {
+                var name = collection;
+                var groups = DAService.GetGroupsOfCollection(name);
+                <div class="col col-md-4 sce-coll-card" @onclick="() => OpenCollection(name)">
+                    <MudIcon Icon="@Icons.Material.Filled.FolderOpen" Color="Color.Primary" />
+                    <div class="sce-coll-name">
+                        <div>@name</div>
+                        <MudText Typo="Typo.caption" Style="color:grey;">
+                            @groups.Count group(s) · @groups.Sum(g => g.Scenarios.Count) scenario(s)
+                        </MudText>
+                    </div>
+                    <MudIcon Icon="@Icons.Material.Filled.ChevronRight" Style="color:grey;" />
+                </div>
+            }
         </div>
     }
-</div>
+
+    <div class="sce-cat-header" style="font-size:24px;">Scenario groups</div>
+    @RenderGroups(
+        DAService.ScenarioGroups.FindAll(g => string.IsNullOrWhiteSpace(g.Collection)),
+        collections.Count > 0
+            ? "Every scenario group is filed in a collection. Open one above."
+            : "No scenario groups yet. Create one to get started.")
+}
+else
+{
+    @* Inside a collection: only its groups, plus the way out and a rename. *@
+    <MudStack Row="true" Wrap="Wrap.Wrap" AlignItems="AlignItems.Center" Style="gap:10px; margin:10px 0 0 0;">
+        <MudButton Variant="Variant.Outlined" Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.ArrowBack"
+                   OnClick="CloseCollection">Back</MudButton>
+        <MudIcon Icon="@Icons.Material.Filled.FolderOpen" Color="Color.Primary" />
+        @if (_renamingCollection)
+        {
+            @* Sized wrapper: the MudTextField root is width:100%, so as a bare flex
+               item it would eat the row and shove the confirm/cancel to the far right. *@
+            <div style="width:320px;">
+                <MudTextField T="string" @bind-Value="_collectionRename" Label="Collection name"
+                              Variant="Variant.Outlined" Margin="Margin.Dense" Immediate="true" />
+            </div>
+            <MudIconButton Icon="@Icons.Material.Filled.Check" Color="Color.Success"
+                           Title="Rename collection" OnClick="ConfirmRenameCollection" />
+            <MudIconButton Icon="@Icons.Material.Filled.Close" Title="Cancel"
+                           OnClick="() => _renamingCollection = false" />
+        }
+        else
+        {
+            <MudText Typo="Typo.h6">@_openCollection</MudText>
+            <MudIconButton Icon="@Icons.Material.Filled.Edit" Title="Rename collection"
+                           OnClick="StartRenameCollection" />
+        }
+    </MudStack>
+
+    @RenderGroups(VisibleGroups(_openCollection), "This collection is empty.")
+}
+
+@* ── Naming a brand new collection for one group ── *@
+@if (_newCollectionFor != null)
+{
+    <div style="position:fixed; top:0; left:0; width:100%; height:100%;
+                background:rgba(0,0,0,0.75); z-index:3000; overflow-y:auto;"
+         @onclick="CancelNewCollection">
+        <div style="background:#2D2D2D; margin:10% auto; max-width:460px; border-radius:12px;
+                    padding:24px; position:relative;"
+             @onclick:stopPropagation="true">
+            <MudText Typo="Typo.h6" Style="margin-bottom:4px;">New collection</MudText>
+            <MudText Typo="Typo.body2" Style="color:grey; margin-bottom:18px;">
+                “@_newCollectionFor.Name” will be the first scenario group filed under it.
+            </MudText>
+
+            <MudTextField T="string" @bind-Value="_newCollectionName" Label="Collection name"
+                          Variant="Variant.Outlined" Immediate="true" />
+
+            <div style="display:flex; gap:10px; margin-top:22px;">
+                <div style="flex:1;"></div>
+                <MudButton Variant="Variant.Text" OnClick="CancelNewCollection">Cancel</MudButton>
+                <MudButton Variant="Variant.Filled" Color="Color.Success"
+                           StartIcon="@Icons.Material.Filled.Check"
+                           Disabled="@string.IsNullOrWhiteSpace(_newCollectionName)"
+                           OnClick="ConfirmNewCollection">Create</MudButton>
+            </div>
+        </div>
+    </div>
+}
 
 @code {
+    private string _search = string.Empty;
+
+    /// Null = root view (collection folders + groups in no collection); otherwise
+    /// the collection whose "folder" the user has entered.
+    private string? _openCollection;
+
+    private bool _renamingCollection;
+    private string _collectionRename = string.Empty;
+
+    /// The group waiting for the name of the collection being created for it.
+    private DAScenarioGroup? _newCollectionFor;
+    private string _newCollectionName = string.Empty;
+
+    private bool MatchesSearch(string text) =>
+        string.IsNullOrWhiteSpace(_search) ||
+        (!string.IsNullOrEmpty(text) && text.Contains(_search, StringComparison.CurrentCultureIgnoreCase));
+
+    /// <summary>
+    /// Every group matching the search, collections included. A group also matches
+    /// through its collection name — so searching one lists all of its groups —
+    /// and through the name of any scenario it holds.
+    /// </summary>
+    private List<DAScenarioGroup> SearchResults() =>
+        DAService.ScenarioGroups.FindAll(g =>
+            MatchesSearch(g.Name) ||
+            MatchesSearch(g.Collection) ||
+            g.Scenarios.Any(s => MatchesSearch(s.Name)));
+
+    /// <summary>
+    /// Groups of the open collection, narrowed by the search unless the collection
+    /// name itself matches — in which case the whole collection is the result.
+    /// </summary>
+    private List<DAScenarioGroup> VisibleGroups(string collection)
+    {
+        var groups = DAService.GetGroupsOfCollection(collection);
+        return MatchesSearch(collection)
+            ? groups
+            : groups.FindAll(g => MatchesSearch(g.Name) || g.Scenarios.Any(s => MatchesSearch(s.Name)));
+    }
+
+    /// One card list, used by the root view, the search results and a collection.
+    private RenderFragment RenderGroups(List<DAScenarioGroup> groups, string emptyText = "") => __builder =>
+    {
+        if (groups.Count == 0)
+        {
+            <p class="sce-empty">
+                @(string.IsNullOrWhiteSpace(_search) ? emptyText : "Nothing matches the search.")
+            </p>
+        }
+
+        <div class="row">
+            @foreach (var group in groups)
+            {
+                var g = group;
+                <div class="col col-md-4 sce-group-card" @onclick="() => OpenGroup(g)">
+                    <MudIcon Icon="@Icons.Material.Filled.LibraryMusic" />
+                    <div class="sce-group-name">@g.Name</div>
+                    <MudText Typo="Typo.caption" Style="color:rgba(255,255,255,0.6);">
+                        @g.Scenarios.Count scenario(s)
+                    </MudText>
+                    <div @onclick:stopPropagation="true">
+                        <MudMenu Icon="@Icons.Material.Filled.DriveFileMove" Dense="true"
+                                 AriaLabel="File in a collection"
+                                 Title="File in a collection">
+                            @foreach (var collection in DAService.GetCollections())
+                            {
+                                var c = collection;
+                                var current = string.Equals(g.Collection, c, StringComparison.CurrentCultureIgnoreCase);
+                                <MudMenuItem Icon="@(current ? Icons.Material.Filled.Check : Icons.Material.Filled.Folder)"
+                                             Disabled="@current"
+                                             OnClick="() => MoveToCollection(g, c)">@c</MudMenuItem>
+                            }
+                            <MudMenuItem Icon="@Icons.Material.Filled.CreateNewFolder"
+                                         OnClick="() => StartNewCollection(g)">New collection…</MudMenuItem>
+                            @if (!string.IsNullOrWhiteSpace(g.Collection))
+                            {
+                                <MudMenuItem Icon="@Icons.Material.Filled.FolderOff"
+                                             OnClick="() => MoveToCollection(g, string.Empty)">Remove from collection</MudMenuItem>
+                            }
+                        </MudMenu>
+                    </div>
+                </div>
+            }
+        </div>
+    };
+
     void OpenGroup(DAScenarioGroup group) => NavManager.NavigateTo($"scenarios/{group.Id}");
 
-    void CreateNewGroup()
+    async Task CreateNewGroup()
     {
-        var group = new DAScenarioGroup();
+        // Created straight into the open collection: a new group almost always
+        // belongs to the one being worked on.
+        var group = new DAScenarioGroup { Collection = _openCollection ?? string.Empty };
         DAService.ScenarioGroups.Add(group);
+        await DAService.SaveScenarioGroupsAsync();
         NavManager.NavigateTo($"scenarios/{group.Id}");
+    }
+
+    void OpenCollection(string collection)
+    {
+        _openCollection = collection;
+        _search = string.Empty;
+        _renamingCollection = false;
+    }
+
+    void CloseCollection()
+    {
+        _openCollection = null;
+        _search = string.Empty;
+        _renamingCollection = false;
+    }
+
+    void StartRenameCollection()
+    {
+        _collectionRename = _openCollection ?? string.Empty;
+        _renamingCollection = true;
+    }
+
+    async Task ConfirmRenameCollection()
+    {
+        if (_openCollection == null) return;
+
+        string newName = _collectionRename.Trim();
+        if (newName.Length > 0 && newName != _openCollection)
+        {
+            await DAService.RenameCollectionAsync(_openCollection, newName);
+            // Follow the groups into their renamed folder.
+            _openCollection = newName;
+        }
+
+        _renamingCollection = false;
+    }
+
+    async Task MoveToCollection(DAScenarioGroup group, string collection)
+    {
+        await DAService.SetGroupCollectionAsync(group, collection);
+
+        // The open collection may have just lost its last group, so its folder is gone.
+        if (_openCollection != null && DAService.GetGroupsOfCollection(_openCollection).Count == 0)
+            CloseCollection();
+    }
+
+    void StartNewCollection(DAScenarioGroup group)
+    {
+        _newCollectionFor = group;
+        _newCollectionName = string.Empty;
+    }
+
+    void CancelNewCollection() => _newCollectionFor = null;
+
+    async Task ConfirmNewCollection()
+    {
+        var group = _newCollectionFor;
+        string name = _newCollectionName.Trim();
+        _newCollectionFor = null;
+
+        if (group == null || name.Length == 0) return;
+        await MoveToCollection(group, name);
     }
 }

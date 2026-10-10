@@ -369,6 +369,49 @@ namespace DiceAudio
         public DAScenarioGroup? FindGroupOfScenario(DAScenario scenario) =>
             ScenarioGroups.FirstOrDefault(g => g.Scenarios.Contains(scenario));
 
+        // ── Collections of scenario groups ──────────────────────────────────
+        // A collection is a folder of scenario groups, and nothing more. The
+        // names are derived from the groups themselves rather than kept in a
+        // list of their own, so there is no second place to keep in sync:
+        // renaming a collection or taking its last group out can never leave a
+        // ghost folder behind.
+
+        /// <summary>Every collection in use, de-duplicated case-insensitively and sorted.</summary>
+        public List<string> GetCollections() =>
+            ScenarioGroups
+                .Where(g => !string.IsNullOrWhiteSpace(g.Collection))
+                .Select(g => g.Collection)
+                .Distinct(StringComparer.CurrentCultureIgnoreCase)
+                .OrderBy(x => x, StringComparer.CurrentCulture)
+                .ToList();
+
+        /// <summary>The scenario groups filed under the given collection.</summary>
+        public List<DAScenarioGroup> GetGroupsOfCollection(string collection) =>
+            ScenarioGroups.FindAll(g =>
+                string.Equals(g.Collection, collection, StringComparison.CurrentCultureIgnoreCase));
+
+        /// <summary>
+        /// Files a group under a collection, creating that collection by the mere
+        /// fact of naming it. An empty name takes the group back out of any.
+        /// </summary>
+        public async Task SetGroupCollectionAsync(DAScenarioGroup group, string? collection)
+        {
+            group.Collection = (collection ?? string.Empty).Trim();
+            await SaveScenarioGroupsAsync();
+        }
+
+        /// <summary>
+        /// Renames a collection by moving every group that carries the old name.
+        /// An empty new name simply takes those groups out of any collection.
+        /// </summary>
+        public async Task RenameCollectionAsync(string oldName, string newName)
+        {
+            string trimmed = (newName ?? string.Empty).Trim();
+            foreach (var group in GetGroupsOfCollection(oldName))
+                group.Collection = trimmed;
+            await SaveScenarioGroupsAsync();
+        }
+
         private static string scenesFilePath = Path.Combine(FileSystem.AppDataDirectory, "scenes.json");
 
         public async Task SaveScenesAsync()

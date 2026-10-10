@@ -21,6 +21,15 @@
         margin-bottom: 16px;
     }
 
+    /* Save and Settings stay anchored to the right edge of the row, where the
+       full-width name field used to push them before the title replaced it. */
+    .scm-header-actions {
+        margin-left: auto;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
     /* Group-level tab strip */
     .scm-tabs {
         display: flex;
@@ -94,26 +103,58 @@ else
         <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Filled.ArrowBack"
                    OnClick='() => NavManager.NavigateTo("scenarios")'>Back</MudButton>
 
-        <MudTextField @bind-Value="_group.Name" Label="Group name"
-                      Variant="Variant.Outlined" Margin="Margin.Dense"
-                      Style="max-width:380px;" />
-
-        <MudButton Variant="Variant.Filled" Color="Color.Success"
-                   StartIcon="@Icons.Material.Filled.Save"
-                   OnClick="Save">Save</MudButton>
-
-        <MudButton Variant="Variant.Filled" Color="Color.Secondary"
-                   StartIcon="@Icons.Material.Filled.Settings"
-                   OnClick="() => _groupSettings?.Show()">Settings</MudButton>
-
-        @if (!_group.StopOtherScenariosOnPlay)
+        @* The name reads as the title of the page; the text field only appears
+           once the pencil is pressed, since renaming is the rare operation. *@
+        @if (_renamingGroup)
         {
-            <MudChip T="string" Size="Size.Small" Color="Color.Info"
-                     Icon="@Icons.Material.Filled.Layers"
-                     Title="The scenarios of this group play on top of each other instead of stopping each other">
-                Scenarios layer
-            </MudChip>
+            @* Sized wrapper: the MudTextField root is width:100%, so as a bare flex
+               item it would eat the row and shove the confirm/cancel to the far right. *@
+            <div style="width:380px;">
+                <MudTextField T="string" @bind-Value="_nameEdit" Label="Group name"
+                              Variant="Variant.Outlined" Margin="Margin.Dense" Immediate="true" />
+            </div>
+            <MudIconButton Icon="@Icons.Material.Filled.Check" Color="Color.Success"
+                           Title="Rename this scenario group" OnClick="ConfirmRename" />
+            <MudIconButton Icon="@Icons.Material.Filled.Close" Title="Cancel"
+                           OnClick="() => _renamingGroup = false" />
         }
+        else
+        {
+            <MudText Typo="Typo.h5" Style="font-weight:bold;">@_group.Name</MudText>
+            <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                           Title="Rename this scenario group" OnClick="StartRename" />
+        }
+
+        @* Status chips and the two buttons share the right-hand group, so the
+           header reads name on the left, state and actions on the right. *@
+        <div class="scm-header-actions">
+            @if (!string.IsNullOrWhiteSpace(_group.Collection))
+            {
+                @* Which collection the group is filed under — changed from Settings. *@
+                <MudChip T="string" Size="Size.Small" Color="Color.Default"
+                         Icon="@Icons.Material.Filled.FolderOpen"
+                         Title="Collection this scenario group is filed under">
+                    @_group.Collection
+                </MudChip>
+            }
+
+            @if (!_group.StopOtherScenariosOnPlay)
+            {
+                <MudChip T="string" Size="Size.Small" Color="Color.Info"
+                         Icon="@Icons.Material.Filled.Layers"
+                         Title="The scenarios of this group play on top of each other instead of stopping each other">
+                    Scenarios layer
+                </MudChip>
+            }
+
+            <MudButton Variant="Variant.Filled" Color="Color.Success"
+                       StartIcon="@Icons.Material.Filled.Save"
+                       OnClick="Save">Save</MudButton>
+
+            <MudButton Variant="Variant.Filled" Color="Color.Secondary"
+                       StartIcon="@Icons.Material.Filled.Settings"
+                       OnClick="() => _groupSettings?.Show()">Settings</MudButton>
+        </div>
     </div>
 
     <div class="scm-tabs">
@@ -244,6 +285,9 @@ else
     private enum GroupTab { Scenarios, LocalScenes }
     private GroupTab _tab = GroupTab.Scenarios;
 
+    private bool _renamingGroup;
+    private string _nameEdit = string.Empty;
+
     private ScenarioGroupSettings? _groupSettings;
     private SceneEditor? _sceneEditor;
     private ScenePicker? _scenePicker;
@@ -256,6 +300,24 @@ else
 
     async Task Save()
     {
+        await DAService.SaveScenarioGroupsAsync();
+    }
+
+    void StartRename()
+    {
+        _nameEdit = _group?.Name ?? string.Empty;
+        _renamingGroup = true;
+    }
+
+    /// Applied to a scratch field so cancelling really leaves the name alone.
+    async Task ConfirmRename()
+    {
+        _renamingGroup = false;
+
+        string newName = _nameEdit.Trim();
+        if (_group == null || newName.Length == 0 || newName == _group.Name) return;
+
+        _group.Name = newName;
         await DAService.SaveScenarioGroupsAsync();
     }
 

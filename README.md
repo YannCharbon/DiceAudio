@@ -43,6 +43,8 @@ and drive the whole evening from one window instead of juggling media players.
 - **Scenarios.** A scenario is the ordered list of what you plan to play during a session, and scenarios
   are gathered in groups, typically one per adventure or story arc. An item can be a single track, a
   playlist, a random selection based on tag criteria, or a whole scene.
+- **Collections.** Once there are many groups, a collection files the ones that belong together behind a
+  single folder, one per adventure, season or show, and the explorer then opens it like a folder.
 - **Presets.** Any scenario item can be saved as a preset with a category, then reused to start a new
   scene or a new item without building it again.
 - **Remote control.** DiceAudio can start a local HTTP server which exposes playback, navigation inside a
@@ -71,7 +73,8 @@ the session is then a single click.
 
 A group gathers the scenarios of an adventure, and each scenario lists what you plan to play in order.
 Single tracks come with their own transport and progress bar, while scenes show their contexts as
-buttons, so you start the right state directly from here.
+buttons, so you start the right state directly from here. Groups can be filed into collections, which
+show up as folders on the scenarios page, and the search there reaches inside them.
 
 ![Scenarios](docs/img/audio-scenarios.jpg)
 

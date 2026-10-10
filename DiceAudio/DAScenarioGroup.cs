@@ -15,6 +15,16 @@ namespace DiceAudio
         public List<DAScenario> Scenarios { get; set; } = new List<DAScenario>();
 
         /// <summary>
+        /// The collection this group is filed under, or an empty string when it
+        /// belongs to none and is listed on its own in the scenarios explorer. A
+        /// collection is whatever set of groups belong together — an adventure, a
+        /// season, a show, a client. Collections are plain names rather than
+        /// entities: one exists exactly as long as a group carries its name, so
+        /// renaming or emptying one can never leave a ghost folder behind.
+        /// </summary>
+        public string Collection { get; set; } = string.Empty;
+
+        /// <summary>
         /// Governs how the scenarios of this group behave towards each other.
         /// True — the default — makes them exclusive: starting an item in one
         /// scenario first fades out whatever the other scenarios of the group are

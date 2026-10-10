@@ -143,7 +143,7 @@ namespace DiceAudio
         // ── Platform fields ──────────────────────────────────────────────────
 #if WINDOWS
         private NAudio.Wave.WaveOutEvent? _waveOut;
-        private NAudio.Wave.AudioFileReader? _reader;
+        private DAFloatFileReader? _reader;
         /// <summary>What WaveOut plays from: the reader wrapped in the clip-ramp stage.</summary>
         private NAudio.Wave.IWaveProvider? _waveSource;
         private bool _explicitStop;   // distinguishes Stop() from natural end
@@ -151,7 +151,7 @@ namespace DiceAudio
         /// <summary>
         /// Applies the clip-edge ramps one sample at a time as WaveOut pulls audio.
         ///
-        /// The obvious approach — stepping AudioFileReader.Volume from a timer —
+        /// The obvious approach — stepping the reader's Volume from a timer —
         /// cannot be smooth here: WaveOutEvent asks the reader for ~150 ms at a
         /// time (300 ms latency over two buffers), so a half-second fade would be
         /// built from about three volume values. Fading out that way is easy to
@@ -161,10 +161,10 @@ namespace DiceAudio
         /// </summary>
         private sealed class ClipFadeSampleProvider : NAudio.Wave.ISampleProvider
         {
-            private readonly NAudio.Wave.AudioFileReader _reader;
+            private readonly DAFloatFileReader _reader;
             private readonly DAAudioPlayer _owner;
 
-            public ClipFadeSampleProvider(NAudio.Wave.AudioFileReader reader, DAAudioPlayer owner)
+            public ClipFadeSampleProvider(DAFloatFileReader reader, DAAudioPlayer owner)
             {
                 _reader = reader;
                 _owner = owner;
@@ -282,7 +282,7 @@ namespace DiceAudio
 #if WINDOWS
             try
             {
-                using var reader = new NAudio.Wave.AudioFileReader(filePath);
+                using var reader = new DAFloatFileReader(filePath);
                 return reader.TotalTime.TotalSeconds;
             }
             catch { return 0; }
@@ -299,9 +299,9 @@ namespace DiceAudio
         private void Init(string filePath, IAudioManager? audioManager)
         {
 #if WINDOWS
-            _reader   = new NAudio.Wave.AudioFileReader(filePath);
+            _reader   = new DAFloatFileReader(filePath);
             _waveOut  = new NAudio.Wave.WaveOutEvent();
-            // AudioFileReader already presents IEEE float, so wrapping it in the ramp
+            // The reader already presents IEEE float, so wrapping it in the ramp
             // stage is transparent to the output format.
             _waveSource = new NAudio.Wave.SampleProviders.SampleToWaveProvider(
                 new ClipFadeSampleProvider(_reader, this));
@@ -310,7 +310,7 @@ namespace DiceAudio
             // knob for the whole app — Windows even persists it across runs).
             // Older builds drove fades through it and may have left it near 0,
             // muting everything: pin it to a constant 1.0 here. Per-player volume
-            // (fades, crossfades, layer levels) goes through AudioFileReader.Volume,
+            // (fades, crossfades, layer levels) goes through DAFloatFileReader.Volume,
             // a per-stream sample multiplier — never ramp WaveOutEvent.Volume.
             try { _waveOut.Volume = 1.0f; } catch { /* not supported on some devices */ }
             _reader.Volume = EffectiveVolume;
@@ -589,11 +589,11 @@ namespace DiceAudio
                 Task.Run(() =>
                 {
                     Thread.Sleep(20);
-                    if (_reader == null || _waveOut == null) return;
+                    if (_reader == null || _waveOut == null || _waveSource == null) return;
                     _reader.CurrentTime = TimeSpan.FromSeconds(restartAt);
                     _clipEnvelope = HasClipFade ? ComputeClipEnvelope() : 1.0;
                     _reader.Volume = EffectiveVolume;
-                    _waveOut.Init(_waveSource ?? (NAudio.Wave.IWaveProvider)_reader);
+                    _waveOut.Init(_waveSource);
                     _waveOut.Play();
                 });
             }

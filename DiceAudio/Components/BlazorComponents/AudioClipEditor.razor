@@ -761,9 +761,11 @@
 #if WINDOWS
     private static float[] ComputePeaks(string filePath, int buckets)
     {
-        using var reader = new NAudio.Wave.AudioFileReader(filePath);
+        // Same reader the player uses, so the peaks and playback agree on where a
+        // given second of the file is — that is the whole point of the waveform.
+        using var reader = new DAFloatFileReader(filePath);
         var peaks = new float[buckets];
-        long totalSamples = reader.Length / 4;   // AudioFileReader reads 32-bit floats
+        long totalSamples = reader.TotalSampleCount;
         long samplesPerBucket = Math.Max(1, totalSamples / buckets);
 
         var buffer = new float[16384];
@@ -815,8 +817,13 @@
             if (_needsRedraw)
             {
                 _needsRedraw = false;
-                await JS.InvokeVoidAsync("daWaveform.drawRange", _canvasId,
-                                         _viewStart / _fileDuration, ViewEnd / _fileDuration);
+                // The redraw hands back the canvas width it just measured. Taking
+                // it here keeps the cached geometry honest for free: the box is
+                // inside a scrolling overlay, so it changes width whenever the
+                // dialog grows past the viewport, and a stale width silently
+                // skews every click-to-seek by that ratio.
+                _waveWidthPx = await JS.InvokeAsync<double>("daWaveform.drawRange", _canvasId,
+                                                            _viewStart / _fileDuration, ViewEnd / _fileDuration);
             }
         }
         catch { /* canvas not ready — ignored */ }

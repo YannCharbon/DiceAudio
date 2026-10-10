@@ -13,12 +13,23 @@ window.daWaveform = {
     },
 
     // Draws the [startFrac, endFrac] slice of the loaded peaks (fractions of the
-    // whole file, 0..1). One bar per couple of device pixels, each bar showing the
-    // loudest peak it covers, so zooming out never drops a transient.
+    // whole file, 0..1). One bar per device pixel, each bar showing the loudest
+    // peak it covers, so zooming out never drops a transient.
+    //
+    // A bar is painted over exactly the time span it summarises, and a bucket is
+    // counted by the column its centre lands in. Both matter: this used to draw
+    // one bar per two device pixels and take each bar's buckets with a ceil, so a
+    // level jump lit up the whole block that contained it and the block before —
+    // the step appeared at the left edge of that pair, never to its right. At full
+    // zoom-out on an hour-long track a block is about twelve seconds, which is
+    // twelve seconds of reading the transition early. Returns the canvas width in
+    // CSS pixels so the caller's cached geometry refreshes on every redraw.
     drawRange: function (canvasId, startFrac, endFrac) {
         const canvas = document.getElementById(canvasId);
         const peaks = this._peaks[canvasId];
-        if (!canvas || !peaks || peaks.length === 0) return;
+        if (!canvas) return 0;
+        const cssWidth = canvas.getBoundingClientRect().width;
+        if (!peaks || peaks.length === 0) return cssWidth;
 
         // Size the backing store to the element, but only when it actually differs:
         // assigning width/height resets the canvas, and any layout that depends on
@@ -40,17 +51,20 @@ window.daWaveform = {
         const first = a * n;
         const span = (b - a) * n;
 
-        const barW = Math.max(1, Math.round(2 * dpr));
-        const bars = Math.max(1, Math.floor(w / barW));
-
         ctx.fillStyle = 'rgba(35,166,213,0.65)';
-        for (let i = 0; i < bars; i++) {
-            const s = first + (span * i) / bars;
-            const e = first + (span * (i + 1)) / bars;
+        for (let i = 0; i < w; i++) {
+            const s = first + (span * i) / w;
+            const e = first + (span * (i + 1)) / w;
 
-            let lo = Math.floor(s);
-            let hi = Math.ceil(e);
-            if (hi <= lo) hi = lo + 1;
+            // Buckets whose centre falls in this column. Taking the centre rather
+            // than any overlap is what stops a bucket straddling a column edge
+            // from brightening both and dragging a transient one column left.
+            let lo = Math.ceil(s - 0.5);
+            let hi = Math.ceil(e - 0.5);
+            // Zoomed in past one bucket per column: show the bucket under the
+            // column's own centre, so neighbouring columns repeat it rather than
+            // leaving gaps.
+            if (hi <= lo) { lo = Math.floor((s + e) / 2); hi = lo + 1; }
             if (lo < 0) lo = 0;
             if (hi > n) hi = n;
 
@@ -59,8 +73,9 @@ window.daWaveform = {
 
             const p = Math.min(1, Math.max(0.015, max));
             const bh = p * h * 0.94;
-            ctx.fillRect(i * barW, (h - bh) / 2, Math.max(1, barW - 1), bh);
+            ctx.fillRect(i, (h - bh) / 2, 1, bh);
         }
+        return cssWidth;
     },
 
     clear: function (canvasId) {

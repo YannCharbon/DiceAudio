@@ -55,6 +55,7 @@
 <GenericModal TContent="AudioTagsEditor"  @ref="AudioTagsEditorModalRef"  OnClose="HandleAudioTagsEditorModalClose"><AudioTagsEditor /></GenericModal>
 <GenericModal TContent="AudioFilterEditor" @ref="AudioFilterModalRef"    OnClose="HandleAudioFilterModalClose"><AudioFilterEditor Filter="_filter" MatchCount="CountFilterMatches" UpdateParent="StateHasChanged" /></GenericModal>
 <GenericModal TContent="MoveToFolder"     @ref="MoveManyToFolderModalRef" OnClose="HandleMoveToFolderModalClose"><MoveToFolder AudioItems="_selectedItemsForMove" OnMoved="OnSelectionMoved" /></GenericModal>
+<GenericModal TContent="MoveFolder"       @ref="MoveFolderModalRef"      OnClose="HandleMoveFolderModalClose"><MoveFolder Folder="_currentFolderForMove" /></GenericModal>
 <AudioImporter @ref="_audioImporterRef" OnImported="OnImportFinished" />
 
 <!-- ─────────────────────  TOOLBAR  ───────────────────── -->
@@ -66,6 +67,9 @@
                OnClick="@(() => _audioImporterRef?.Show())">Import from disk</MudButton>
     <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Label"
                OnClick="@(() => AudioTagsEditorModalRef.Show())">Add/Remove tags</MudButton>
+    <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.CreateNewFolder"
+               title="Create a subfolder of the folder you are in"
+               OnClick="StartNewFolder">New folder</MudButton>
     <MudButton Variant="@(_filter.IsActive ? Variant.Filled : Variant.Outlined)"
                Color="@(_filter.IsActive ? Color.Secondary : Color.Primary)"
                StartIcon="@Icons.Material.Filled.FilterAlt"
@@ -76,6 +80,25 @@
                title="Show a checkbox on every card and start with all of them selected, so you only have to untick what should stay behind"
                OnClick="ToggleSelectionMode">@(_selectionMode ? "Exit selection" : "Select multiple items")</MudButton>
 </MudStack>
+
+<!-- ─────────────────────  NEW FOLDER  ───────────────────── -->
+@if (_creatingFolder)
+{
+    <MudStack Row="true" AlignItems="AlignItems.Center" Style="gap:8px; flex-wrap:wrap; margin-bottom:10px;">
+        @* Immediate: Enter is handled here, and OnKeyUp fires before a
+           blur-bound value would have reached _newFolderName. *@
+        <MudTextField @bind-Value="_newFolderName" Variant="Variant.Filled" Margin="Margin.Dense"
+                      Label="@($"New folder in {(IsRoot ? "Root" : _currentFolder.Name)}")"
+                      Style="max-width:280px;" Immediate="true" OnKeyUp="OnNewFolderKeyUp" />
+        <MudButton Variant="Variant.Filled" Color="Color.Secondary"
+                   StartIcon="@Icons.Material.Filled.Add" OnClick="ConfirmNewFolder">Create</MudButton>
+        <MudButton Variant="Variant.Text" OnClick="CancelNewFolder">Cancel</MudButton>
+        @if (_newFolderExists)
+        {
+            <MudText Color="Color.Error" Typo="Typo.caption">A folder with that name already exists.</MudText>
+        }
+    </MudStack>
+}
 
 <!-- ─────────────────────  SEARCH  ───────────────────── -->
 <MudTextField T="string" Value="_search" ValueChanged="OnSearchChanged"
@@ -272,6 +295,7 @@ else if (_breadcrumb.Any())
     private GenericModal<MoveToFolder>?     MoveToFolderModalRef;
     private GenericModal<AudioFilterEditor>? AudioFilterModalRef;
     private GenericModal<MoveToFolder>?     MoveManyToFolderModalRef;
+    private GenericModal<MoveFolder>?       MoveFolderModalRef;
 
     // tree + navigation state
     private readonly DAVirtualAudioFolder _rootFolder = new() { Name = "." };
@@ -418,6 +442,10 @@ else if (_breadcrumb.Any())
                 {
                     <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
                         <b style="flex:1; cursor:pointer;" @onclick="@(() => NavigateToFolder(folder))">@folder.Name</b>
+                        <MudIconButton Icon="@Icons.Material.Filled.DriveFileMove"
+                                       Size="Size.Small"
+                                       Title="Move folder"
+                                       OnClick="@(() => OpenMoveFolder(folder))" />
                         <MudIconButton Icon="@Icons.Material.Filled.Edit"
                                        Size="Size.Small"
                                        Title="Rename folder"
@@ -431,6 +459,9 @@ else if (_breadcrumb.Any())
     // modal helpers
     void OpenAudioTagsPicker(DAAudioItem item) { _currentAudioItemForTagsPicker = item;  AudioTagsPickerModalRef?.Show(); }
     void OpenMoveToFolderPicker(DAAudioItem item){ _currentAudioItemForMoveToFolder = item; MoveToFolderModalRef?.Show(); }
+    void OpenMoveFolder(DAVirtualAudioFolder folder){ _currentFolderForMove = folder; MoveFolderModalRef?.Show(); }
+
+    private DAVirtualAudioFolder? _currentFolderForMove;
 
     // modal callbacks
     private AudioImporter? _audioImporterRef;
@@ -460,9 +491,58 @@ else if (_breadcrumb.Any())
         BuildFolderTree();
         await InvokeAsync(StateHasChanged);
     }
+    async Task HandleMoveFolderModalClose(bool _)
+    {
+        // Both the tree and the items' own copy of their folder changed.
+        await DAService.SaveAudioVirtualFoldersAsync();
+        await DAService.SaveAudioItemListAsync();
+        BuildFolderTree();
+        await InvokeAsync(StateHasChanged);
+    }
+
     void HandleAudioTagsEditorModalClose(bool saved) { if (saved) DAAudioTagsProvider.Instance.SaveTags(); }
 
     void HandleAudioFilterModalClose(bool _) => StateHasChanged();   // view state only, nothing to persist
+
+    // ── folder creation (in the folder currently open) ─────────────
+    private bool _creatingFolder;
+    private string _newFolderName = string.Empty;
+    private bool _newFolderExists;
+
+    void StartNewFolder()
+    {
+        _creatingFolder = true;
+        _newFolderName = string.Empty;
+        _newFolderExists = false;
+    }
+
+    void CancelNewFolder()
+    {
+        _creatingFolder = false;
+        _newFolderName = string.Empty;
+        _newFolderExists = false;
+    }
+
+    async Task OnNewFolderKeyUp(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await ConfirmNewFolder();
+    }
+
+    async Task ConfirmNewFolder()
+    {
+        var created = DAService.CreateFolder(_newFolderName, IsRoot ? null : _currentFolder);
+        if (created == null)
+        {
+            // Empty names are simply ignored; a clash is worth saying out loud.
+            _newFolderExists = !string.IsNullOrWhiteSpace(_newFolderName);
+            return;
+        }
+
+        CancelNewFolder();
+        await DAService.SaveAudioVirtualFoldersAsync();
+        BuildFolderTree();
+        StateHasChanged();
+    }
 
     // folder rename state
     private DAVirtualAudioFolder? _renamingFolder = null;

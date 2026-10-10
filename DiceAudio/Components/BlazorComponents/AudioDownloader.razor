@@ -63,43 +63,10 @@
 
     @* ── Target folder picker ── *@
     <MudCardContent>
-        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
-            <MudIcon Icon="@Icons.Material.Filled.Folder" Style="color:#90caf9;" />
-            <MudText Typo="Typo.body2">Download to: <b>@_targetFolderName</b></MudText>
-            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
-                           OnClick="@(() => _folderPickerExpanded = !_folderPickerExpanded)" />
-        </MudStack>
-
-        @if (_folderPickerExpanded)
-        {
-            <div style="margin-top:8px; display:flex; flex-wrap:wrap; gap:6px;">
-                @foreach (var f in DAService.AudioVirtualFolders.Where(f => f.ParentFolderId == Guid.Empty))
-                {
-                    <MudButton Size="Size.Small"
-                               Variant="@(_targetFolderName == f.Name ? Variant.Filled : Variant.Outlined)"
-                               Color="Color.Primary"
-                               OnClick="@(() => { _targetFolderName = f.Name; _folderPickerExpanded = false; })">
-                        @f.Name
-                    </MudButton>
-                }
-                @if (!DAService.AudioVirtualFolders.Any(f => f.Name == "Untriaged"))
-                {
-                    <MudButton Size="Size.Small"
-                               Variant="@(_targetFolderName == "Untriaged" ? Variant.Filled : Variant.Outlined)"
-                               Color="Color.Primary"
-                               OnClick="@(() => { _targetFolderName = "Untriaged"; _folderPickerExpanded = false; })">
-                        Untriaged
-                    </MudButton>
-                }
-            </div>
-            <MudStack Row="true" Style="margin-top:10px;" AlignItems="AlignItems.Center">
-                <MudTextField Variant="Variant.Filled" @bind-Value="_newFolderInput"
-                              Label="New folder name" Style="max-width:250px;" />
-                <MudButton Variant="Variant.Filled" Color="Color.Secondary"
-                           Disabled="@string.IsNullOrWhiteSpace(_newFolderInput)"
-                           OnClick="UseNewFolder">Create &amp; select</MudButton>
-            </MudStack>
-        }
+        <FolderSelectField Label="Download to"
+                           Folder="@_targetFolder"
+                           FolderChanged="OnTargetFolderChanged"
+                           OnFolderCreated="OnFolderCreated" />
     </MudCardContent>
 
     @* ── Staged items ── *@
@@ -154,12 +121,26 @@
     private string stageErrorMessage = "";
     private bool isStaging = false;
 
-    private string _targetFolderName = "Untriaged";
-    private bool _folderPickerExpanded = false;
-    private string _newFolderInput = "";
+    /// <summary>Destination folder — null means the root of the library.</summary>
+    private DAVirtualAudioFolder? _targetFolder;
     private string _scanResultMessage = "";
 
     private List<DAAudioItem> stagedAudios = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Keep filing downloads under "Untriaged" when that folder exists.
+        await DAService.WhenLoaded;
+        _targetFolder = DAService.FindFolderByName("Untriaged");
+    }
+
+    private async Task OnTargetFolderChanged(DAVirtualAudioFolder? folder)
+    {
+        _targetFolder = folder;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task OnFolderCreated(DAVirtualAudioFolder folder) => await DAService.SaveAudioVirtualFoldersAsync();
 
     // ── Staging ──────────────────────────────────────────────
 
@@ -324,7 +305,7 @@
 
         if (!alreadyInLibrary)
         {
-            item.Folder.Name = _targetFolderName;
+            item.Folder = _targetFolder ?? DiceAudioService.NewRootFolderMarker();
             DAService.AddAudioItem(item);
         }
     }
@@ -385,7 +366,7 @@
                 LocalFileName = fileName,
                 IsLocallyAvailable = true
             };
-            newItem.Folder.Name = _targetFolderName;
+            newItem.Folder = _targetFolder ?? DiceAudioService.NewRootFolderMarker();
             DAService.AddAudioItem(newItem);
             imported++;
         }
@@ -397,17 +378,6 @@
             : $"Scan complete: {repaired} item(s) repaired, {imported} new file(s) imported.";
 
         await InvokeAsync(StateHasChanged);
-    }
-
-    // ── Folder helpers ────────────────────────────────────────
-
-    private void UseNewFolder()
-    {
-        var name = _newFolderInput.Trim();
-        if (string.IsNullOrWhiteSpace(name)) return;
-        _targetFolderName = name;
-        _newFolderInput = "";
-        _folderPickerExpanded = false;
     }
 
     // ── UI helpers ────────────────────────────────────────────

@@ -1,0 +1,91 @@
+@*
+ * DiceAudio - Copyright (C) 2025 Yann Charbon
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ *
+ * This file is part of DiceAudio, released under the GNU GPL v3.
+ * See the LICENSE file in the repository root for details.
+*@
+
+@using DiceAudio
+@inject DiceAudioService DAService
+
+@* ── A destination folder as a form field: one line showing the chosen path,
+     which opens the shared <FolderBrowser> in place when clicked. Used
+     wherever a folder is an option on a bigger form (importer, downloader)
+     rather than the whole point of the dialog. ── *@
+
+<style>
+    .fsf-box   { background:#1a1a2e; border:1px solid #2a2a4a; border-radius:8px; padding:8px 12px; }
+    .fsf-head  { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+    .fsf-path  { color:#cfd3dc; cursor:pointer; }
+    .fsf-path:hover { text-decoration:underline; }
+    .fsf-panel { margin-top:10px; border-top:1px solid #2a2a4a; padding-top:10px; }
+</style>
+
+<div class="fsf-box">
+    <div class="fsf-head">
+        <MudIcon Icon="@Icons.Material.Filled.Folder" Style="color:#90caf9;" />
+        <MudText Typo="Typo.body2">
+            @Label: <b class="fsf-path" @onclick="Toggle">@DAService.FolderDisplayPath(Folder)</b>
+        </MudText>
+        <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Primary"
+                   StartIcon="@(_expanded ? Icons.Material.Filled.ExpandLess : Icons.Material.Filled.Edit)"
+                   OnClick="Toggle">@(_expanded ? "Done" : "Change")</MudButton>
+    </div>
+
+    @if (!string.IsNullOrEmpty(Hint))
+    {
+        <MudText Typo="Typo.caption" Style="color:grey;">@Hint</MudText>
+    }
+
+    @if (_expanded)
+    {
+        <div class="fsf-panel">
+            <FolderBrowser ActionLabel="Select"
+                           ActionIcon="@Icons.Material.Filled.Check"
+                           InitialFolder="@_browseFrom"
+                           IsCurrent="@(f => (f?.Id ?? Guid.Empty) == (Folder?.Id ?? Guid.Empty))"
+                           CurrentLabel="selected"
+                           AllowRoot="@AllowRoot"
+                           OnFolderChosen="Select"
+                           OnFolderCreated="OnFolderCreated" />
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public string Label { get; set; } = "Folder";
+
+    /// <summary>Extra line under the field explaining what the folder applies to.</summary>
+    [Parameter] public string? Hint { get; set; }
+
+    /// <summary>The chosen folder — null means the root of the library.</summary>
+    [Parameter] public DAVirtualAudioFolder? Folder { get; set; }
+
+    [Parameter] public EventCallback<DAVirtualAudioFolder?> FolderChanged { get; set; }
+
+    /// <summary>Whether the library root is an acceptable destination.</summary>
+    [Parameter] public bool AllowRoot { get; set; } = true;
+
+    /// <summary>A folder was created from the browser, so the caller can persist the tree.</summary>
+    [Parameter] public EventCallback<DAVirtualAudioFolder> OnFolderCreated { get; set; }
+
+    private bool _expanded;
+    private DAVirtualAudioFolder? _browseFrom;
+
+    private void Toggle()
+    {
+        _expanded = !_expanded;
+        // Opening starts next to the current choice: in its parent, so the
+        // chosen folder is one of the rows and its siblings are in reach.
+        if (_expanded)
+            _browseFrom = Folder == null ? null : DAService.FindFolder(Folder.ParentFolderId);
+    }
+
+    private async Task Select(DAVirtualAudioFolder? folder)
+    {
+        Folder = folder;
+        _expanded = false;
+        await FolderChanged.InvokeAsync(folder);
+    }
+}

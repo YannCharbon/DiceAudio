@@ -9,146 +9,55 @@
 @using DiceAudio
 @inject DiceAudioService DAService
 
+@* ── Moves one item, or a whole selection, to another virtual folder. The
+     browsing itself is the shared <FolderBrowser>; this component only names
+     what is moving and applies the move to the folder that comes back. ── *@
+
 <style>
-    .mtf-crumb  { cursor:pointer; color:#90caf9; }
-    .mtf-crumb:hover { text-decoration:underline; }
-    .mtf-sep    { color:#888; }
-    .mtf-row {
-        display:flex; align-items:center; gap:10px; padding:6px 10px; margin:5px 0;
-        background:#1a1a2e; border:1px solid #2a2a4a; border-radius:8px;
-        transition: background 0.15s, border-color 0.15s;
-    }
-    .mtf-row:hover { background:#24243e; border-color:#444470; }
-    .mtf-current   { border-color:#23a6d5; }
-    .mtf-navzone   { display:flex; align-items:center; gap:10px; flex:1; cursor:pointer; min-width:0; }
-    .mtf-name      { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-    .mtf-empty     { color:grey; font-size:13px; padding:8px 2px; }
-    .mtf-chip      { background:#2a2a4a; border-radius:4px; padding:2px 7px;
-                     font-size:12px; color:#cfd3dc; }
+    .mtf-chip { background:#2a2a4a; border-radius:4px; padding:2px 7px;
+                font-size:12px; color:#cfd3dc; }
 </style>
 
 <h3 style="margin-bottom:4px;">Move to folder</h3>
 
 @if (_targets.Count > 0)
 {
-<div>
-    <MudText Typo="Typo.body2" Style="color:grey; margin-bottom:12px;">
-        <b>@TargetsLabel</b> — currently in <b>@CurrentFolderLabel</b>
-    </MudText>
+    <FolderBrowser ActionLabel="Move"
+                   ActionIcon="@Icons.Material.Filled.DriveFileMove"
+                   InitialFolder="@_initialFolder"
+                   IsCurrent="AllTargetsIn"
+                   AllowRoot="true"
+                   OnFolderChosen="MoveTo"
+                   OnFolderCreated="OnFolderCreated">
+        <HeaderContent>
+            <MudText Typo="Typo.body2" Style="color:grey; margin-bottom:12px;">
+                <b>@TargetsLabel</b> — currently in <b>@CurrentFolderLabel</b>
+            </MudText>
 
-    @* In bulk mode, name what is about to move so the choice is never blind. *@
-    @if (_targets.Count > 1)
-    {
-        <div style="display:flex; flex-wrap:wrap; gap:4px; margin:-6px 0 12px 0;">
-            @foreach (var target in _targets.Take(MaxNamesShown))
+            @* In bulk mode, name what is about to move so the choice is never blind. *@
+            @if (_targets.Count > 1)
             {
-                <span class="mtf-chip">@target.Name</span>
-            }
-            @if (_targets.Count > MaxNamesShown)
-            {
-                <span class="mtf-chip">+@(_targets.Count - MaxNamesShown) more</span>
-            }
-        </div>
-    }
-
-    @* Breadcrumb of the folder being browsed *@
-    <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-bottom:8px;">
-        @if (_viewFolder == null)
-        {
-            <span style="font-weight:bold;">Root</span>
-        }
-        else
-        {
-            <span class="mtf-crumb" @onclick="() => NavigateTo(null)">Root</span>
-            @foreach (var crumb in ViewBreadcrumb())
-            {
-                var c = crumb;
-                <span class="mtf-sep">/</span>
-                @if (c.Id == _viewFolder.Id)
-                {
-                    <span style="font-weight:bold;">@c.Name</span>
-                }
-                else
-                {
-                    <span class="mtf-crumb" @onclick="() => NavigateTo(c)">@c.Name</span>
-                }
-            }
-        }
-    </div>
-
-    @* Subfolders of the current view *@
-    @{ var children = ChildrenOf(_viewFolder); }
-    @if (children.Count == 0)
-    {
-        <div class="mtf-empty">No subfolders here.</div>
-    }
-    else
-    {
-        @foreach (var folder in children)
-        {
-            var f = folder;
-            bool isItemFolder = AllTargetsIn(f);
-            <div class="mtf-row @(isItemFolder ? "mtf-current" : "")">
-                <div class="mtf-navzone" @onclick="() => NavigateTo(f)" title="Open">
-                    <MudIcon Icon="@Icons.Material.Filled.Folder" Style="color:#90caf9;" />
-                    <span class="mtf-name">@f.Name</span>
+                <div style="display:flex; flex-wrap:wrap; gap:4px; margin:-6px 0 12px 0;">
+                    @foreach (var target in _targets.Take(MaxNamesShown))
+                    {
+                        <span class="mtf-chip">@target.Name</span>
+                    }
+                    @if (_targets.Count > MaxNamesShown)
+                    {
+                        <span class="mtf-chip">+@(_targets.Count - MaxNamesShown) more</span>
+                    }
                 </div>
-                @if (isItemFolder)
-                {
-                    <span style="color:#23a6d5; font-size:12px;">current</span>
-                }
-                else
-                {
-                    <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary"
-                               StartIcon="@Icons.Material.Filled.DriveFileMove"
-                               OnClick="() => MoveTo(f)">Move here</MudButton>
-                }
-                <MudIcon Icon="@Icons.Material.Filled.ChevronRight" Style="color:#888; cursor:pointer;"
-                         @onclick="() => NavigateTo(f)" />
-            </div>
-        }
-    }
-
-    @* Actions: move into the folder currently open, and create a subfolder *@
-    <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:14px;">
-        <MudButton Variant="Variant.Filled" Color="Color.Primary"
-                   StartIcon="@Icons.Material.Filled.DriveFileMove"
-                   Disabled="@(_viewFolder == null || AllTargetsIn(_viewFolder))"
-                   OnClick="() => MoveTo(_viewFolder!)">
-            @(_viewFolder != null ? $"Move here → {_viewFolder.Name}" : "Move here")
-        </MudButton>
-
-        @if (!_showCreate)
-        {
-            <MudButton Variant="Variant.Outlined" Color="Color.Secondary"
-                       StartIcon="@Icons.Material.Filled.CreateNewFolder"
-                       OnClick="() => _showCreate = true">New folder</MudButton>
-        }
-    </div>
-
-    @if (_showCreate)
-    {
-        <div style="display:flex; align-items:center; gap:8px; margin-top:10px; flex-wrap:wrap;">
-            <MudTextField @bind-Value="_newFolderName" Variant="Variant.Filled" Margin="Margin.Dense"
-                          Label="@($"New folder in {(_viewFolder?.Name ?? "Root")}")" Style="max-width:280px;" />
-            <MudButton Variant="Variant.Filled" Color="Color.Secondary"
-                       StartIcon="@Icons.Material.Filled.Add" OnClick="CreateFolder">Create</MudButton>
-            <MudButton Variant="Variant.Text"
-                       OnClick="@(() => { _showCreate = false; _newFolderName = string.Empty; _folderExists = false; })">Cancel</MudButton>
-        </div>
-        @if (_folderExists)
-        {
-            <MudText Color="Color.Error" Typo="Typo.caption">A folder with that name already exists.</MudText>
-        }
-    }
-
-    @if (_moved)
-    {
-        <MudText Style="color:#4caf50; margin-top:12px;" Typo="Typo.body2">
-            Moved @(_movedCount == 1 ? "1 item" : $"{_movedCount} items") to <b>@CurrentFolderLabel</b> ✓
-        </MudText>
-    }
-</div>
+            }
+        </HeaderContent>
+        <FooterContent>
+            @if (_moved)
+            {
+                <MudText Style="color:#4caf50; margin-top:12px;" Typo="Typo.body2">
+                    Moved @(_movedCount == 1 ? "1 item" : $"{_movedCount} items") to <b>@CurrentFolderLabel</b> ✓
+                </MudText>
+            }
+        </FooterContent>
+    </FolderBrowser>
 }
 
 @code {
@@ -170,11 +79,8 @@
 
     private const int MaxNamesShown = 12;
 
-    private DAVirtualAudioFolder? _viewFolder;   // null = root
     private List<DAAudioItem> _targets = new();
-    private bool _showCreate;
-    private string _newFolderName = "";
-    private bool _folderExists;
+    private DAVirtualAudioFolder? _initialFolder;
     private bool _moved;
     private int _movedCount;
 
@@ -190,27 +96,19 @@
         if (!targets.SequenceEqual(_targets))
         {
             _targets = targets;
-            _showCreate = false;
-            _newFolderName = "";
-            _folderExists = false;
             _moved = false;
             _movedCount = 0;
-            _viewFolder = InitialViewFolder();
+            _initialFolder = InitialViewFolder();
         }
     }
 
     private DAVirtualAudioFolder? InitialViewFolder()
     {
         // With a mixed selection the first item is as good a starting point as any.
-        var first = _targets.FirstOrDefault();
-        if (first?.Folder == null || first.Folder.Name == ".") return null;
-
-        var itemFolder = DAService.AudioVirtualFolders.FirstOrDefault(f => f.Name == first.Folder.Name);
+        var itemFolder = DAService.CanonicalFolderOf(_targets.FirstOrDefault()?.Folder);
         if (itemFolder == null) return null;
         // Browse the item folder's parent so the item folder itself is one of the rows.
-        return itemFolder.ParentFolderId == Guid.Empty
-            ? null
-            : DAService.AudioVirtualFolders.FirstOrDefault(f => f.Id == itemFolder.ParentFolderId);
+        return DAService.FindFolder(itemFolder.ParentFolderId);
     }
 
     private string TargetsLabel =>
@@ -222,7 +120,7 @@
         get
         {
             var folders = _targets
-                .Select(t => t.Folder == null || t.Folder.Name == "." ? "Root" : t.Folder.Name)
+                .Select(t => DiceAudioService.IsRootFolder(t.Folder) ? "Root" : t.Folder.Name)
                 .Distinct()
                 .ToList();
             return folders.Count switch
@@ -234,64 +132,27 @@
         }
     }
 
-    private bool AllTargetsIn(DAVirtualAudioFolder folder) =>
-        _targets.Count > 0 && _targets.All(t => t.Folder?.Id == folder.Id);
+    private bool AllTargetsIn(DAVirtualAudioFolder? folder) =>
+        _targets.Count > 0 && _targets.All(t =>
+            folder == null
+                ? DiceAudioService.IsRootFolder(t.Folder)
+                : t.Folder?.Id == folder.Id);
 
-    private List<DAVirtualAudioFolder> ChildrenOf(DAVirtualAudioFolder? parent)
-    {
-        var parentId = parent?.Id ?? Guid.Empty;
-        return DAService.AudioVirtualFolders
-            .Where(f => f.Name != "." && f.ParentFolderId == parentId)
-            .OrderBy(f => f.Name)
-            .ToList();
-    }
-
-    // Ancestor chain (root-most first) down to the folder currently being browsed.
-    private List<DAVirtualAudioFolder> ViewBreadcrumb()
-    {
-        var chain = new List<DAVirtualAudioFolder>();
-        var current = _viewFolder;
-        int guard = 0;
-        while (current != null && guard++ < 100)
-        {
-            chain.Insert(0, current);
-            if (current.ParentFolderId == Guid.Empty) break;
-            current = DAService.AudioVirtualFolders.FirstOrDefault(f => f.Id == current.ParentFolderId);
-        }
-        return chain;
-    }
-
-    private void NavigateTo(DAVirtualAudioFolder? folder)
-    {
-        _viewFolder = folder;
-        _moved = false;
-        _folderExists = false;
-    }
-
-    private void MoveTo(DAVirtualAudioFolder folder)
+    private async Task MoveTo(DAVirtualAudioFolder? folder)
     {
         if (_targets.Count == 0) return;
         foreach (var target in _targets)
-            target.Folder = folder;   // canonical folder object from the service
+            // Moving back to the root gives every item its own "." marker; any
+            // other destination is the canonical folder object from the service.
+            target.Folder = folder ?? DiceAudioService.NewRootFolderMarker();
         _movedCount = _targets.Count;
         _moved = true;
-        OnMoved.InvokeAsync();
+        await OnMoved.InvokeAsync();
     }
 
-    private void CreateFolder()
+    private async Task OnFolderCreated(DAVirtualAudioFolder folder)
     {
-        var name = _newFolderName.Trim();
-        if (string.IsNullOrWhiteSpace(name)) return;
-
-        // Folder names are globally unique in this app's model, so reject any clash.
-        _folderExists = DAService.AudioVirtualFolders.Any(f => f.Name == name);
-        if (_folderExists) return;
-
-        DAService.AudioVirtualFolders.Add(new DAVirtualAudioFolder(name)
-        {
-            ParentFolderId = _viewFolder?.Id ?? Guid.Empty
-        });
-        _newFolderName = "";
-        _showCreate = false;
+        // The folder exists in the tree now even if nothing is moved into it.
+        await DAService.SaveAudioVirtualFoldersAsync();
     }
 }

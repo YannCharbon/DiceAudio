@@ -1,0 +1,284 @@
+@*
+ * DiceAudio - Copyright (C) 2025 Yann Charbon
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ *
+ * This file is part of DiceAudio, released under the GNU GPL v3.
+ * See the LICENSE file in the repository root for details.
+*@
+
+@using DiceAudio
+@inject DiceAudioService DAService
+
+@* ── The one folder picker of the app.
+     Browses the virtual folder tree (breadcrumb + one row per subfolder), lets
+     a folder be created on the spot, and reports the folder the user picks
+     through OnFolderChosen — null meaning the root. Every place that needs a
+     destination folder (move, import, download, …) drives this component
+     instead of rolling its own list, so the gesture is the same everywhere. ── *@
+
+<style>
+    .fbr-crumbs { display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-bottom:8px; }
+    .fbr-crumb  { cursor:pointer; color:#90caf9; }
+    .fbr-crumb:hover { text-decoration:underline; }
+    .fbr-crumb-current { font-weight:bold; }
+    .fbr-sep    { color:#888; }
+    .fbr-row {
+        display:flex; align-items:center; gap:10px; padding:6px 10px; margin:5px 0;
+        background:#1a1a2e; border:1px solid #2a2a4a; border-radius:8px;
+        transition: background 0.15s, border-color 0.15s;
+    }
+    .fbr-row:hover { background:#24243e; border-color:#444470; }
+    .fbr-current   { border-color:#23a6d5; }
+    .fbr-navzone   { display:flex; align-items:center; gap:10px; flex:1; cursor:pointer; min-width:0; }
+    .fbr-name      { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .fbr-count     { color:#8fa3b8; font-size:12px; }
+    .fbr-empty     { color:grey; font-size:13px; padding:8px 2px; }
+    .fbr-here      { color:#23a6d5; font-size:12px; }
+    .fbr-locked    { opacity:0.45; }
+    .fbr-locked .fbr-navzone { cursor:default; }
+</style>
+
+@if (HeaderContent != null)
+{
+    @HeaderContent
+}
+
+@* Breadcrumb of the folder being browsed — also the way back up *@
+<div class="fbr-crumbs">
+    @if (_viewFolder == null)
+    {
+        <span class="fbr-crumb-current">Root</span>
+    }
+    else
+    {
+        <span class="fbr-crumb" @onclick="() => NavigateTo(null)">Root</span>
+        @foreach (var crumb in DAService.FolderAncestry(_viewFolder))
+        {
+            var c = crumb;
+            <span class="fbr-sep">/</span>
+            @if (c.Id == _viewFolder.Id)
+            {
+                <span class="fbr-crumb-current">@c.Name</span>
+            }
+            else
+            {
+                <span class="fbr-crumb" @onclick="() => NavigateTo(c)">@c.Name</span>
+            }
+        }
+    }
+</div>
+
+@* Subfolders of the current view *@
+@{ var children = DAService.ChildFolders(_viewFolder); }
+@if (children.Count == 0)
+{
+    <div class="fbr-empty">No subfolders here.</div>
+}
+else
+{
+    @foreach (var folder in children)
+    {
+        var f = folder;
+        bool isCurrent = IsCurrentFolder(f);
+        bool isLocked  = IsLockedFolder(f);
+        <div class="fbr-row @(isCurrent ? "fbr-current" : "") @(isLocked ? "fbr-locked" : "")">
+            <div class="fbr-navzone" @onclick="() => { if (!isLocked) NavigateTo(f); }"
+                 title="@(isLocked ? null : "Open")">
+                <MudIcon Icon="@Icons.Material.Filled.Folder" Style="color:#90caf9;" />
+                <span class="fbr-name">@f.Name</span>
+                @if (ShowItemCounts)
+                {
+                    <span class="fbr-count">@ItemCountLabel(f)</span>
+                }
+            </div>
+            @if (isLocked)
+            {
+                <span class="fbr-here">@LockedLabel</span>
+            }
+            else if (isCurrent)
+            {
+                <span class="fbr-here">@CurrentLabel</span>
+            }
+            else
+            {
+                <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary"
+                           StartIcon="@ActionIcon"
+                           OnClick="() => Choose(f)">@ActionLabel here</MudButton>
+            }
+            @if (!isLocked)
+            {
+                <MudIcon Icon="@Icons.Material.Filled.ChevronRight" Style="color:#888; cursor:pointer;"
+                         @onclick="() => NavigateTo(f)" />
+            }
+        </div>
+    }
+}
+
+@* Actions: pick the folder currently open, and create a subfolder *@
+<div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:14px;">
+    <MudButton Variant="Variant.Filled" Color="Color.Primary"
+               StartIcon="@ActionIcon"
+               Disabled="@(!CanChooseViewFolder)"
+               OnClick="() => Choose(_viewFolder)">
+        @($"{ActionLabel} here → {(_viewFolder?.Name ?? "Root")}")
+    </MudButton>
+
+    @if (AllowCreate && !_showCreate)
+    {
+        <MudButton Variant="Variant.Outlined" Color="Color.Secondary"
+                   StartIcon="@Icons.Material.Filled.CreateNewFolder"
+                   OnClick="() => _showCreate = true">New folder</MudButton>
+    }
+</div>
+
+@if (AllowCreate && _showCreate)
+{
+    <div style="display:flex; align-items:center; gap:8px; margin-top:10px; flex-wrap:wrap;">
+        @* Immediate: Enter is handled here, and OnKeyUp fires before a
+           blur-bound value would have reached _newFolderName. *@
+        <MudTextField @bind-Value="_newFolderName" Variant="Variant.Filled" Margin="Margin.Dense"
+                      Label="@($"New folder in {(_viewFolder?.Name ?? "Root")}")" Style="max-width:280px;"
+                      Immediate="true" OnKeyUp="OnCreateKeyUp" />
+        <MudButton Variant="Variant.Filled" Color="Color.Secondary"
+                   StartIcon="@Icons.Material.Filled.Add" OnClick="CreateFolder">Create</MudButton>
+        <MudButton Variant="Variant.Text" OnClick="CancelCreate">Cancel</MudButton>
+    </div>
+    @if (_folderExists)
+    {
+        <MudText Color="Color.Error" Typo="Typo.caption">A folder with that name already exists.</MudText>
+    }
+}
+
+@if (FooterContent != null)
+{
+    @FooterContent
+}
+
+@code {
+    /// <summary>Verb shown on the picking buttons ("Move here", "Select here", …).</summary>
+    [Parameter] public string ActionLabel { get; set; } = "Select";
+
+    [Parameter] public string ActionIcon { get; set; } = Icons.Material.Filled.DriveFileMove;
+
+    /// <summary>Folder the browser opens on (null = root). Changing it re-opens the browser there.</summary>
+    [Parameter] public DAVirtualAudioFolder? InitialFolder { get; set; }
+
+    /// <summary>
+    /// Marks a folder as the one already in use: its row shows
+    /// <see cref="CurrentLabel"/> instead of a picking button. Called with null
+    /// for the root.
+    /// </summary>
+    [Parameter] public Func<DAVirtualAudioFolder?, bool>? IsCurrent { get; set; }
+
+    [Parameter] public string CurrentLabel { get; set; } = "current";
+
+    /// <summary>
+    /// A folder that can be neither opened nor picked — the folder being moved,
+    /// which must not come to sit inside itself. Its subtree is out of reach as
+    /// a consequence, since it is only reachable through it.
+    /// </summary>
+    [Parameter] public DAVirtualAudioFolder? LockedFolder { get; set; }
+
+    [Parameter] public string LockedLabel { get; set; } = "moving";
+
+    /// <summary>Whether the root itself can be picked.</summary>
+    [Parameter] public bool AllowRoot { get; set; } = true;
+
+    [Parameter] public bool AllowCreate { get; set; } = true;
+
+    /// <summary>Shows how many audio items sit directly in each listed folder.</summary>
+    [Parameter] public bool ShowItemCounts { get; set; } = true;
+
+    /// <summary>The folder the user picked — null for the root.</summary>
+    [Parameter] public EventCallback<DAVirtualAudioFolder?> OnFolderChosen { get; set; }
+
+    /// <summary>A folder was created here, so the caller can persist the tree.</summary>
+    [Parameter] public EventCallback<DAVirtualAudioFolder> OnFolderCreated { get; set; }
+
+    /// <summary>Rendered above the breadcrumb — what is about to be moved/imported/…</summary>
+    [Parameter] public RenderFragment? HeaderContent { get; set; }
+
+    /// <summary>Rendered under the action buttons — confirmations and the like.</summary>
+    [Parameter] public RenderFragment? FooterContent { get; set; }
+
+    private DAVirtualAudioFolder? _viewFolder;        // null = root
+    private DAVirtualAudioFolder? _appliedInitial;    // last InitialFolder acted on
+    private bool _initialised;
+    private bool _showCreate;
+    private string _newFolderName = "";
+    private bool _folderExists;
+
+    protected override void OnParametersSet()
+    {
+        // Only a *change* of InitialFolder re-opens the browser: re-rendering
+        // after the user navigated must not snap the view back.
+        if (!_initialised || !ReferenceEquals(_appliedInitial, InitialFolder))
+        {
+            _initialised = true;
+            _appliedInitial = InitialFolder;
+            _viewFolder = InitialFolder;
+            CancelCreate();
+        }
+    }
+
+    /// <summary>Re-opens the browser at the given folder (null = root).</summary>
+    public void BrowseTo(DAVirtualAudioFolder? folder)
+    {
+        _viewFolder = folder;
+        CancelCreate();
+        StateHasChanged();
+    }
+
+    private bool CanChooseViewFolder =>
+        (_viewFolder != null || AllowRoot) && !IsCurrentFolder(_viewFolder) && !IsLockedFolder(_viewFolder);
+
+    private bool IsCurrentFolder(DAVirtualAudioFolder? folder) => IsCurrent?.Invoke(folder) ?? false;
+
+    // The whole subtree is locked, not just the folder itself: the browser can
+    // be opened straight inside it.
+    private bool IsLockedFolder(DAVirtualAudioFolder? folder) =>
+        LockedFolder != null && DAService.IsSameOrDescendant(folder, LockedFolder);
+
+    private string ItemCountLabel(DAVirtualAudioFolder folder)
+    {
+        int count = DAService.AudioItems.Count(i => i.Folder != null && i.Folder.Name == folder.Name);
+        return count == 0 ? "" : count == 1 ? "1 item" : $"{count} items";
+    }
+
+    private void NavigateTo(DAVirtualAudioFolder? folder)
+    {
+        _viewFolder = folder;
+        _folderExists = false;
+    }
+
+    private Task Choose(DAVirtualAudioFolder? folder) => OnFolderChosen.InvokeAsync(folder);
+
+    private void CancelCreate()
+    {
+        _showCreate = false;
+        _newFolderName = "";
+        _folderExists = false;
+    }
+
+    private async Task OnCreateKeyUp(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await CreateFolder();
+    }
+
+    private async Task CreateFolder()
+    {
+        var created = DAService.CreateFolder(_newFolderName, _viewFolder);
+        if (created == null)
+        {
+            // Empty names are simply ignored; a clash is worth saying out loud.
+            _folderExists = !string.IsNullOrWhiteSpace(_newFolderName);
+            return;
+        }
+
+        CancelCreate();
+        // Open the new folder so the next click picks it — that is almost always
+        // why it was created.
+        _viewFolder = created;
+        await OnFolderCreated.InvokeAsync(created);
+    }
+}

@@ -101,23 +101,9 @@
             </div>
 
             <div class="row" style="margin-bottom:4px;">
-                @if (_currentFolderName == ".")
+                @foreach (var folder in DAService.ChildFolders(DAService.FindFolderByName(_currentFolderName)))
                 {
-                    @foreach (var folder in DAService.AudioVirtualFolders.Where(f => f.Name != "." && f.ParentFolderId == Guid.Empty))
-                    {
-                        @RenderFolderCard(folder)
-                    }
-                }
-                else
-                {
-                    var current = DAService.AudioVirtualFolders.FirstOrDefault(f => f.Name == _currentFolderName);
-                    if (current != null)
-                    {
-                        @foreach (var folder in DAService.AudioVirtualFolders.Where(f => f.ParentFolderId == current.Id))
-                        {
-                            @RenderFolderCard(folder)
-                        }
-                    }
+                    @RenderFolderCard(folder)
                 }
             </div>
         }
@@ -252,21 +238,8 @@
     }
 
     // Ancestor chain (root-most first) down to the current folder, for breadcrumbs.
-    private List<DAVirtualAudioFolder> BreadcrumbChain()
-    {
-        var chain = new List<DAVirtualAudioFolder>();
-        if (_currentFolderName == ".") return chain;
-
-        var current = DAService.AudioVirtualFolders.FirstOrDefault(f => f.Name == _currentFolderName);
-        int guard = 0;
-        while (current != null && guard++ < 100)
-        {
-            chain.Insert(0, current);
-            if (current.ParentFolderId == Guid.Empty) break;
-            current = DAService.AudioVirtualFolders.FirstOrDefault(f => f.Id == current.ParentFolderId);
-        }
-        return chain;
-    }
+    private List<DAVirtualAudioFolder> BreadcrumbChain() =>
+        DAService.FolderAncestry(DAService.FindFolderByName(_currentFolderName));
 
     private RenderFragment RenderFolderCard(DAVirtualAudioFolder folder) => __builder =>
     {

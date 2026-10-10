@@ -9,9 +9,10 @@
 @inject DiceAudioService DAService
 
 @* ── Import existing audio files from disk into the library.
-     Single files go to the chosen target folder; folder imports recreate the
-     folder structure (with subfolders) as virtual folders. Optionally reads
-     tags embedded in the files' Genre metadata (TRPG-Audio-Manager format). ── *@
+     Everything lands in the destination folder picked with the shared
+     <FolderSelectField>; folder imports recreate their own structure as
+     virtual subfolders of it. Optionally reads tags embedded in the files'
+     Genre metadata (TRPG-Audio-Manager format). ── *@
 @if (_visible)
 {
 <div style="position:fixed; top:0; left:0; width:100%; height:100%;
@@ -58,12 +59,14 @@
                     <MudSelectItem T="AudioKind" Value="AudioKind.Ambiance">Ambiance</MudSelectItem>
                     <MudSelectItem T="AudioKind" Value="AudioKind.SoundEffect">Sound effect</MudSelectItem>
                 </MudSelect>
-                <MudTextField T="string" @bind-Value="_targetFolder" Label="Folder for single files"
-                              Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width:200px;" />
             </MudStack>
-            <MudText Typo="Typo.caption" Style="color:grey;">
-                Folder imports keep their own structure; the "Folder for single files" only applies to files added individually.
-            </MudText>
+            <div style="margin-top:10px;">
+                <FolderSelectField Label="Import into"
+                                   Folder="@_targetFolder"
+                                   FolderChanged="OnTargetFolderChanged"
+                                   Hint="An imported folder recreates its own structure inside it."
+                                   OnFolderCreated="OnFolderCreated" />
+            </div>
         </div>
 
         @* ── Staged files ── *@
@@ -81,7 +84,7 @@
                                 border-bottom:1px solid #1e1e32; font-size:13px;">
                         <MudIcon Icon="@Icons.Material.Filled.AudioFile" Style="font-size:16px; color:#23a6d5;" />
                         <span style="flex:1; word-break:break-all;">@e.Name</span>
-                        <span style="color:grey; font-size:12px;">@e.DisplayFolder</span>
+                        <span style="color:grey; font-size:12px;">@EntryFolderLabel(e)</span>
                         <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small"
                                        Disabled="_importing" OnClick="() => _entries.Remove(e)" />
                     </div>
@@ -119,8 +122,7 @@
     {
         public string FullPath = "";
         public string Name = "";
-        public string[] FolderSegments = Array.Empty<string>();   // empty = use target folder
-        public string DisplayFolder = "";
+        public string[] FolderSegments = Array.Empty<string>();   // empty = straight into the destination
     }
 
     private bool _visible;
@@ -129,7 +131,9 @@
     private bool _importTags = true;
     private bool _detectKind = true;
     private AudioKind _kind = AudioKind.Music;
-    private string _targetFolder = "Imported";
+
+    /// <summary>Destination folder - null means the root of the library.</summary>
+    private DAVirtualAudioFolder? _targetFolder;
 
     private bool _importing;
     private int _progress;
@@ -140,7 +144,27 @@
     {
         _visible = true;
         _resultMessage = "";
+        // Default to the folder past imports used, when it is still around;
+        // otherwise the root - the field always says where files will land.
+        _targetFolder ??= DAService.FindFolderByName("Imported");
         StateHasChanged();
+    }
+
+    async Task OnTargetFolderChanged(DAVirtualAudioFolder? folder)
+    {
+        _targetFolder = folder;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    async Task OnFolderCreated(DAVirtualAudioFolder folder) => await DAService.SaveAudioVirtualFoldersAsync();
+
+    /// <summary>Where a staged entry will end up, destination folder included.</summary>
+    string EntryFolderLabel(ImportEntry entry)
+    {
+        var destination = DAService.FolderDisplayPath(_targetFolder);
+        if (entry.FolderSegments.Length == 0) return destination;
+        var sub = string.Join(" / ", entry.FolderSegments);
+        return _targetFolder == null ? sub : $"{destination} / {sub}";
     }
 
     async Task Hide()
@@ -157,7 +181,7 @@
     {
         var files = await DAImportHelper.PickFilesAsync();
         foreach (var path in files)
-            Stage(path, Array.Empty<string>(), "(target folder)");
+            Stage(path, Array.Empty<string>());
         StateHasChanged();
     }
 
@@ -175,12 +199,12 @@
             var segments = relativeDir == "."
                 ? new[] { rootName }
                 : new[] { rootName }.Concat(relativeDir.Split(Path.DirectorySeparatorChar)).ToArray();
-            Stage(path, segments, string.Join(" / ", segments));
+            Stage(path, segments);
         }
         StateHasChanged();
     }
 
-    void Stage(string path, string[] segments, string displayFolder)
+    void Stage(string path, string[] segments)
     {
         if (_entries.Any(e => e.FullPath.Equals(path, StringComparison.OrdinalIgnoreCase))) return;
         _entries.Add(new ImportEntry
@@ -188,7 +212,6 @@
             FullPath = path,
             Name = Path.GetFileName(path),
             FolderSegments = segments,
-            DisplayFolder = displayFolder,
         });
     }
 
@@ -210,10 +233,12 @@
             try
             {
                 var itemName = Path.GetFileNameWithoutExtension(entry.Name);
+                // A folder import recreates its own tree below the destination;
+                // a single file goes straight into it.
                 var folder = entry.FolderSegments.Length > 0
-                    ? DAService.GetOrCreateFolderPath(entry.FolderSegments)
-                    : DAService.GetOrCreateFolderPath(new[] { _targetFolder.Trim() });
-                var folderName = folder?.Name ?? ".";
+                    ? DAService.GetOrCreateFolderPath(entry.FolderSegments, _targetFolder)
+                    : _targetFolder;
+                var folderName = folder?.Name ?? DiceAudioService.RootFolderName;
 
                 // Skip files already in the library (same name in the same folder).
                 if (DAService.AudioItems.Any(a => a.Name == itemName && a.Folder.Name == folderName))
@@ -236,7 +261,7 @@
                     IsLocallyAvailable = true,
                     Kind = ResolveKind(tagNames),
                     Tags = tagNames.Select(t => new DAAudioTag(t)).ToList(),
-                    Folder = folder ?? new DAVirtualAudioFolder("."),
+                    Folder = folder ?? DiceAudioService.NewRootFolderMarker(),
                 };
                 DAService.AudioItems.Add(item);
                 imported++;

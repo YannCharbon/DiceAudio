@@ -1,0 +1,108 @@
+@*
+ * DiceAudio - Copyright (C) 2025 Yann Charbon
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ *
+ * This file is part of DiceAudio, released under the GNU GPL v3.
+ * See the LICENSE file in the repository root for details.
+*@
+
+@using DiceAudio
+@inject DiceAudioService DAService
+
+@* ── Moves a whole folder — subfolders and items included — somewhere else in
+     the tree. Same browser as the item move, with the folder itself locked out
+     so it cannot end up inside itself. ── *@
+
+<h3 style="margin-bottom:4px;">Move folder</h3>
+
+@if (Folder != null)
+{
+    <FolderBrowser ActionLabel="Move"
+                   ActionIcon="@Icons.Material.Filled.DriveFileMove"
+                   InitialFolder="@_initialFolder"
+                   IsCurrent="IsCurrentParent"
+                   LockedFolder="@Folder"
+                   AllowRoot="true"
+                   OnFolderChosen="MoveTo"
+                   OnFolderCreated="OnFolderCreated">
+        <HeaderContent>
+            <MudText Typo="Typo.body2" Style="color:grey; margin-bottom:4px;">
+                <b>@Folder.Name</b> — currently in <b>@DAService.FolderDisplayPath(ParentFolder)</b>
+            </MudText>
+            <MudText Typo="Typo.body2" Style="color:grey; margin-bottom:12px;">
+                @ContentsLabel move with it.
+            </MudText>
+        </HeaderContent>
+        <FooterContent>
+            @if (_moved)
+            {
+                <MudText Style="color:#4caf50; margin-top:12px;" Typo="Typo.body2">
+                    Moved <b>@Folder.Name</b> to <b>@DAService.FolderDisplayPath(ParentFolder)</b> ✓
+                </MudText>
+            }
+        </FooterContent>
+    </FolderBrowser>
+}
+
+@code {
+    /// <summary>The folder to move.</summary>
+    [Parameter] public DAVirtualAudioFolder? Folder { get; set; }
+
+    /// <summary>
+    /// Raised right after the move so the caller can persist and rebuild its
+    /// tree. The move happens on the "Move here" click, not on closing.
+    /// </summary>
+    [Parameter] public EventCallback OnMoved { get; set; }
+
+    private DAVirtualAudioFolder? _target;        // the folder the dialog is pointed at
+    private DAVirtualAudioFolder? _initialFolder;
+    private bool _moved;
+
+    protected override void OnParametersSet()
+    {
+        // Re-initialise whenever the caller points the dialog at another folder:
+        // start in its parent, so its siblings are the rows and the folder
+        // itself shows up locked where it is now.
+        if (!ReferenceEquals(_target, Folder))
+        {
+            _target = Folder;
+            _moved = false;
+            _initialFolder = ParentFolder;
+        }
+    }
+
+    private DAVirtualAudioFolder? ParentFolder =>
+        Folder == null ? null : DAService.FindFolder(Folder.ParentFolderId);
+
+    /// <summary>What comes along: the folder is never moved on its own.</summary>
+    private string ContentsLabel
+    {
+        get
+        {
+            if (Folder == null) return "Nothing";
+
+            var branch = DAService.DescendantFolders(Folder);
+            var names = branch.Select(f => f.Name).Append(Folder.Name).ToHashSet();
+            int items = DAService.AudioItems.Count(i => i.Folder != null && names.Contains(i.Folder.Name));
+
+            var parts = new List<string>();
+            if (branch.Count > 0) parts.Add(branch.Count == 1 ? "1 subfolder" : $"{branch.Count} subfolders");
+            parts.Add(items == 1 ? "1 item" : $"{items} items");
+            return string.Join(" and ", parts);
+        }
+    }
+
+    private bool IsCurrentParent(DAVirtualAudioFolder? folder) =>
+        Folder != null && (folder?.Id ?? Guid.Empty) == Folder.ParentFolderId;
+
+    private async Task MoveTo(DAVirtualAudioFolder? folder)
+    {
+        if (Folder == null) return;
+        if (!DAService.MoveFolder(Folder, folder)) return;
+        _moved = true;
+        await OnMoved.InvokeAsync();
+    }
+
+    private async Task OnFolderCreated(DAVirtualAudioFolder folder) =>
+        await DAService.SaveAudioVirtualFoldersAsync();
+}

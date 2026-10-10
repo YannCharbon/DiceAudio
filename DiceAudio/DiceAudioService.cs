@@ -58,6 +58,9 @@ namespace DiceAudio
 
         public bool IsLoaded => _loaded.IsCompleted;
 
+        /// <summary>Completes once the persisted lists are in memory — await before reading them.</summary>
+        public Task WhenLoaded => _loaded;
+
         public DiceAudioService(IAudioManager audioManager)
         {
             this.audioManager = audioManager;
@@ -84,31 +87,184 @@ namespace DiceAudio
 
         public void AddAudioItem(DAAudioItem audioItem)
         {
-            var canonical = AudioVirtualFolders.FirstOrDefault(x => x.Name == audioItem.Folder.Name);
-            if (canonical == null)
+            // Root is not a folder entry, so an item sitting there keeps its own
+            // "." marker instead of creating a bogus folder named "." in the tree.
+            if (!IsRootFolder(audioItem.Folder))
             {
-                canonical = new DAVirtualAudioFolder(audioItem.Folder.Name);
-                AudioVirtualFolders.Add(canonical);
+                var canonical = AudioVirtualFolders.FirstOrDefault(x => x.Name == audioItem.Folder.Name);
+                if (canonical == null)
+                {
+                    canonical = new DAVirtualAudioFolder(audioItem.Folder.Name)
+                    {
+                        ParentFolderId = audioItem.Folder.ParentFolderId
+                    };
+                    AudioVirtualFolders.Add(canonical);
+                }
+                audioItem.Folder = canonical;
             }
-            audioItem.Folder = canonical;
             AudioItems.Add(audioItem);
+        }
+
+        // ── Virtual folder tree ────────────────────────────────────────────
+        // Every folder-aware UI goes through these helpers so the whole app
+        // agrees on what "Root" is, how a path reads and how folders are made.
+
+        /// <summary>The name an item carries while it sits at the root of the tree.</summary>
+        public const string RootFolderName = ".";
+
+        /// <summary>Root is represented by <c>null</c> in the UI and by a "." folder on items.</summary>
+        public static bool IsRootFolder(DAVirtualAudioFolder? folder) =>
+            folder == null || folder.Name == RootFolderName;
+
+        /// <summary>A fresh "." folder for an item being placed at the root.</summary>
+        public static DAVirtualAudioFolder NewRootFolderMarker() => new DAVirtualAudioFolder(RootFolderName);
+
+        public DAVirtualAudioFolder? FindFolder(Guid id) =>
+            id == Guid.Empty ? null : AudioVirtualFolders.FirstOrDefault(f => f.Id == id);
+
+        public DAVirtualAudioFolder? FindFolderByName(string? name) =>
+            string.IsNullOrEmpty(name) || name == RootFolderName
+                ? null
+                : AudioVirtualFolders.FirstOrDefault(f => f.Name == name);
+
+        /// <summary>
+        /// Items loaded from JSON carry their own copy of the folder they live in.
+        /// Resolves such a copy to the canonical entry of <see cref="AudioVirtualFolders"/>
+        /// (null when the item sits at the root, or its folder no longer exists).
+        /// </summary>
+        public DAVirtualAudioFolder? CanonicalFolderOf(DAVirtualAudioFolder? folder) =>
+            IsRootFolder(folder) ? null : FindFolderByName(folder!.Name);
+
+        /// <summary>Direct subfolders of <paramref name="parent"/> (null = root), by name.</summary>
+        public List<DAVirtualAudioFolder> ChildFolders(DAVirtualAudioFolder? parent)
+        {
+            var parentId = parent?.Id ?? Guid.Empty;
+            return AudioVirtualFolders
+                .Where(f => f.Name != RootFolderName && f.ParentFolderId == parentId)
+                .OrderBy(f => f.Name, StringComparer.CurrentCultureIgnoreCase)
+                .ToList();
+        }
+
+        /// <summary>
+        /// The ancestor chain of <paramref name="folder"/>, root-most first and
+        /// ending with the folder itself. Empty for the root.
+        /// </summary>
+        public List<DAVirtualAudioFolder> FolderAncestry(DAVirtualAudioFolder? folder)
+        {
+            var chain = new List<DAVirtualAudioFolder>();
+            var current = IsRootFolder(folder) ? null : folder;
+            // The parent links come from persisted data, so a cycle is possible:
+            // walking a bounded number of steps keeps a corrupted file from hanging the UI.
+            int guard = 0;
+            while (current != null && guard++ < 100)
+            {
+                chain.Insert(0, current);
+                if (current.ParentFolderId == Guid.Empty) break;
+                current = FindFolder(current.ParentFolderId);
+            }
+            return chain;
+        }
+
+        /// <summary>Human-readable path, e.g. "Root" or "SWTOR / Combat".</summary>
+        public string FolderDisplayPath(DAVirtualAudioFolder? folder)
+        {
+            var chain = FolderAncestry(folder);
+            return chain.Count == 0 ? "Root" : string.Join(" / ", chain.Select(f => f.Name));
+        }
+
+        /// <summary>Folder names are globally unique in this app's model.</summary>
+        public bool FolderNameExists(string name) =>
+            AudioVirtualFolders.Any(f => string.Equals(f.Name, name?.Trim(), StringComparison.CurrentCultureIgnoreCase));
+
+        /// <summary>Every folder below <paramref name="folder"/>, at any depth.</summary>
+        public List<DAVirtualAudioFolder> DescendantFolders(DAVirtualAudioFolder folder)
+        {
+            var found = new List<DAVirtualAudioFolder>();
+            var queue = new Queue<DAVirtualAudioFolder>(ChildFolders(folder));
+            // Bounded by the folder count: a parent cycle in a corrupted file
+            // must not turn this into an endless walk.
+            int guard = AudioVirtualFolders.Count + 1;
+            while (queue.Count > 0 && guard-- > 0)
+            {
+                var next = queue.Dequeue();
+                found.Add(next);
+                foreach (var child in ChildFolders(next)) queue.Enqueue(child);
+            }
+            return found;
+        }
+
+        /// <summary>
+        /// True when <paramref name="candidate"/> is <paramref name="folder"/>
+        /// itself or sits anywhere below it. The root (null) never is.
+        /// </summary>
+        public bool IsSameOrDescendant(DAVirtualAudioFolder? candidate, DAVirtualAudioFolder folder)
+        {
+            var current = candidate;
+            int guard = 0;
+            while (current != null && guard++ < 100)
+            {
+                if (current.Id == folder.Id) return true;
+                current = FindFolder(current.ParentFolderId);
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// Re-parents a folder (null = root); its subfolders and the items inside
+        /// them come along, since both hang off the folder rather than off its
+        /// position. Refuses a move into the folder itself or one of its own
+        /// descendants, which would cut that branch out of the tree, and a move
+        /// to where the folder already is. Returns false in those cases.
+        /// </summary>
+        public bool MoveFolder(DAVirtualAudioFolder folder, DAVirtualAudioFolder? newParent)
+        {
+            if (newParent != null && IsSameOrDescendant(newParent, folder)) return false;
+
+            var parentId = newParent?.Id ?? Guid.Empty;
+            if (folder.ParentFolderId == parentId) return false;
+            folder.ParentFolderId = parentId;
+
+            // Items carry their own copy of the folder they live in: left stale,
+            // it puts the folder back where it was the next time the tree is
+            // rebuilt from item metadata.
+            foreach (var item in AudioItems.Where(i => i.Folder != null && i.Folder.Name == folder.Name))
+                item.Folder.ParentFolderId = parentId;
+
+            return true;
+        }
+
+        /// <summary>
+        /// Creates a subfolder of <paramref name="parent"/> (null = root). Returns
+        /// null when the name is empty or already taken somewhere in the tree.
+        /// </summary>
+        public DAVirtualAudioFolder? CreateFolder(string name, DAVirtualAudioFolder? parent)
+        {
+            name = name?.Trim() ?? string.Empty;
+            if (string.IsNullOrEmpty(name) || name == RootFolderName) return null;
+            if (FolderNameExists(name)) return null;
+
+            var folder = new DAVirtualAudioFolder(name) { ParentFolderId = parent?.Id ?? Guid.Empty };
+            AudioVirtualFolders.Add(folder);
+            return folder;
         }
 
         /// <summary>
         /// Returns the virtual folder at the given path (e.g. ["SWTOR", "Combat"]),
         /// creating any missing folders along the way (nested via ParentFolderId).
         /// Folder names are globally unique in the app's model: an existing folder
-        /// with a matching name is reused. Returns null for an empty path (root).
+        /// with a matching name is reused. The path is resolved below
+        /// <paramref name="parent"/> (null = root). Returns <paramref name="parent"/>
+        /// itself for an empty path.
         /// </summary>
-        public DAVirtualAudioFolder? GetOrCreateFolderPath(IEnumerable<string> segments)
+        public DAVirtualAudioFolder? GetOrCreateFolderPath(IEnumerable<string> segments, DAVirtualAudioFolder? parent = null)
         {
-            DAVirtualAudioFolder? current = null;
-            Guid parentId = Guid.Empty;
+            DAVirtualAudioFolder? current = IsRootFolder(parent) ? null : parent;
+            Guid parentId = current?.Id ?? Guid.Empty;
 
             foreach (var raw in segments)
             {
                 var name = raw.Trim();
-                if (string.IsNullOrEmpty(name) || name == ".") continue;
+                if (string.IsNullOrEmpty(name) || name == RootFolderName) continue;
 
                 var existing = AudioVirtualFolders.FirstOrDefault(f => f.Name == name);
                 if (existing == null)

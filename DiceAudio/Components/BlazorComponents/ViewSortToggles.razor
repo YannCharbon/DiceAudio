@@ -1,0 +1,57 @@
+@*
+ * DiceAudio - Copyright (C) 2025 Yann Charbon
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ *
+ * This file is part of DiceAudio, released under the GNU GPL v3.
+ * See the LICENSE file in the repository root for details.
+*@
+
+@* Compact Big/List and sort toggles, shared by the explorer and the audio
+   picker. Meant to sit at the right end of a breadcrumb bar: the icon carries
+   the current state, the tooltip spells it out. *@
+
+<div class="da-view-toggles">
+    <button type="button" class="da-viewbtn"
+            title="@($"Folders are shown as {(FolderView == DAViewMode.Big ? "big cards" : "a list")} — click to switch")"
+            @onclick="ToggleFolders">
+        <MudIcon Icon="@(FolderView == DAViewMode.Big ? Icons.Material.Filled.GridView : Icons.Material.Filled.ViewList)"
+                 Style="font-size:15px;" />
+        Folders
+    </button>
+
+    <button type="button" class="da-viewbtn"
+            title="@($"Audio items are shown as {(ItemView == DAViewMode.Big ? "big cards" : "a list")} — click to switch")"
+            @onclick="ToggleItems">
+        <MudIcon Icon="@(ItemView == DAViewMode.Big ? Icons.Material.Filled.GridView : Icons.Material.Filled.ViewList)"
+                 Style="font-size:15px;" />
+        Items
+    </button>
+
+    <button type="button" class="da-viewbtn"
+            title="@($"Sorted by {(Sort == DASortMode.Name ? "name" : "the order things were added")} — click to switch")"
+            @onclick="ToggleSort">
+        <MudIcon Icon="@(Sort == DASortMode.Name ? Icons.Material.Filled.SortByAlpha : Icons.Material.Filled.Schedule)"
+                 Style="font-size:15px;" />
+        @(Sort == DASortMode.Name ? "Name" : "Added")
+    </button>
+</div>
+
+@code {
+    [Parameter] public DAViewMode FolderView { get; set; }
+    [Parameter] public EventCallback<DAViewMode> FolderViewChanged { get; set; }
+
+    [Parameter] public DAViewMode ItemView { get; set; }
+    [Parameter] public EventCallback<DAViewMode> ItemViewChanged { get; set; }
+
+    [Parameter] public DASortMode Sort { get; set; }
+    [Parameter] public EventCallback<DASortMode> SortChanged { get; set; }
+
+    Task ToggleFolders() =>
+        FolderViewChanged.InvokeAsync(FolderView == DAViewMode.Big ? DAViewMode.List : DAViewMode.Big);
+
+    Task ToggleItems() =>
+        ItemViewChanged.InvokeAsync(ItemView == DAViewMode.Big ? DAViewMode.List : DAViewMode.Big);
+
+    Task ToggleSort() =>
+        SortChanged.InvokeAsync(Sort == DASortMode.Name ? DASortMode.DateAdded : DASortMode.Name);
+}

@@ -74,9 +74,10 @@
         }
 
         @* ── Folder navigation (hidden while searching — search is global) ── *@
-        @if (string.IsNullOrWhiteSpace(_search))
-        {
-            <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-bottom:8px;">
+        @* One bar: breadcrumbs on the left, view and sort on the right. *@
+        <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-bottom:8px;">
+            @if (string.IsNullOrWhiteSpace(_search))
+            {
                 @if (_currentFolderName == ".")
                 {
                     <span style="font-weight:bold;">Root</span>
@@ -98,18 +99,26 @@
                         }
                     }
                 }
-            </div>
+            }
+            <ViewSortToggles @bind-FolderView="FolderView" @bind-ItemView="ItemView" @bind-Sort="Sort" />
+        </div>
 
-            <div class="da-grid da-picker-folders" style="margin-bottom:4px;">
-                @foreach (var folder in DAService.ChildFolders(DAService.FindFolderByName(_currentFolderName)))
+        @if (string.IsNullOrWhiteSpace(_search))
+        {
+            var folders = SortFolders(DAService.ChildFolders(DAService.FindFolderByName(_currentFolderName))).ToList();
+
+            <div class="@(_folderView == DAViewMode.Big ? "da-grid da-picker-folders" : "da-list") "
+                 style="margin-bottom:4px;">
+                @foreach (var folder in folders)
                 {
-                    @RenderFolderCard(folder)
+                    @(_folderView == DAViewMode.Big ? RenderFolderCard(folder) : RenderFolderRow(folder))
                 }
             </div>
         }
 
         @* ── Audio items grid ── *@
-        <div class="da-grid da-picker" style="max-height:480px; overflow-y:auto;">
+        <div class="@(_itemView == DAViewMode.Big ? "da-grid" : "da-list") da-picker"
+             style="max-height:480px; overflow-y:auto;">
             @{
                 var visibleItems = FilteredItems().ToList();
             }
@@ -119,50 +128,7 @@
             }
             @foreach (var item in visibleItems)
             {
-                bool isSelected = !SingleSelect && SelectionList != null
-                    && SelectionList.Any(u => u.AudioItemId == item.Id);
-
-                @* Inclusion is green and lives on the hero — deliberately unlike the
-                   explorer's blue batch selection, which means something else. *@
-                <article class="da-card @item.Kind.KindClass() @(_playingIds.Contains(item.Id) ? "playing" : "") @(isSelected ? "added" : "")">
-                    <div class="da-hero" @onclick="() => PickItem(item)"
-                         title="@(SingleSelect ? "Click to pick this item"
-                                  : isSelected ? "Click to remove it from the selection"
-                                  : "Click to add it to the selection")">
-                        @* Inert here (pointer-events:none): the whole hero is one target. *@
-                        <button type="button" class="da-kind" tabindex="-1" title="@item.Kind.Label()">
-                            <MudIcon Icon="@item.Kind.Icon()" Style="font-size:15px;" />
-                            <span class="da-kind-label">@item.Kind.Label()</span>
-                        </button>
-                        <div class="da-name" title="@($"{item.Name} — {item.Folder.Name}")">@item.Name</div>
-                        @if (!SingleSelect)
-                        {
-                            <span class="da-pickmark">
-                                <MudIcon Icon="@Icons.Material.Filled.Check" Style="font-size:17px;" />
-                            </span>
-                        }
-                    </div>
-                    <div class="da-body">
-                        <div class="da-tags">
-                            @foreach (var tag in item.Tags)
-                            {
-                                <span class="da-chip @tag.CategoryClass()"><span class="da-dot"></span>@tag.Name</span>
-                            }
-                        </div>
-                        @if (item.IsLocallyAvailable)
-                        {
-                            <MusicPlayer AudioItem="@item"
-                                         PlayingChanged="@((bool playing) => SetPlaying(item, playing))" />
-                        }
-                        else
-                        {
-                            <div class="da-offline">
-                                <MudIcon Icon="@Icons.Material.Filled.CloudDownload" Style="font-size:13px;" />
-                                Not downloaded
-                            </div>
-                        }
-                    </div>
-                </article>
+                @(_itemView == DAViewMode.Big ? RenderItemCard(item) : RenderItemRow(item))
             }
         </div>
 
@@ -223,6 +189,10 @@
     public void Show(IEnumerable<AudioKind>? kinds = null)
     {
         _visible = true;
+        // Pick up whatever the explorer was last set to.
+        _folderView = DAViewPrefs.FolderView;
+        _itemView   = DAViewPrefs.ItemView;
+        _sort       = DAViewPrefs.Sort;
         _currentFolderName = ".";
         _search = "";
         _filterOpen = false;
@@ -243,6 +213,151 @@
     // Ancestor chain (root-most first) down to the current folder, for breadcrumbs.
     private List<DAVirtualAudioFolder> BreadcrumbChain() =>
         DAService.FolderAncestry(DAService.FindFolderByName(_currentFolderName));
+
+
+    bool IsAdded(DAAudioItem item) =>
+        !SingleSelect && SelectionList != null && SelectionList.Any(u => u.AudioItemId == item.Id);
+
+    string PickTitle(DAAudioItem item) =>
+        SingleSelect ? "Click to pick this item"
+        : IsAdded(item) ? "Click to remove it from the selection"
+        : "Click to add it to the selection";
+
+    RenderFragment RenderItemCard(DAAudioItem item) => __builder =>
+    {
+        var isSelected = IsAdded(item);
+        <article class="da-card @item.Kind.KindClass() @(_playingIds.Contains(item.Id) ? "playing" : "") @(isSelected ? "added" : "")">
+                <div class="da-hero" @onclick="() => PickItem(item)"
+                     title="@(SingleSelect ? "Click to pick this item"
+                              : isSelected ? "Click to remove it from the selection"
+                              : "Click to add it to the selection")">
+                    @* Inert here (pointer-events:none): the whole hero is one target. *@
+                    <button type="button" class="da-kind" tabindex="-1" title="@item.Kind.Label()">
+                        <MudIcon Icon="@item.Kind.Icon()" Style="font-size:15px;" />
+                        <span class="da-kind-label">@item.Kind.Label()</span>
+                    </button>
+                    <div class="da-name" title="@($"{item.Name} — {item.Folder.Name}")">@item.Name</div>
+                    @if (!SingleSelect)
+                    {
+                        <span class="da-pickmark">
+                            <MudIcon Icon="@Icons.Material.Filled.Check" Style="font-size:17px;" />
+                        </span>
+                    }
+                </div>
+                <div class="da-body">
+                    <div class="da-tags">
+                        @foreach (var tag in item.Tags)
+                        {
+                            <span class="da-chip @tag.CategoryClass()"><span class="da-dot"></span>@tag.Name</span>
+                        }
+                    </div>
+                    @if (item.IsLocallyAvailable)
+                    {
+                        <MusicPlayer AudioItem="@item"
+                                     PlayingChanged="@((bool playing) => SetPlaying(item, playing))" />
+                    }
+                    else
+                    {
+                        <div class="da-offline">
+                            <MudIcon Icon="@Icons.Material.Filled.CloudDownload" Style="font-size:13px;" />
+                            Not downloaded
+                        </div>
+                    }
+                </div>
+            </article>;
+    };
+
+    @* One row per item: the whole row is the selection target, and the green
+       medallion sits at its right end instead of over the artwork. *@
+    RenderFragment RenderItemRow(DAAudioItem item) => __builder =>
+    {
+        var isSelected = IsAdded(item);
+
+        <div class="da-row @item.Kind.KindClass() @(_playingIds.Contains(item.Id) ? "playing" : "") @(isSelected ? "added" : "")"
+             @onclick="() => PickItem(item)" title="@PickTitle(item)">
+            <span class="da-row-kind" title="@item.Kind.Label()">
+                <MudIcon Icon="@item.Kind.Icon()" Style="font-size:18px;" />
+            </span>
+            <div class="da-row-name" title="@($"{item.Name} — {item.Folder.Name}")">@item.Name</div>
+            <div class="da-tags">
+                @foreach (var tag in item.Tags)
+                {
+                    <span class="da-chip @tag.CategoryClass()"><span class="da-dot"></span>@tag.Name</span>
+                }
+            </div>
+            <div class="da-row-player" @onclick="() => { }" @onclick:stopPropagation="true">
+                @if (item.IsLocallyAvailable)
+                {
+                    <MusicPlayer AudioItem="@item" Compact="true"
+                                 PlayingChanged="@((bool playing) => SetPlaying(item, playing))" />
+                }
+                else
+                {
+                    <div class="da-offline">
+                        <MudIcon Icon="@Icons.Material.Filled.CloudDownload" Style="font-size:13px;" />
+                        Not downloaded
+                    </div>
+                }
+            </div>
+            @if (!SingleSelect)
+            {
+                <span class="da-pickmark">
+                    <MudIcon Icon="@Icons.Material.Filled.Check" Style="font-size:17px;" />
+                </span>
+            }
+            else
+            {
+                <span></span>
+            }
+        </div>;
+    };
+
+    RenderFragment RenderFolderRow(DAVirtualAudioFolder folder) => __builder =>
+    {
+        @* The whole row opens the folder, padding included. *@
+        <div class="da-row da-folder-row" @onclick="() => _currentFolderName = folder.Name">
+            <button type="button" class="da-folder-tile" title="@folder.Name">
+                <MudIcon Icon="@Icons.Material.Filled.Folder" Style="font-size:19px;" />
+            </button>
+            <span class="da-row-name" title="@folder.Name">@folder.Name</span>
+            <span></span>
+        </div>;
+    };
+
+    // ── view + sort (shared with the explorer; see DAViewMode.cs) ──────────
+    // Backed by the app preferences, and re-read on Show() so the picker always
+    // opens on whatever the explorer was last set to.
+    private DAViewMode _folderView = DAViewPrefs.FolderView;
+    private DAViewMode _itemView   = DAViewPrefs.ItemView;
+    private DASortMode _sort       = DAViewPrefs.Sort;
+
+    private DAViewMode FolderView
+    {
+        get => _folderView;
+        set { _folderView = value; DAViewPrefs.FolderView = value; }
+    }
+
+    private DAViewMode ItemView
+    {
+        get => _itemView;
+        set { _itemView = value; DAViewPrefs.ItemView = value; }
+    }
+
+    private DASortMode Sort
+    {
+        get => _sort;
+        set { _sort = value; DAViewPrefs.Sort = value; }
+    }
+
+    private IEnumerable<DAVirtualAudioFolder> SortFolders(IEnumerable<DAVirtualAudioFolder> folders) =>
+        _sort == DASortMode.Name
+            ? folders.OrderBy(f => f.Name, StringComparer.CurrentCultureIgnoreCase)
+            : folders;
+
+    private IEnumerable<DAAudioItem> SortItems(IEnumerable<DAAudioItem> items) =>
+        _sort == DASortMode.Name
+            ? items.OrderBy(i => i.Name, StringComparer.CurrentCultureIgnoreCase)
+            : items;
 
     private RenderFragment RenderFolderCard(DAVirtualAudioFolder folder) => __builder =>
     {
@@ -266,7 +381,7 @@
         if (_filterTags.Count > 0)
             items = items.Where(a => _filterTags.Any(ft => a.Tags.Any(t => t.Name == ft)));
 
-        return items.Take(200);   // hard cap so huge libraries stay responsive
+        return SortItems(items).Take(200);   // hard cap so huge libraries stay responsive
     }
 
     private async Task PickItem(DAAudioItem item)

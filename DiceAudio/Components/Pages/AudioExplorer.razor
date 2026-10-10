@@ -148,16 +148,15 @@
 }
 
 <!-- ────────────────────  NAV + BREADCRUMBS ─────────────────── -->
+@* One bar: history and breadcrumbs on the left, view and sort on the right. *@
+<div class="nav-bar">
 @if (!string.IsNullOrWhiteSpace(_search))
 {
-    <div class="nav-bar">
         <MudIcon Icon="@Icons.Material.Filled.Search" Style="color:#90caf9;" />
         <span style="color:#90caf9;">Search results for "<b>@_search</b>" across all folders</span>
-    </div>
 }
 else if (_breadcrumb.Any())
 {
-    <div class="nav-bar">
         <MudIconButton Icon="@Icons.Material.Filled.ArrowBack"
                         Color="Color.Primary"
                         Disabled="!CanGoBack"
@@ -184,87 +183,36 @@ else if (_breadcrumb.Any())
                 <span>@(crumb == _rootFolder ? "Root" : crumb.Name)</span>
             }
         }
+}
+    <ViewSortToggles @bind-FolderView="FolderView" @bind-ItemView="ItemView" @bind-Sort="Sort" />
+</div>
+
+
+<!-- ─────────────────────  FOLDERS  ───────────────────── -->
+@if (string.IsNullOrWhiteSpace(_search))
+{
+    var folders = SortFolders(IsRoot ? _folderTree : _currentFolder.VirtualAudioSubFolders).ToList();
+
+    <div class="@(_folderView == DAViewMode.Big ? "da-grid" : "da-list")">
+        @foreach (var folder in folders)
+        {
+            @(_folderView == DAViewMode.Big ? RenderFolderCard(folder) : RenderFolderRow(folder))
+        }
     </div>
 }
 
-
-<!-- ─────────────────────  MAIN GRID  ───────────────────── -->
-<div class="da-grid @(_selectionMode ? "da-selectable" : "")">
-    @if (string.IsNullOrWhiteSpace(_search))
-    {
-        @foreach (var folder in (IsRoot ? _folderTree : _currentFolder.VirtualAudioSubFolders))
-        {
-            @RenderFolderCard(folder)
-        }
-    }
-
-    @{
-        var matches = shownItems;
-        var shown = matches.Count > MaxRenderedItems ? matches.Take(MaxRenderedItems).ToList() : matches;
-    }
+<!-- ─────────────────────  AUDIO ITEMS  ───────────────────── -->
+@{
+    var matches = shownItems;
+    var shown = matches.Count > MaxRenderedItems ? matches.Take(MaxRenderedItems).ToList() : matches;
+}
+<div class="@(_itemView == DAViewMode.Big ? "da-grid" : "da-list") @(_selectionMode ? "da-selectable" : "")">
     @foreach (var item in shown)
     {
-        <article class="da-card @item.Kind.KindClass() @(IsPlaying(item) ? "playing" : "") @(_selectionMode && IsSelected(item) ? "marked" : "")">
-            @* The hero is the artwork; in selection mode it is also the hit area. *@
-            <div class="da-hero"
-                 @onclick="@(() => { if (_selectionMode) ToggleSelected(item); })"
-                 title="@(_selectionMode ? "Click to select this item" : null)">
-                @if (_selectionMode)
-                {
-                    <label class="da-selbox" title="Select this item"
-                           @onclick="@(() => { })" @onclick:stopPropagation="true">
-                        <input type="checkbox" checked="@IsSelected(item)"
-                               aria-label="@($"Select {item.Name}")"
-                               @onchange="@((ChangeEventArgs e) => SetSelected(item, (bool)(e.Value ?? false)))" />
-                    </label>
-                }
-                @* Icon only; the label unfurls on hover. Click cycles Music → Ambiance → SFX. *@
-                <button type="button" class="da-kind"
-                        title="@($"{item.Kind.Label()} — click to change kind")"
-                        @onclick="@(() => ToggleKind(item))" @onclick:stopPropagation="true">
-                    <MudIcon Icon="@item.Kind.Icon()" Style="font-size:15px;" />
-                    <span class="da-kind-label">@item.Kind.Label()</span>
-                </button>
-                @* The folder is a tooltip only — the breadcrumb already shows it. *@
-                <div class="da-name" title="@($"{item.Name} — {item.Folder.Name}")">@item.Name</div>
-            </div>
-            <div class="da-body">
-                <div class="da-tags">
-                    @foreach (var tag in item.Tags)
-                    {
-                        <span class="da-chip @tag.CategoryClass()"><span class="da-dot"></span>@tag.Name</span>
-                    }
-                </div>
-                @if (item.IsLocallyAvailable)
-                {
-                    <MusicPlayer AudioItem="@item"
-                                 PlayingChanged="@((bool playing) => SetPlaying(item, playing))"></MusicPlayer>
-                }
-                else
-                {
-                    <div class="da-offline">
-                        <MudIcon Icon="@Icons.Material.Filled.CloudDownload" Style="font-size:13px;" />
-                        Not downloaded yet
-                    </div>
-                }
-                <div class="da-acts">
-                    <button type="button" class="da-ib" title="Edit tags" aria-label="Edit tags"
-                            @onclick="@(() => OpenAudioTagsPicker(item))">
-                        <MudIcon Icon="@Icons.Material.Filled.Tag" Style="font-size:18px;" />
-                    </button>
-                    <button type="button" class="da-ib" title="Move to folder" aria-label="Move to folder"
-                            @onclick="@(() => OpenMoveToFolderPicker(item))">
-                        <MudIcon Icon="@Icons.Material.Filled.DriveFileMove" Style="font-size:18px;" />
-                    </button>
-                    <button type="button" class="da-ib danger" title="Delete" aria-label="Delete"
-                            @onclick="@(() => DeleteAudioItem(item))">
-                        <MudIcon Icon="@Icons.Material.Filled.Delete" Style="font-size:18px;" />
-                    </button>
-                </div>
-            </div>
-        </article>
+        @(_itemView == DAViewMode.Big ? RenderItemCard(item) : RenderItemRow(item))
     }
 </div>
+
 
 @if (matches.Count > shown.Count)
 {
@@ -394,6 +342,167 @@ else if (_breadcrumb.Any())
                   : DAService.AudioVirtualFolders.FirstOrDefault(f => f.Id == ptr.ParentFolderId);
         }
     }
+
+    RenderFragment RenderItemCard(DAAudioItem item) => __builder =>
+    {
+        <article class="da-card @item.Kind.KindClass() @(IsPlaying(item) ? "playing" : "") @(_selectionMode && IsSelected(item) ? "marked" : "")">
+            @* The hero is the artwork; in selection mode it is also the hit area. *@
+            <div class="da-hero"
+                 @onclick="@(() => { if (_selectionMode) ToggleSelected(item); })"
+                 title="@(_selectionMode ? "Click to select this item" : null)">
+                @if (_selectionMode)
+                {
+                    <label class="da-selbox" title="Select this item"
+                           @onclick="@(() => { })" @onclick:stopPropagation="true">
+                        <input type="checkbox" checked="@IsSelected(item)"
+                               aria-label="@($"Select {item.Name}")"
+                               @onchange="@((ChangeEventArgs e) => SetSelected(item, (bool)(e.Value ?? false)))" />
+                    </label>
+                }
+                @* Icon only; the label unfurls on hover. Click cycles Music → Ambiance → SFX. *@
+                <button type="button" class="da-kind"
+                        title="@($"{item.Kind.Label()} — click to change kind")"
+                        @onclick="@(() => ToggleKind(item))" @onclick:stopPropagation="true">
+                    <MudIcon Icon="@item.Kind.Icon()" Style="font-size:15px;" />
+                    <span class="da-kind-label">@item.Kind.Label()</span>
+                </button>
+                @* The folder is a tooltip only — the breadcrumb already shows it. *@
+                <div class="da-name" title="@($"{item.Name} — {item.Folder.Name}")">@item.Name</div>
+            </div>
+            <div class="da-body">
+                <div class="da-tags">
+                    @foreach (var tag in item.Tags)
+                    {
+                        <span class="da-chip @tag.CategoryClass()"><span class="da-dot"></span>@tag.Name</span>
+                    }
+                </div>
+                @if (item.IsLocallyAvailable)
+                {
+                    <MusicPlayer AudioItem="@item"
+                                 PlayingChanged="@((bool playing) => SetPlaying(item, playing))"></MusicPlayer>
+                }
+                else
+                {
+                    <div class="da-offline">
+                        <MudIcon Icon="@Icons.Material.Filled.CloudDownload" Style="font-size:13px;" />
+                        Not downloaded yet
+                    </div>
+                }
+                <div class="da-acts">
+                    <button type="button" class="da-ib" title="Edit tags" aria-label="Edit tags"
+                            @onclick="@(() => OpenAudioTagsPicker(item))">
+                        <MudIcon Icon="@Icons.Material.Filled.Tag" Style="font-size:18px;" />
+                    </button>
+                    <button type="button" class="da-ib" title="Move to folder" aria-label="Move to folder"
+                            @onclick="@(() => OpenMoveToFolderPicker(item))">
+                        <MudIcon Icon="@Icons.Material.Filled.DriveFileMove" Style="font-size:18px;" />
+                    </button>
+                    <button type="button" class="da-ib danger" title="Delete" aria-label="Delete"
+                            @onclick="@(() => DeleteAudioItem(item))">
+                        <MudIcon Icon="@Icons.Material.Filled.Delete" Style="font-size:18px;" />
+                    </button>
+                </div>
+            </div>
+        </article>;
+    };
+
+    @* One row per item: kind tile, name, tags, a single-row player, actions. *@
+    RenderFragment RenderItemRow(DAAudioItem item) => __builder =>
+    {
+        <div class="da-row @item.Kind.KindClass() @(IsPlaying(item) ? "playing" : "") @(_selectionMode && IsSelected(item) ? "marked" : "")"
+             @onclick="@(() => { if (_selectionMode) ToggleSelected(item); })"
+             title="@(_selectionMode ? "Click to select this item" : null)">
+            @if (_selectionMode)
+            {
+                <label class="da-selbox" title="Select this item"
+                       @onclick="@(() => { })" @onclick:stopPropagation="true">
+                    <input type="checkbox" checked="@IsSelected(item)"
+                           aria-label="@($"Select {item.Name}")"
+                           @onchange="@((ChangeEventArgs e) => SetSelected(item, (bool)(e.Value ?? false)))" />
+                </label>
+            }
+            <button type="button" class="da-row-kind"
+                    title="@($"{item.Kind.Label()} — click to change kind")"
+                    @onclick="@(() => ToggleKind(item))" @onclick:stopPropagation="true">
+                <MudIcon Icon="@item.Kind.Icon()" Style="font-size:18px;" />
+            </button>
+            <div class="da-row-name" title="@($"{item.Name} — {item.Folder.Name}")">@item.Name</div>
+            <div class="da-tags">
+                @foreach (var tag in item.Tags)
+                {
+                    <span class="da-chip @tag.CategoryClass()"><span class="da-dot"></span>@tag.Name</span>
+                }
+            </div>
+            <div class="da-row-player" @onclick="@(() => { })" @onclick:stopPropagation="true">
+                @if (item.IsLocallyAvailable)
+                {
+                    <MusicPlayer AudioItem="@item" Compact="true"
+                                 PlayingChanged="@((bool playing) => SetPlaying(item, playing))"></MusicPlayer>
+                }
+                else
+                {
+                    <div class="da-offline">
+                        <MudIcon Icon="@Icons.Material.Filled.CloudDownload" Style="font-size:13px;" />
+                        Not downloaded yet
+                    </div>
+                }
+            </div>
+            <div class="da-acts" @onclick="@(() => { })" @onclick:stopPropagation="true">
+                <button type="button" class="da-ib" title="Edit tags" aria-label="Edit tags"
+                        @onclick="@(() => OpenAudioTagsPicker(item))">
+                    <MudIcon Icon="@Icons.Material.Filled.Tag" Style="font-size:18px;" />
+                </button>
+                <button type="button" class="da-ib" title="Move to folder" aria-label="Move to folder"
+                        @onclick="@(() => OpenMoveToFolderPicker(item))">
+                    <MudIcon Icon="@Icons.Material.Filled.DriveFileMove" Style="font-size:18px;" />
+                </button>
+                <button type="button" class="da-ib danger" title="Delete" aria-label="Delete"
+                        @onclick="@(() => DeleteAudioItem(item))">
+                    <MudIcon Icon="@Icons.Material.Filled.Delete" Style="font-size:18px;" />
+                </button>
+            </div>
+        </div>;
+    };
+
+    RenderFragment RenderFolderRow(DAVirtualAudioFolder folder) => __builder =>
+    {
+        @* The whole row opens the folder — except while its name is being
+           edited, where the clicks belong to the text field. *@
+        <div class="da-row da-folder-row"
+             @onclick="@(() => { if (_renamingFolder != folder) NavigateToFolder(folder); })">
+            <button type="button" class="da-folder-tile" title="@folder.Name">
+                <MudIcon Icon="@Icons.Material.Filled.Folder" Style="font-size:19px;" />
+            </button>
+            @if (_renamingFolder == folder)
+            {
+                <MudTextField Value="@_renameValue"
+                              ValueChanged="@((string v) => _renameValue = v)"
+                              Variant="Variant.Filled"
+                              Margin="Margin.Dense"
+                              Style="flex:1;" />
+                <div class="da-acts" @onclick="@(() => { })" @onclick:stopPropagation="true">
+                    <MudIconButton Icon="@Icons.Material.Filled.Check" Color="Color.Success"
+                                   Size="Size.Small" OnClick="ConfirmRename" />
+                    <MudIconButton Icon="@Icons.Material.Filled.Close" Color="Color.Error"
+                                   Size="Size.Small" OnClick="CancelRename" />
+                </div>
+            }
+            else
+            {
+                <span class="da-row-name" title="@folder.Name">@folder.Name</span>
+                <div class="da-acts" @onclick="@(() => { })" @onclick:stopPropagation="true">
+                    <button type="button" class="da-ib" title="Move folder" aria-label="Move folder"
+                            @onclick="@(() => OpenMoveFolder(folder))">
+                        <MudIcon Icon="@Icons.Material.Filled.DriveFileMove" Style="font-size:18px;" />
+                    </button>
+                    <button type="button" class="da-ib" title="Rename folder" aria-label="Rename folder"
+                            @onclick="@(() => StartRename(folder))">
+                        <MudIcon Icon="@Icons.Material.Filled.Edit" Style="font-size:18px;" />
+                    </button>
+                </div>
+            }
+        </div>;
+    };
 
     RenderFragment RenderFolderCard(DAVirtualAudioFolder folder) => __builder =>
     {
@@ -583,6 +692,42 @@ else if (_breadcrumb.Any())
     // the time.
     private bool _selectionMode;
 
+    // ── view + sort (see DAViewMode.cs; the picker uses the same toggles) ──
+    // Backed by the app preferences, so the choice survives a restart. The
+    // fields mirror them so rendering a few hundred rows doesn't re-read the
+    // store on every comparison.
+    private DAViewMode _folderView = DAViewPrefs.FolderView;
+    private DAViewMode _itemView   = DAViewPrefs.ItemView;
+    private DASortMode _sort       = DAViewPrefs.Sort;
+
+    private DAViewMode FolderView
+    {
+        get => _folderView;
+        set { _folderView = value; DAViewPrefs.FolderView = value; }
+    }
+
+    private DAViewMode ItemView
+    {
+        get => _itemView;
+        set { _itemView = value; DAViewPrefs.ItemView = value; }
+    }
+
+    private DASortMode Sort
+    {
+        get => _sort;
+        set { _sort = value; DAViewPrefs.Sort = value; }
+    }
+
+    IEnumerable<DAVirtualAudioFolder> SortFolders(IEnumerable<DAVirtualAudioFolder> folders) =>
+        _sort == DASortMode.Name
+            ? folders.OrderBy(f => f.Name, StringComparer.CurrentCultureIgnoreCase)
+            : folders;
+
+    IEnumerable<DAAudioItem> SortItems(IEnumerable<DAAudioItem> items) =>
+        _sort == DASortMode.Name
+            ? items.OrderBy(i => i.Name, StringComparer.CurrentCultureIgnoreCase)
+            : items;
+
     // Items whose player is running, so their card hero animates while playing.
     private readonly HashSet<Guid> _playingIds = new();
 
@@ -707,7 +852,7 @@ else if (_breadcrumb.Any())
 
         if (_kindFilter is AudioKind k) items = items.Where(ai => ai.Kind == k);
         if (_filter.IsActive) items = _filter.Apply(items);
-        return items;
+        return SortItems(items);
     }
 
     async Task DeleteAudioItem(DAAudioItem item)

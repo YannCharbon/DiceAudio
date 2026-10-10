@@ -21,7 +21,7 @@
     </div>
 }
 
-<div class="da-transport">
+<div class="da-transport @(Compact ? "da-compact" : "")">
     <div class="da-transport-btns">
         @if (_isPlaying)
         {
@@ -61,6 +61,12 @@
     /// its hero while this item is playing.
     /// </summary>
     [Parameter] public EventCallback<bool> PlayingChanged { get; set; }
+
+    /// <summary>
+    /// Single-row transport (buttons beside the bar instead of above it), for
+    /// the explorer's list view.
+    /// </summary>
+    [Parameter] public bool Compact { get; set; }
 
     private DAAudioPlayer? _player;
     private bool            _isPlaying;

@@ -40,6 +40,14 @@ namespace DiceAudio
             AudioKind.Ambiance => MudBlazor.Color.Info,
             _ => MudBlazor.Color.Secondary,
         };
+
+        /// <summary>CSS class carrying the kind tint (--kc) for the shared audio card.</summary>
+        public static string KindClass(this AudioKind kind) => kind switch
+        {
+            AudioKind.Music => "da-k-music",
+            AudioKind.Ambiance => "da-k-amb",
+            _ => "da-k-sfx",
+        };
     }
 
     public class DAAudioItem

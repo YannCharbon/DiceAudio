@@ -100,7 +100,7 @@
                 }
             </div>
 
-            <div class="row" style="margin-bottom:4px;">
+            <div class="da-grid da-picker-folders" style="margin-bottom:4px;">
                 @foreach (var folder in DAService.ChildFolders(DAService.FindFolderByName(_currentFolderName)))
                 {
                     @RenderFolderCard(folder)
@@ -109,7 +109,7 @@
         }
 
         @* ── Audio items grid ── *@
-        <div class="row" style="max-height:480px; overflow-y:auto;">
+        <div class="da-grid da-picker" style="max-height:480px; overflow-y:auto;">
             @{
                 var visibleItems = FilteredItems().ToList();
             }
@@ -122,35 +122,47 @@
                 bool isSelected = !SingleSelect && SelectionList != null
                     && SelectionList.Any(u => u.AudioItemId == item.Id);
 
-                <div class="col col-md-3">
-                    <div class="@(isSelected ? "sap-item-top-sel" : "sap-item-top")"
-                         @onclick="() => PickItem(item)">
-                        @if (isSelected)
+                @* Inclusion is green and lives on the hero — deliberately unlike the
+                   explorer's blue batch selection, which means something else. *@
+                <article class="da-card @item.Kind.KindClass() @(_playingIds.Contains(item.Id) ? "playing" : "") @(isSelected ? "added" : "")">
+                    <div class="da-hero" @onclick="() => PickItem(item)"
+                         title="@(SingleSelect ? "Click to pick this item"
+                                  : isSelected ? "Click to remove it from the selection"
+                                  : "Click to add it to the selection")">
+                        @* Inert here (pointer-events:none): the whole hero is one target. *@
+                        <button type="button" class="da-kind" tabindex="-1" title="@item.Kind.Label()">
+                            <MudIcon Icon="@item.Kind.Icon()" Style="font-size:15px;" />
+                            <span class="da-kind-label">@item.Kind.Label()</span>
+                        </button>
+                        <div class="da-name" title="@($"{item.Name} — {item.Folder.Name}")">@item.Name</div>
+                        @if (!SingleSelect)
                         {
-                            <MudIcon Icon="@Icons.Material.Filled.CheckCircle"
-                                     Style="font-size:34px; color:white;" />
-                        }
-                        else
-                        {
-                            <MudIcon Icon="@item.Kind.Icon()" Style="font-size:26px; opacity:0.55;" />
+                            <span class="da-pickmark">
+                                <MudIcon Icon="@Icons.Material.Filled.Check" Style="font-size:17px;" />
+                            </span>
                         }
                     </div>
-                    <div class="sap-item-bottom">
-                        <b>@item.Name</b>
-                        <div style="display:flex; flex-wrap:wrap; margin-top:3px; margin-bottom:4px;">
+                    <div class="da-body">
+                        <div class="da-tags">
                             @foreach (var tag in item.Tags)
-                            { <span class="sap-tag">@tag.Name</span> }
+                            {
+                                <span class="da-chip @tag.CategoryClass()"><span class="da-dot"></span>@tag.Name</span>
+                            }
                         </div>
                         @if (item.IsLocallyAvailable)
                         {
-                            <MusicPlayer AudioItem="@item" />
+                            <MusicPlayer AudioItem="@item"
+                                         PlayingChanged="@((bool playing) => SetPlaying(item, playing))" />
                         }
                         else
                         {
-                            <div style="color:grey; font-size:x-small; padding:4px 0;">Not downloaded</div>
+                            <div class="da-offline">
+                                <MudIcon Icon="@Icons.Material.Filled.CloudDownload" Style="font-size:13px;" />
+                                Not downloaded
+                            </div>
                         }
                     </div>
-                </div>
+                </article>
             }
         </div>
 
@@ -165,35 +177,16 @@
 }
 
 <style>
-    .sap-item-top {
-        border-top-left-radius: 8px; border-top-right-radius: 8px;
-        height: 70px; margin: 6px 6px 0 6px; cursor: pointer;
-        display: flex; align-items: center; justify-content: center;
-        background-image: linear-gradient(-45deg,rgba(200,90,50,0.2),rgba(200,30,96,0.5),
-                          rgba(5,136,183,0.8),rgba(5,136,141,1.0));
+    /* The item and folder cards come from app.css (.da-card and friends), shared
+       with the explorer. What remains here is the tag-filter panel. */
+    .sap-tag {
+        color:#cfcfdd; background:rgba(139,139,166,.12); border:1px solid rgba(139,139,166,.35);
+        border-radius:5px; padding:3px 7px; margin:2px; font-size:11px; line-height:1;
     }
-    .sap-item-top-sel {
-        border-top-left-radius: 8px; border-top-right-radius: 8px;
-        height: 70px; margin: 6px 6px 0 6px; cursor: pointer;
-        display: flex; align-items: center; justify-content: center;
-        background-image: linear-gradient(-45deg,rgba(255,170,120,0.6),rgba(255,90,150,0.6),
-                          rgba(60,255,250,0.9),rgba(60,255,220,1.0));
-        box-shadow: 0 2px 10px rgba(255,255,255,0.4);
+    .sap-tag-sel {
+        color:#0b0b14; background:#23a6d5; border:1px solid #23a6d5;
+        border-radius:5px; padding:3px 7px; margin:2px; font-size:11px; line-height:1; font-weight:bold;
     }
-    .sap-item-bottom {
-        font-size: small; color: white; background: #040020;
-        border-bottom-left-radius: 8px; border-bottom-right-radius: 8px;
-        padding: 8px; margin: 0 6px 6px 6px;
-    }
-    .sap-folder-top {
-        border-top-left-radius: 8px; border-top-right-radius: 8px;
-        height: 70px; margin: 6px 6px 0 6px; cursor: pointer;
-        display: flex; align-items: center; justify-content: center;
-        background-image: linear-gradient(-45deg,rgba(200,90,50,0.15),rgba(200,30,96,0.35),
-                          rgba(5,136,183,0.55),rgba(5,136,141,0.7));
-    }
-    .sap-tag { color:black; background:#e73c7e; border-radius:3px; padding:1px 4px; margin:2px; font-size:x-small; }
-    .sap-tag-sel { color:black; background:#23a6d5; border-radius:3px; padding:1px 4px; margin:2px; font-size:x-small; }
     .sap-crumb { cursor:pointer; color:#90caf9; }
     .sap-crumb:hover { text-decoration:underline; }
 </style>
@@ -210,6 +203,16 @@
     [Parameter] public EventCallback OnClosed { get; set; }
 
     private bool _visible;
+
+    // Items whose player is running, so their card hero animates while playing.
+    private readonly HashSet<Guid> _playingIds = new();
+
+    private void SetPlaying(DAAudioItem item, bool playing)
+    {
+        if (playing) _playingIds.Add(item.Id);
+        else _playingIds.Remove(item.Id);
+    }
+
     private string _currentFolderName = ".";
     private string _search = "";
     private bool _filterOpen;
@@ -243,12 +246,12 @@
 
     private RenderFragment RenderFolderCard(DAVirtualAudioFolder folder) => __builder =>
     {
-        <div class="col col-md-3" style="cursor:pointer;">
-            <div class="sap-folder-top" @onclick="() => _currentFolderName = folder.Name">
+        <article class="da-card da-folder">
+            <div class="da-hero" title="@folder.Name" @onclick="() => _currentFolderName = folder.Name">
                 <MudIcon Icon="@Icons.Material.Filled.Folder" Style="font-size:38px;" />
             </div>
-            <div class="sap-item-bottom"><b>@folder.Name</b></div>
-        </div>;
+            <div class="da-body"><b>@folder.Name</b></div>
+        </article>;
     };
 
     private IEnumerable<DAAudioItem> FilteredItems()

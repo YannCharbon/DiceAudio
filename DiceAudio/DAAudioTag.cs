@@ -42,6 +42,15 @@ namespace DiceAudio
             return TagCategory.Unknown;
         }
 
+        /// <summary>CSS class giving the tag chip its category colour.</summary>
+        public string CategoryClass() => GetCategory() switch
+        {
+            TagCategory.Type => "cat-type",
+            TagCategory.Location => "cat-loc",
+            TagCategory.Expression => "cat-expr",
+            _ => "cat-unknown",
+        };
+
         public static TagCategory GetCategory(string tagName)
         {
             if (DAAudioTagsProvider.Instance.CategoryTypes.Contains(tagName))

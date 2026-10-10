@@ -10,64 +10,82 @@
 @inject IAudioManager AudioManager
 @implements IDisposable
 
-@* ── Animated gradient banner ── *@
-<div class="@(_isPlaying ? "da-playing-banner" : "da-stopped-banner")">
-    @if (_isPlaying)
-    {
-        <div style="font-size:11px; font-weight:bold; word-break:break-word;
-                    text-shadow:0 1px 3px rgba(0,0,0,0.8); text-align:center;">
-            @AudioItem.Name
-        </div>
-    }
-    else
-    {
-        <MudIcon Icon="@Icons.Material.Filled.MusicNote" Style="font-size:32px; opacity:0.35;" />
-    }
-</div>
+@* The host card draws the artwork, so the player is only the transport row:
+   play/pause, stop, a seek track with a visible playhead, elapsed / total. *@
 
 @if (!string.IsNullOrEmpty(_errorMessage))
 {
-    <div style="color:#ff6b6b; font-size:10px; padding:2px 4px; word-break:break-all;" title="@_errorMessage">
-        ⚠ @_errorMessage
+    <div class="da-err" title="@_errorMessage">
+        <MudIcon Icon="@Icons.Material.Filled.Warning"
+                 Style="font-size:13px; vertical-align:-2px; margin-right:3px;" />@_errorMessage
     </div>
 }
 
-@* ── Transport controls ── *@
-<div style="display:flex; justify-content:center; margin:6px 0;">
-    @if (_isPlaying)
-    {
-        <div class="da-cmd-btn" @onclick="PauseAudio" title="Pause">
-            <MudIcon Icon="@Icons.Material.Filled.Pause" Class="da-pause" />
+<div class="da-transport">
+    <div class="da-transport-btns">
+        @if (_isPlaying)
+        {
+            <button type="button" class="da-cmd-btn-sm da-pp" title="Pause" @onclick="PauseAudio">
+                <MudIcon Icon="@Icons.Material.Filled.Pause" Class="da-pause" Style="font-size:21px;" />
+            </button>
+        }
+        else
+        {
+            <button type="button" class="da-cmd-btn-sm da-pp" title="Play" @onclick="PlayAudio">
+                <MudIcon Icon="@Icons.Material.Filled.PlayArrow" Class="da-play" Style="font-size:21px;" />
+            </button>
+        }
+        <button type="button" class="da-cmd-btn-sm" title="Stop" @onclick="StopAudio">
+            <MudIcon Icon="@Icons.Material.Filled.Stop" Class="da-stop" Style="font-size:19px;" />
+        </button>
+    </div>
+
+    <div class="da-transport-seek">
+        @* The bubble and the track fill both follow --pp, so the timestamp stays
+           under the thumb while dragging. *@
+        <div class="da-track" style="--pp:@ProgressPercent">
+            <input type="range" class="da-range" min="0" max="@MaxPosition" step="1"
+                   value="@_position" title="Drag to seek" aria-label="Seek"
+                   @oninput="OnSeekInput" @onchange="OnSeekCommit" />
+            <span class="da-bubble">@Format(_position)</span>
         </div>
-    }
-    else
-    {
-        <div class="da-cmd-btn" @onclick="PlayAudio" title="Play">
-            <MudIcon Icon="@Icons.Material.Filled.PlayArrow" Class="da-play" />
-        </div>
-    }
-    <div class="da-cmd-btn" @onclick="StopAudio" title="Stop">
-        <MudIcon Icon="@Icons.Material.Filled.Stop" Class="da-stop" />
+        <span class="da-time"><b>@Format(_position)</b> / @Format((int)_duration)</span>
     </div>
 </div>
 
-@* ── Duration + progress ── *@
-<div style="font-size:11px; color:grey; margin:2px 0;">
-    Duration: @TimeSpan.FromSeconds(_duration).ToString(@"hh\:mm\:ss")
-</div>
-<MudSlider T="int" @bind-Value="_position"
-           Min="0" Max="@((int)Math.Max(_duration, 1))"
-           @onchange="SeekFromSlider"
-           Style="margin:0;" />
-
 @code {
     [Parameter] public DAAudioItem AudioItem { get; set; } = default!;
+
+    /// <summary>
+    /// Raised whenever playback starts or stops, so the host card can animate
+    /// its hero while this item is playing.
+    /// </summary>
+    [Parameter] public EventCallback<bool> PlayingChanged { get; set; }
 
     private DAAudioPlayer? _player;
     private bool            _isPlaying;
     private double          _duration;
     private int             _position;
     private string          _errorMessage = string.Empty;
+
+    // True while the user drags the thumb, so the ticker can't yank the
+    // position back out from under them mid-drag.
+    private bool            _seeking;
+
+    private bool            _notifiedPlaying;
+    private bool            _disposed;
+
+    private int    MaxPosition     => (int)Math.Max(_duration, 1);
+    private string ProgressPercent =>
+        (_duration > 0 ? _position / _duration * 100.0 : 0.0)
+            .ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) + "%";
+
+    private static string Format(int seconds)
+    {
+        if (seconds < 0) seconds = 0;
+        var t = TimeSpan.FromSeconds(seconds);
+        return t.TotalHours >= 1 ? t.ToString(@"h\:mm\:ss") : t.ToString(@"m\:ss");
+    }
 
     private readonly System.Timers.Timer _ticker = new(500);
 
@@ -80,7 +98,7 @@
     {
         _ticker.Elapsed += async (_, _) =>
         {
-            if (_player?.IsPlaying == true)
+            if (_player?.IsPlaying == true && !_seeking)
             {
                 _position = (int)_player.CurrentPosition;
                 await InvokeAsync(StateHasChanged);
@@ -148,6 +166,7 @@
             _errorMessage = ex.GetType().Name + ": " + ex.Message;
             _isPlaying = false;
         }
+        NotifyPlaying();
     }
 
     void PauseAudio()
@@ -155,6 +174,7 @@
         _player?.Pause();
         _ticker.Stop();
         _isPlaying = false;
+        NotifyPlaying();
     }
 
     void StopAudio()
@@ -169,19 +189,45 @@
         }
         _isPlaying = false;
         _position = 0;
+        NotifyPlaying();
     }
 
-    void SeekFromSlider(object _) => _player?.Seek(_position);
+    // Only on an actual transition — PlayAudio stops first, so without this the
+    // host card would see a redundant false/true pair on every play.
+    void NotifyPlaying()
+    {
+        if (_disposed || _notifiedPlaying == _isPlaying) return;
+        _notifiedPlaying = _isPlaying;
+        if (PlayingChanged.HasDelegate) PlayingChanged.InvokeAsync(_isPlaying);
+    }
+
+    // While dragging, only the displayed position moves — seeking the player on
+    // every input event would thrash it. The seek lands on release (change).
+    void OnSeekInput(ChangeEventArgs e)
+    {
+        _seeking = true;
+        if (int.TryParse(e.Value?.ToString(), out var v)) _position = v;
+    }
+
+    void OnSeekCommit(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var v)) _position = v;
+        _seeking = false;
+        _player?.Seek(_position);
+    }
 
     void OnPlaybackEnded(object? s, EventArgs e)
     {
         _ticker.Stop();
         _isPlaying = false;
-        InvokeAsync(StateHasChanged);
+        // Fires on the audio thread, so hop back to the renderer before
+        // notifying the host card.
+        InvokeAsync(() => { NotifyPlaying(); StateHasChanged(); });
     }
 
     public void Dispose()
     {
+        _disposed = true;
         _ticker.Dispose();
         StopAudio();
     }

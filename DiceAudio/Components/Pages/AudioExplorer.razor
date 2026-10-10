@@ -12,15 +12,8 @@
 @inject PopupNotificationService Notifications
 
 <style>
-  /*  cards ---------------------------------------------------------- */
-  .audio-item-top    { background-repeat:no-repeat; background-size:100%;
-                       border-top-left-radius:10px;  border-top-right-radius:10px;
-                       padding:10px; height:100px; margin:10px 10px 0 10px; }
-  .audio-item-bottom { font-size:small; color:white; background:#040020;
-                       border-bottom-left-radius:10px; border-bottom-right-radius:10px;
-                       padding:10px; margin:0 10px 10px 10px; }
-  .audio-item-tag    { color:black; background:#e73c7e; border:3px solid #040020;
-                       border-radius:3px; padding:3px; margin-right:4px; }
+  /*  The cards themselves live in app.css (.da-card and friends), shared with
+      the audio picker.                                                       */
 
   /*  breadcrumbs + nav buttons ------------------------------------ */
   .nav-bar     { display:flex; align-items:center; gap:8px; margin:14px 0; flex-wrap:wrap; }
@@ -34,18 +27,10 @@
                  padding:6px 10px; margin-bottom:10px; }
   .filter-expr { color:#e2b6ff; font-weight:600; }
   /*  multi-selection ---------------------------------------------- */
-  .audio-card-selected .audio-item-top,
-  .audio-card-selected .audio-item-bottom { box-shadow: inset 0 0 0 3px #23a6d5; }
-  .select-badge { position:absolute; top:6px; left:6px; background:rgba(0,0,0,0.5);
-                  border-radius:50%; line-height:0; }
   .selection-bar { display:flex; align-items:center; gap:8px; flex-wrap:wrap;
                    background:#12233a; border:1px solid #23a6d5; border-radius:8px;
                    padding:6px 10px; margin-bottom:10px; }
   .selection-count { color:#8fd3ff; font-weight:600; }
-
-  /*  folder an item was hoisted from while filtering across subfolders  */
-  .hoisted-folder { display:inline-flex; align-items:center; gap:3px;
-                    color:#8fa3b8; font-size:x-small; margin-top:2px; }
 </style>
 
 <!-- ─────────────────────  MODALS  ───────────────────── -->
@@ -204,7 +189,7 @@ else if (_breadcrumb.Any())
 
 
 <!-- ─────────────────────  MAIN GRID  ───────────────────── -->
-<div class="row">
+<div class="da-grid @(_selectionMode ? "da-selectable" : "")">
     @if (string.IsNullOrWhiteSpace(_search))
     {
         @foreach (var folder in (IsRoot ? _folderTree : _currentFolder.VirtualAudioSubFolders))
@@ -219,64 +204,65 @@ else if (_breadcrumb.Any())
     }
     @foreach (var item in shown)
     {
-        <div class="col col-md-3 @(_selectionMode && IsSelected(item) ? "audio-card-selected" : "")">
-            <div class="audio-item-top"
-                    @onclick="@(() => { if (_selectionMode) ToggleSelected(item); })"
-                    title="@(_selectionMode ? "Click to select this item" : null)"
-                    style="background-image:linear-gradient(-45deg,rgba(238,119,82,.2),rgba(231,60,126,.6),
-                                                        rgba(35,166,213,.9),rgba(35,166,171,1));
-                           position:relative; @(_selectionMode ? "cursor:pointer;" : "")">
-                @* Selection box top-left, only while selecting — the header toggles it too *@
+        <article class="da-card @item.Kind.KindClass() @(IsPlaying(item) ? "playing" : "") @(_selectionMode && IsSelected(item) ? "marked" : "")">
+            @* The hero is the artwork; in selection mode it is also the hit area. *@
+            <div class="da-hero"
+                 @onclick="@(() => { if (_selectionMode) ToggleSelected(item); })"
+                 title="@(_selectionMode ? "Click to select this item" : null)">
                 @if (_selectionMode)
                 {
-                    <div class="select-badge" title="Select this item"
-                         @onclick="@(() => { })" @onclick:stopPropagation="true">
-                        <MudCheckBox T="bool" Value="@IsSelected(item)"
-                                     ValueChanged="@((bool v) => SetSelected(item, v))"
-                                     Color="Color.Info" Size="Size.Small" Dense="true" />
-                    </div>
+                    <label class="da-selbox" title="Select this item"
+                           @onclick="@(() => { })" @onclick:stopPropagation="true">
+                        <input type="checkbox" checked="@IsSelected(item)"
+                               aria-label="@($"Select {item.Name}")"
+                               @onchange="@((ChangeEventArgs e) => SetSelected(item, (bool)(e.Value ?? false)))" />
+                    </label>
                 }
-                @* Kind badge top-right — click cycles Music → Ambiance → SFX *@
-                <div style="position:absolute; top:6px; right:6px;"
-                     @onclick="@(() => { })" @onclick:stopPropagation="true">
-                    <MudIconButton Icon="@item.Kind.Icon()"
-                                   Color="@item.Kind.Color()"
-                                   Size="Size.Small"
-                                   Title="@($"{item.Kind.Label()} — click to change kind")"
-                                   OnClick="@(() => ToggleKind(item))"
-                                   Style="background:rgba(0,0,0,0.5); border-radius:50%;" />
-                </div>
+                @* Icon only; the label unfurls on hover. Click cycles Music → Ambiance → SFX. *@
+                <button type="button" class="da-kind"
+                        title="@($"{item.Kind.Label()} — click to change kind")"
+                        @onclick="@(() => ToggleKind(item))" @onclick:stopPropagation="true">
+                    <MudIcon Icon="@item.Kind.Icon()" Style="font-size:15px;" />
+                    <span class="da-kind-label">@item.Kind.Label()</span>
+                </button>
+                @* The folder is a tooltip only — the breadcrumb already shows it. *@
+                <div class="da-name" title="@($"{item.Name} — {item.Folder.Name}")">@item.Name</div>
             </div>
-            <div class="audio-item-bottom">
-                <b>@item.Name</b>
-                @if (ShowsHoistedItems && item.Folder.Name != _currentFolder.Name)
-                {
-                    <div class="hoisted-folder">
-                        <MudIcon Icon="@Icons.Material.Filled.Folder" Size="Size.Small" />@item.Folder.Name
-                    </div>
-                }
-                <MudStack Row="true" Style="padding:5px; flex-wrap:wrap;">
+            <div class="da-body">
+                <div class="da-tags">
                     @foreach (var tag in item.Tags)
-                    { <MudItem><span class="audio-item-tag">@tag.Name</span></MudItem> }
-                </MudStack>
-                <MudStack Row="true" Style="flex-wrap:wrap;">
-                    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Tag"
-                                OnClick="@(() => OpenAudioTagsPicker(item))">Edit tags</MudButton>
-                    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Folder"
-                                OnClick="@(() => OpenMoveToFolderPicker(item))">Move</MudButton>
-                    <MudButton Variant="Variant.Filled" Color="Color.Error" StartIcon="@Icons.Material.Filled.Delete"
-                                OnClick="@(() => DeleteAudioItem(item))">Delete</MudButton>
-                </MudStack>
+                    {
+                        <span class="da-chip @tag.CategoryClass()"><span class="da-dot"></span>@tag.Name</span>
+                    }
+                </div>
                 @if (item.IsLocallyAvailable)
                 {
-                    <MusicPlayer AudioItem="@item"></MusicPlayer>
+                    <MusicPlayer AudioItem="@item"
+                                 PlayingChanged="@((bool playing) => SetPlaying(item, playing))"></MusicPlayer>
                 }
                 else
                 {
-                    <div style="color:grey; font-size:x-small; padding:4px 0;">Not downloaded yet</div>
+                    <div class="da-offline">
+                        <MudIcon Icon="@Icons.Material.Filled.CloudDownload" Style="font-size:13px;" />
+                        Not downloaded yet
+                    </div>
                 }
+                <div class="da-acts">
+                    <button type="button" class="da-ib" title="Edit tags" aria-label="Edit tags"
+                            @onclick="@(() => OpenAudioTagsPicker(item))">
+                        <MudIcon Icon="@Icons.Material.Filled.Tag" Style="font-size:18px;" />
+                    </button>
+                    <button type="button" class="da-ib" title="Move to folder" aria-label="Move to folder"
+                            @onclick="@(() => OpenMoveToFolderPicker(item))">
+                        <MudIcon Icon="@Icons.Material.Filled.DriveFileMove" Style="font-size:18px;" />
+                    </button>
+                    <button type="button" class="da-ib danger" title="Delete" aria-label="Delete"
+                            @onclick="@(() => DeleteAudioItem(item))">
+                        <MudIcon Icon="@Icons.Material.Filled.Delete" Style="font-size:18px;" />
+                    </button>
+                </div>
             </div>
-        </div>
+        </article>
     }
 </div>
 
@@ -411,15 +397,13 @@ else if (_breadcrumb.Any())
 
     RenderFragment RenderFolderCard(DAVirtualAudioFolder folder) => __builder =>
     {
-        <div class="col col-md-3" style="cursor:pointer;">
-            <div class="audio-item-top" @onclick="@(() => NavigateToFolder(folder))"
-                 style="background-image:linear-gradient(-45deg,rgba(238,119,82,.2),rgba(231,60,126,.6),
-                                                        rgba(35,166,213,.9),rgba(35,166,171,1));">
+        <article class="da-card da-folder">
+            <div class="da-hero" title="@folder.Name" @onclick="@(() => NavigateToFolder(folder))">
                 <div style="font-size:60px; text-align:center;">
                     <MudIcon Icon="@Icons.Material.Filled.Folder" />
                 </div>
             </div>
-            <div class="audio-item-bottom">
+            <div class="da-body">
                 @if (_renamingFolder == folder)
                 {
                     <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
@@ -453,7 +437,7 @@ else if (_breadcrumb.Any())
                     </MudStack>
                 }
             </div>
-        </div>;
+        </article>;
     };
 
     // modal helpers
@@ -598,6 +582,17 @@ else if (_breadcrumb.Any())
     // Checkboxes only exist while selecting, so a card stays a card the rest of
     // the time.
     private bool _selectionMode;
+
+    // Items whose player is running, so their card hero animates while playing.
+    private readonly HashSet<Guid> _playingIds = new();
+
+    bool IsPlaying(DAAudioItem item) => _playingIds.Contains(item.Id);
+
+    void SetPlaying(DAAudioItem item, bool playing)
+    {
+        if (playing) _playingIds.Add(item.Id);
+        else _playingIds.Remove(item.Id);
+    }
 
     bool IsSelected(DAAudioItem item) => _selectedIds.Contains(item.Id);
 

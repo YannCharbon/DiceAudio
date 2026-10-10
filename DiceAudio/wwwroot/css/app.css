@@ -179,3 +179,352 @@ h1:focus {
         transform: rotate(360deg);
     }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Shared audio-item card ("hero card") — AudioExplorer and AudioPicker.
+   Replaces the old .audio-item-* and .sap-item-* rules. color-mix() is
+   deliberately avoided: Android System WebView may predate it, and a dropped
+   background declaration would leave a transparent card.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.da-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(248px, 1fr));
+    gap: 12px;
+    margin-bottom: 10px;
+}
+
+/* Kind tint — set on the card root, inherited by everything inside it. */
+.da-k-music { --kc:#e73c7e; --kc-a:rgba(231,60,126,.62); --kc-b:rgba(231,60,126,.18); --kc-edge:rgba(231,60,126,.60); }
+.da-k-amb   { --kc:#23a6d5; --kc-a:rgba(35,166,213,.62); --kc-b:rgba(35,166,213,.18); --kc-edge:rgba(35,166,213,.60); }
+.da-k-sfx   { --kc:#23a6ab; --kc-a:rgba(35,166,171,.62); --kc-b:rgba(35,166,171,.18); --kc-edge:rgba(35,166,171,.60); }
+
+.da-card {
+    background: #12121f;
+    border: 1px solid #2a2a4a;
+    border-radius: 12px;
+    overflow: hidden;
+    position: relative;
+    isolation: isolate;
+    display: flex;
+    flex-direction: column;
+    transition: border-color .2s;
+}
+.da-card:hover { border-color: #444470; }
+.da-card.playing { border-color: var(--kc-edge, #444470); }
+
+/* Selection rings are overlay elements, never `box-shadow: inset` — an inset
+   shadow paints beneath child backgrounds, so the hero would hide its top
+   edge and only the card's outer rim would show. */
+.da-card.marked::after,
+.da-card.added::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 12px;
+    border: 2px solid transparent;
+    pointer-events: none;
+    z-index: 10;
+}
+.da-card.marked::after { border-color: #23a6d5; }
+.da-card.added::after  { border-color: #4caf50; }
+
+/* ── hero ───────────────────────────────────────────────────────────────── */
+.da-hero {
+    position: relative;
+    height: 114px;             /* fixed, so a row of cards never goes ragged */
+    padding: 9px 11px;
+    display: flex;
+    align-items: flex-end;
+    background-color: #0d0d1a;
+    background-image: linear-gradient(145deg, var(--kc-a), var(--kc-b) 72%, transparent);
+}
+/* Only the app's own three colours — kind tint, primary pink, info blue,
+   secondary teal. No orange. */
+.da-card.playing .da-hero {
+    background-image: linear-gradient(-45deg,
+        var(--kc-a), rgba(231,60,126,.75), rgba(35,166,213,.85), rgba(35,166,171,.9));
+    background-size: 400% 400%;
+    animation: da-gradient-shift 3.2s ease infinite;
+}
+.da-name {
+    position: relative;
+    z-index: 2;
+    color: #fff;
+    font-size: 14px;
+    font-weight: bold;
+    line-height: 1.3;
+    padding-right: 34px;        /* clears the kind badge */
+    text-shadow: 0 1px 4px rgba(0,0,0,.85);
+    overflow-wrap: anywhere;
+    display: -webkit-box;
+    /* Four lines is what the 114px hero holds while the top line still
+       starts below the kind badge and the selection checkbox. */
+    -webkit-line-clamp: 4;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+/* Kind badge — icon only; the label unfurls on hover. Click cycles the kind. */
+.da-kind {
+    position: absolute;
+    top: 7px;
+    right: 7px;
+    z-index: 2;
+    height: 26px;
+    padding: 0 5px;
+    gap: 0;
+    display: inline-flex;
+    align-items: center;
+    border-radius: 20px;
+    color: #fff;
+    background: rgba(4,0,32,.5);
+    border: 1px solid rgba(255,255,255,.22);
+    font-size: 10.5px;
+    font-weight: bold;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: background .15s, border-color .15s, gap .18s;
+}
+.da-kind-label {
+    max-width: 0;
+    opacity: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    transition: max-width .18s ease, opacity .15s;
+}
+.da-kind:hover, .da-kind:focus-visible { background: rgba(4,0,32,.85); border-color: rgba(255,255,255,.55); gap: 5px; }
+.da-kind:hover .da-kind-label, .da-kind:focus-visible .da-kind-label { max-width: 96px; opacity: 1; }
+.da-kind:focus-visible { outline: 2px solid #fff; outline-offset: 1px; }
+/* In the picker the badge is inert, so the whole hero is one selection target
+   (and, getting no hover, it never unfurls its label). */
+.da-picker .da-kind { pointer-events: none; cursor: default; }
+
+/* ── body ───────────────────────────────────────────────────────────────── */
+.da-body {
+    flex: 1;
+    padding: 9px 11px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+/* The tag block absorbs whatever slack the grid row leaves, so the player and
+   the action buttons stay glued together instead of drifting apart. */
+.da-tags {
+    flex: 1;
+    display: flex;
+    flex-wrap: wrap;
+    align-content: flex-start;
+    gap: 5px;
+}
+.da-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 7px;
+    border-radius: 5px;
+    font-size: 11px;
+    line-height: 1;
+    white-space: nowrap;
+    color: var(--tcf);
+    background: var(--tcb);
+    border: 1px solid var(--tcl);
+}
+.da-chip .da-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--tc); flex: none; }
+.cat-type    { --tc:#23a6ab; --tcf:#8ddfe2; --tcb:rgba(35,166,171,.15);  --tcl:rgba(35,166,171,.38); }
+.cat-loc     { --tc:#7a8cf0; --tcf:#c2cbff; --tcb:rgba(122,140,240,.15); --tcl:rgba(122,140,240,.38); }
+.cat-expr    { --tc:#c86ee8; --tcf:#e9c2f5; --tcb:rgba(200,110,232,.15); --tcl:rgba(200,110,232,.38); }
+.cat-unknown { --tc:#8b8ba6; --tcf:#cfcfdd; --tcb:rgba(139,139,166,.15); --tcl:rgba(139,139,166,.38); }
+
+.da-offline { font-size: 11px; color: #f0a03c; display: flex; align-items: center; gap: 4px; }
+.da-err { font-size: 11px; color: #ff6b6b; line-height: 1.35; overflow-wrap: anywhere; }
+
+/* ── transport ──────────────────────────────────────────────────────────── */
+/* Transport: the command buttons sit centred above the progress bar. */
+.da-transport { display: flex; flex-direction: column; gap: 6px; }
+.da-transport-btns { display: flex; justify-content: center; align-items: center; gap: 8px; }
+.da-transport-seek { display: flex; align-items: center; gap: 8px; }
+
+.da-cmd-btn-sm {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 38px; height: 38px; border-radius: 50%; flex: none;
+    background: #1e1e38; border: 2px solid #363660;
+    cursor: pointer; user-select: none; padding: 0;
+    transition: background .15s, border-color .15s;
+}
+.da-cmd-btn-sm:hover { background: #2e2e58; border-color: #5555aa; }
+.da-cmd-btn-sm:focus-visible { outline: 2px solid #23a6d5; outline-offset: 2px; }
+.da-cmd-btn-sm:disabled { opacity: .35; cursor: not-allowed; }
+.da-cmd-btn-sm:disabled:hover { background: #1e1e38; border-color: #363660; }
+.da-card.playing .da-cmd-btn-sm.da-pp { border-color: rgba(240,160,60,.5); }
+
+/* Seek track: a native range input, so dragging, touch and keys come free. */
+.da-track { position: relative; flex: 1; min-width: 34px; }
+.da-range {
+    -webkit-appearance: none; appearance: none;
+    display: block; width: 100%; height: 16px;
+    background: transparent; margin: 0; cursor: pointer;
+}
+.da-range:focus { outline: none; }
+.da-range::-webkit-slider-runnable-track {
+    height: 4px; border-radius: 3px;
+    background: linear-gradient(90deg, var(--kc, #e73c7e), #23a6d5) 0 / var(--pp, 0%) no-repeat, #2a2a44;
+}
+.da-range::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 12px; height: 12px; margin-top: -4px;
+    border-radius: 50%; background: #fff;
+    border: 2px solid var(--kc, #e73c7e);
+    box-shadow: 0 1px 5px rgba(0,0,0,.7);
+    transition: transform .12s;
+}
+.da-range:hover::-webkit-slider-thumb, .da-range:active::-webkit-slider-thumb { transform: scale(1.25); }
+.da-range:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px rgba(35,166,213,.55); }
+.da-range::-moz-range-track { height: 4px; border-radius: 3px; background: #2a2a44; }
+.da-range::-moz-range-progress { height: 4px; border-radius: 3px; background: var(--kc, #e73c7e); }
+.da-range::-moz-range-thumb {
+    width: 12px; height: 12px; border-radius: 50%;
+    background: #fff; border: 2px solid var(--kc, #e73c7e);
+}
+
+/* Timestamp bubble — follows the thumb while you scrub. */
+.da-bubble {
+    position: absolute;
+    bottom: 17px;
+    left: var(--pp, 0%);
+    transform: translateX(-50%);
+    padding: 2px 6px;
+    border-radius: 5px;
+    background: #07070f;
+    color: #fff;
+    border: 1px solid #444470;
+    font-size: 10.5px;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .12s;
+}
+.da-track:hover .da-bubble,
+.da-track:focus-within .da-bubble { opacity: 1; }
+
+.da-time { flex: none; font-size: 11px; color: rgba(255,255,255,.54); font-variant-numeric: tabular-nums; }
+.da-time b { color: rgba(255,255,255,.88); }
+
+/* ── row actions ────────────────────────────────────────────────────────── */
+.da-acts { display: flex; align-items: center; gap: 3px; }
+.da-ib {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 29px; height: 29px; border-radius: 7px; flex: none;
+    background: transparent; border: 1px solid transparent;
+    color: rgba(255,255,255,.54);
+    cursor: pointer; padding: 0;
+    transition: background .15s, color .15s, border-color .15s;
+}
+.da-ib:hover { background: #1e1e34; border-color: #444470; color: rgba(255,255,255,.88); }
+.da-ib.danger:hover { color: #f44336; border-color: #5a2a2a; }
+.da-ib:focus-visible { outline: 2px solid #23a6d5; outline-offset: 1px; }
+
+/* ── selection A: explorer batch — blue, square checkbox, top-left ──────── */
+.da-selbox {
+    position: absolute; top: 6px; left: 6px; z-index: 3;
+    width: 26px; height: 26px; border-radius: 7px;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(4,0,32,.55); border: 1px solid rgba(255,255,255,.22);
+    cursor: pointer;
+}
+.da-selbox input {
+    -webkit-appearance: none; appearance: none;
+    position: relative; width: 16px; height: 16px; margin: 0;
+    border: 2px solid #fff; border-radius: 3px;
+    background: transparent; cursor: pointer;
+}
+.da-selbox input:checked { background: #23a6d5; border-color: #23a6d5; }
+.da-selbox input:checked::after {
+    content: "";
+    position: absolute; left: 3px; top: 0px;
+    width: 4px; height: 8px;
+    border: solid #fff; border-width: 0 2px 2px 0;
+    transform: rotate(40deg);
+}
+.da-selbox input:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.da-selectable .da-hero { cursor: pointer; }
+.da-card.marked { background: #16202f; }
+.da-card.marked .da-hero::after {
+    content: ""; position: absolute; inset: 0;
+    background: rgba(35,166,213,.24);
+}
+
+/* ── selection B: picker inclusion — green, round check, bottom-right ───── */
+.da-picker .da-hero { cursor: pointer; }
+.da-picker .da-name { padding-right: 42px; }
+.da-picker .da-hero::before {
+    content: ""; position: absolute; inset: 0; z-index: 1;
+    background: rgba(255,255,255,0);
+    transition: background .15s;
+}
+.da-picker .da-card:hover .da-hero::before { background: rgba(255,255,255,.07); }
+.da-pickmark {
+    position: absolute; right: 8px; bottom: 8px; z-index: 3;
+    width: 28px; height: 28px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(4,0,32,.45);
+    border: 2px dashed rgba(255,255,255,.55);
+    color: rgba(255,255,255,.8);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .15s, background .15s, border-color .15s, color .15s;
+}
+.da-picker .da-card:hover .da-pickmark { opacity: 1; }
+.da-card.added .da-pickmark {
+    opacity: 1;
+    background: #4caf50;
+    border-style: solid;
+    border-color: #fff;
+    color: #fff;
+}
+.da-card.added .da-hero::after {
+    content: ""; position: absolute; inset: 0;
+    background: rgba(76,175,80,.26);
+}
+
+/* ── folder cards: the original look — full gradient over a deep navy body ── */
+.da-card.da-folder {
+    align-self: start;
+    background: #040020;
+    border: 0;
+    border-radius: 10px;
+}
+.da-card.da-folder:hover { border: 0; }
+.da-folder .da-hero {
+    height: 100px;
+    padding: 10px;
+    border-radius: 10px 10px 0 0;
+    background-color: transparent;
+    background-image: linear-gradient(-45deg, rgba(238,119,82,.2), rgba(231,60,126,.6),
+                      rgba(35,166,213,.9), rgba(35,166,171,1));
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    cursor: pointer;
+}
+.da-folder .da-body {
+    background: #040020;
+    border-radius: 0 0 10px 10px;
+    padding: 10px;
+    font-size: small;
+    color: #fff;
+    gap: 4px;
+}
+/* The picker's folder tiles are shorter, but carry the same full-strength
+   gradient as the explorer's — the old washed-out variant read as disabled. */
+.da-picker .da-folder .da-hero,
+.da-picker-folders .da-folder .da-hero {
+    height: 70px;
+    border-radius: 8px 8px 0 0;
+}
+.da-picker-folders .da-card.da-folder,
+.da-picker .da-card.da-folder { border-radius: 8px; }
+.da-picker-folders .da-folder .da-body,
+.da-picker .da-folder .da-body { border-radius: 0 0 8px 8px; padding: 8px; }

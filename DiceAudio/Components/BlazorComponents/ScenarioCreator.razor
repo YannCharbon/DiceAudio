@@ -85,7 +85,8 @@
     <div class="sc-left">
         @* Scenario name *@
         <div class="sc-name-field">
-            <MudTextField @bind-Value="Scenario.Name" Label="Scenario" Variant="Variant.Outlined"
+            <MudTextField T="string" Value="Scenario.Name" ValueChanged="OnNameChanged"
+                          Label="Scenario" Variant="Variant.Outlined"
                           Margin="Margin.Dense" Style="width:100%;" />
         </div>
 
@@ -199,10 +200,17 @@
 
     void OnPlayerStateChanged() => InvokeAsync(StateHasChanged);
 
+    void OnNameChanged(string name)
+    {
+        Scenario.Name = name ?? string.Empty;
+        DAService.RequestScenarioGroupsSave();
+    }
+
     void CreateNewItem()
     {
         Scenario.Items.Add(new DAScenarioItem());
         _player?.Initialize();   // reconciles; never interrupts playback
+        DAService.RequestScenarioGroupsSave();
         StateHasChanged();
     }
 
@@ -212,6 +220,7 @@
         if (item == null) return;
         Scenario.Items.Add(item);
         _player?.Initialize();
+        DAService.RequestScenarioGroupsSave();
         StateHasChanged();
     }
 
@@ -219,12 +228,13 @@
     {
         Scenario.Items.Remove(item);
         _player?.Initialize();
+        DAService.RequestScenarioGroupsSave();
         StateHasChanged();
     }
 
     // Reorder item cards via drag and drop. Players are keyed by item id, so
     // moving an item in the list never interrupts playback — only the order
-    // (and thus what "skip to next" plays) changes. Persisted on the next Save.
+    // (and thus what "skip to next" plays) changes.
     void OnItemsReordered((int oldIndex, int newIndex) move)
     {
         var (oldIndex, newIndex) = move;
@@ -236,12 +246,14 @@
         var item = Scenario.Items[oldIndex];
         Scenario.Items.RemoveAt(oldIndex);
         Scenario.Items.Insert(newIndex, item);
+        DAService.RequestScenarioGroupsSave();
         StateHasChanged();
     }
 
     void OnItemEditorClosed()
     {
         _player?.Initialize();
+        DAService.RequestScenarioGroupsSave();
         StateHasChanged();
     }
 

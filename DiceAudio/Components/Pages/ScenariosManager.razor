@@ -147,10 +147,6 @@ else
                 </MudChip>
             }
 
-            <MudButton Variant="Variant.Filled" Color="Color.Success"
-                       StartIcon="@Icons.Material.Filled.Save"
-                       OnClick="Save">Save</MudButton>
-
             <MudButton Variant="Variant.Filled" Color="Color.Secondary"
                        StartIcon="@Icons.Material.Filled.Settings"
                        OnClick="() => _groupSettings?.Show()">Settings</MudButton>
@@ -298,11 +294,6 @@ else
             _group = DAService.ScenarioGroups.FirstOrDefault(g => g.Id == id);
     }
 
-    async Task Save()
-    {
-        await DAService.SaveScenarioGroupsAsync();
-    }
-
     void StartRename()
     {
         _nameEdit = _group?.Name ?? string.Empty;
@@ -310,7 +301,7 @@ else
     }
 
     /// Applied to a scratch field so cancelling really leaves the name alone.
-    async Task ConfirmRename()
+    void ConfirmRename()
     {
         _renamingGroup = false;
 
@@ -318,12 +309,13 @@ else
         if (_group == null || newName.Length == 0 || newName == _group.Name) return;
 
         _group.Name = newName;
-        await DAService.SaveScenarioGroupsAsync();
+        DAService.RequestScenarioGroupsSave();
     }
 
     void AddScenario()
     {
         _group?.Scenarios.Add(new DAScenario());
+        DAService.RequestScenarioGroupsSave();
         StateHasChanged();
     }
 
@@ -342,6 +334,7 @@ else
             _group.Scenarios.RemoveAt(idx);
             _group.Scenarios.Insert(idx + 1, scenario);
         }
+        DAService.RequestScenarioGroupsSave();
         StateHasChanged();
     }
 
@@ -349,10 +342,11 @@ else
     {
         Coordinator.RemoveScenarioPlayer(scenario);   // stop + dispose its audio
         _group?.Scenarios.Remove(scenario);
+        DAService.RequestScenarioGroupsSave();
         StateHasChanged();
     }
 
-    void DeleteGroup()
+    async Task DeleteGroup()
     {
         if (_group != null)
         {
@@ -360,6 +354,9 @@ else
                 Coordinator.RemoveScenarioPlayer(scenario);
             DAService.ScenarioGroups.Remove(_group);
         }
+        // Awaited rather than queued: the page is about to go away, and the
+        // deletion must not sit in a pending auto-save.
+        await DAService.SaveScenarioGroupsAsync();
         NavManager.NavigateTo("scenarios");
     }
 
@@ -370,6 +367,7 @@ else
         if (_group == null) return;
         var scene = new DAScene { Name = "New local scene" };
         _group.LocalScenes.Add(scene);
+        DAService.RequestScenarioGroupsSave();
         _sceneEditor?.Show(scene);
     }
 
@@ -380,6 +378,7 @@ else
         var scene = preset.ToScene();   // independent deep copy, fresh ids
         if (scene == null || _group == null) return;
         _group.LocalScenes.Add(scene);
+        DAService.RequestScenarioGroupsSave();
         StateHasChanged();
     }
 
@@ -390,6 +389,7 @@ else
         var copy = DAPreset.FromScene(source).ToScene();
         if (copy == null || _group == null) return;
         _group.LocalScenes.Add(copy);
+        DAService.RequestScenarioGroupsSave();
         StateHasChanged();
     }
 
@@ -399,6 +399,7 @@ else
         if (copy == null || _group == null) return;
         copy.Name = scene.Name + " (copy)";
         _group.LocalScenes.Add(copy);
+        DAService.RequestScenarioGroupsSave();
         StateHasChanged();
     }
 
@@ -434,12 +435,16 @@ else
             item.LocalSceneId = null;
         }
         _group.LocalScenes.Remove(scene);
+        DAService.RequestScenarioGroupsSave();
         RefreshPlayers();
         StateHasChanged();
     }
 
     void OnLocalSceneEditorClosed()
     {
+        // The editor writes straight into the local scene, which belongs to the
+        // group, so closing it is a change of the group like any other.
+        DAService.RequestScenarioGroupsSave();
         RefreshPlayers();
         StateHasChanged();
     }

@@ -331,13 +331,74 @@ namespace DiceAudio
 
         private static string scenarioGroupsFilePath = Path.Combine(FileSystem.AppDataDirectory, "scenarioGroups.json");
 
+        /// <summary>
+        /// One writer at a time: the scenario pages save on every change, and the
+        /// app lifecycle saves on its own, so two writes to the same file could
+        /// otherwise overlap and fail.
+        /// </summary>
+        private readonly SemaphoreSlim _scenarioGroupsWriteGate = new(1, 1);
+
         public async Task SaveScenarioGroupsAsync()
         {
             await _loaded;
 
-            string json = JsonSerializer.Serialize(ScenarioGroups, WriteOptions);
-            await File.WriteAllTextAsync(scenarioGroupsFilePath, json);
-            Debug.WriteLine($"Write file to {scenarioGroupsFilePath}");
+            await _scenarioGroupsWriteGate.WaitAsync();
+            try
+            {
+                string json = JsonSerializer.Serialize(ScenarioGroups, WriteOptions);
+                await File.WriteAllTextAsync(scenarioGroupsFilePath, json);
+                Debug.WriteLine($"Write file to {scenarioGroupsFilePath}");
+            }
+            finally
+            {
+                _scenarioGroupsWriteGate.Release();
+            }
+        }
+
+        /// <summary>Idle time before an auto-save actually writes.</summary>
+        private const int AutoSaveDelayMs = 600;
+
+        private CancellationTokenSource? _scenarioGroupsAutoSave;
+
+        /// <summary>
+        /// Saves the scenario groups a moment from now, without the caller
+        /// waiting for the file: this is the auto-save the scenario pages use
+        /// instead of a Save button. Successive calls restart the delay, so a
+        /// burst of changes — typing a name, dragging cards around — ends in a
+        /// single write. Callers that need the file on disk right away, such as
+        /// a deletion before leaving the page, await
+        /// <see cref="SaveScenarioGroupsAsync"/> instead.
+        /// </summary>
+        public void RequestScenarioGroupsSave()
+        {
+            var previous = _scenarioGroupsAutoSave;
+            var cts = new CancellationTokenSource();
+            _scenarioGroupsAutoSave = cts;
+
+            previous?.Cancel();
+            previous?.Dispose();
+
+            _ = AutoSaveScenarioGroupsAsync(cts.Token);
+        }
+
+        private async Task AutoSaveScenarioGroupsAsync(CancellationToken token)
+        {
+            try
+            {
+                await Task.Delay(AutoSaveDelayMs, token);
+                await SaveScenarioGroupsAsync();
+            }
+            catch (OperationCanceledException)
+            {
+                // A later change superseded this write; that one saves instead.
+            }
+            catch (Exception ex)
+            {
+                // An auto-save has no UI to report to, and losing the write is
+                // better than taking the app down: the next change tries again,
+                // and so does the save on app shutdown.
+                Debug.WriteLine($"Scenario groups auto-save failed: {ex.Message}");
+            }
         }
 
         public async Task LoadScenarioGroupsAsync()

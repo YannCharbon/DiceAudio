@@ -127,6 +127,7 @@
     {
         if (Group == null) return;
         Group.StopOtherScenariosOnPlay = value;
+        DAService.RequestScenarioGroupsSave();
         StateHasChanged();
     }
 

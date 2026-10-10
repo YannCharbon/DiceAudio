@@ -17,17 +17,21 @@
  * Vanilla JS, no dependencies. Talks to the DiceAudio control server
  * (enable it in DiceAudio → Settings → Remote control).
  *
- * Layout — a fixed 2×2 grid, wide rather than tall:
+ * Layout — two rows, wide rather than tall, splitting at different points:
  *
- *   ┌────────────────────────┬─────────────────────────────┐
- *   │ icon + scenario        │ player · volume · status    │
- *   ├────────────────────────┼─────────────────────────────┤
- *   │ item                   │ scene steps / contexts      │
- *   └────────────────────────┴─────────────────────────────┘
+ *   ┌──────────────────────┬──────────────────────────┐
+ *   │ icon group · scenario│ player · volume · status │
+ *   ├───────────┬──────────┴──────────────────────────┤
+ *   │ item      │ scene steps / contexts              │
+ *   └───────────┴────────────────────────────────────┘
  *
- * The left column is one cell holding both selects in a fixed-gap stack, so a
- * cue row that wraps never pushes them apart. Cues wrap centred; nothing
- * scrolls. Below ~500 px the grid collapses to a single column.
+ * The rows are independent: the top one breaks at the right edge of the scenario
+ * dropdown, the bottom one at the right edge of the item, so the cue cell starts
+ * immediately right of the item rather than waiting for the wider row above.
+ * Group, scenario and item are all one width (--da-sel-w), with the item lined
+ * up under the group. Picking a group narrows the scenario list, which would
+ * otherwise be one flat pile of every scenario in the app. Cues wrap centred;
+ * nothing scrolls. Below ~620 px the grid collapses to a single column.
  *
  * The selected scenario item of every widget instance is persisted in
  * localStorage, keyed by the hosting note and the widget's position on the
@@ -93,37 +97,60 @@
   .da-grid.da-live { animation: none; }   /* keep the tint, drop the movement */
 }
 
-/* ── the grid ── */
+/* ── the grid ──
+   Three columns carrying two rows that break in different places: the top row at
+   the right edge of the scenario dropdown, the bottom row at the right edge of
+   the item. Neither row is held to the other's width, and the cue cell gets
+   everything right of the item.
+
+     ┌──────────────────────┬──────────────────────────┐
+     │ icon group · scenario│ player · volume · status │
+     ├───────────┬──────────┴──────────────────────────┤
+     │ item      │ scene steps / contexts              │
+     └───────────┴────────────────────────────────────┘
+       col 1       col 2      col 3                                */
 .da-grid {
+  --da-sel-w: 130px;    /* one width for group, scenario and item alike */
+  --da-gutter: 24px;    /* the logo, and the pad that puts the item under the group */
+  --da-gap: 9px;        /* between controls inside a row */
+  --da-col-gap: 14px;   /* between the dropdowns and what sits right of them */
   display: grid;
-  grid-template-columns: 240px minmax(0, 1fr);
+  grid-template-columns:
+    calc(var(--da-gutter) + var(--da-gap) + var(--da-sel-w))   /* ends at the item's right edge */
+    calc(var(--da-gap) + var(--da-sel-w) - var(--da-col-gap))  /* ends at the scenario's right edge */
+    minmax(0, 1fr);
   grid-template-rows: auto auto;
-  column-gap: 14px; row-gap: 8px;
+  column-gap: var(--da-col-gap); row-gap: 8px;
   background: var(--da-bg); border: 1px solid var(--da-line); border-radius: 14px;
   padding: 9px 12px; box-shadow: var(--da-shadow);
 }
-.da-stack { grid-area: 1 / 1 / span 2 / span 1; display: flex; flex-direction: column;
-  gap: 8px; min-width: 0; align-self: center; }
-.da-row { display: flex; align-items: center; gap: 9px; min-width: 0; }
-.da-pad { width: 24px; flex: none; }
-.da-top { grid-area: 1 / 2; display: flex; align-items: center; gap: 9px; min-width: 0;
-  justify-content: center; }
-.da-cues { grid-area: 2 / 2; display: flex; align-items: center; justify-content: center;
-  gap: 6px; flex-wrap: wrap; min-width: 0; }
-@container (max-width: 500px) {
+.da-row { display: flex; align-items: center; gap: var(--da-gap); min-width: 0; }
+.da-sel-row { grid-area: 1 / 1 / span 1 / span 2; align-self: center; }
+.da-item-row { grid-area: 2 / 1; align-self: start; }
+.da-pad { width: var(--da-gutter); flex: none; }
+/* Wraps rather than overflows when a narrow note leaves column 3 short. */
+.da-top { grid-area: 1 / 3; display: flex; align-items: center; gap: var(--da-gap);
+  min-width: 0; justify-content: center; flex-wrap: wrap; }
+.da-cues { grid-area: 2 / 2 / span 1 / span 2; display: flex; align-items: center;
+  justify-content: center; gap: 6px; flex-wrap: wrap; min-width: 0; }
+@container (max-width: 620px) {
   .da-grid { grid-template-columns: 1fr; }
-  .da-stack, .da-top, .da-cues { grid-area: auto; }
+  .da-sel-row, .da-item-row, .da-top, .da-cues { grid-area: auto; }
 }
 
-.da-logo { width: 24px; height: 24px; flex: none; display: block; }
+.da-logo { width: var(--da-gutter); height: 24px; flex: none; display: block; }
 
 /* ── selects ── */
-.da-sel { appearance: none; -webkit-appearance: none; width: 100%; height: 30px;
+.da-sel { appearance: none; -webkit-appearance: none; width: 100%; min-width: 0; height: 30px;
   padding: 0 22px 0 9px; font-size: 12.5px; cursor: pointer; text-overflow: ellipsis;
   color: var(--da-txt); border: 1px solid var(--da-line-2); border-radius: 8px;
   background: var(--da-bg-2) url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M7 10l5 5 5-5z' fill='%238b93ab'/></svg>") no-repeat right 2px center / 16px; }
 .da-sel:focus { outline: none; border-color: var(--da-accent); }
-.da-scenario { color: var(--da-txt-dim); font-size: 12px; }
+/* All three are --da-sel-w wide, which is also what the grid columns are built
+   from, so the rows line up without either one stretching to match the other.
+   They may shrink, never grow, so a cramped note narrows them evenly. */
+.da-group, .da-scenario, .da-item { flex: 0 1 var(--da-sel-w); }
+.da-group, .da-scenario { color: var(--da-txt-dim); font-size: 12px; }
 .da-item { font-weight: 600; }
 
 /* ── transport ── */
@@ -150,7 +177,7 @@
 /* ── volume ── */
 .da-vol { display: flex; align-items: center; gap: 7px; min-width: 0; }
 .da-slider { -webkit-appearance: none; appearance: none; background: transparent;
-  cursor: pointer; height: 16px; width: 96px; min-width: 54px; margin: 0; flex: none; }
+  cursor: pointer; height: 16px; min-width: 54px; margin: 0; flex: 0 1 96px; }
 .da-slider::-webkit-slider-runnable-track { height: 4px; border-radius: 99px;
   background: linear-gradient(90deg, var(--da-accent) var(--da-p, 100%), var(--da-line-2) var(--da-p, 100%)); }
 .da-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 12px;
@@ -221,27 +248,30 @@
         const grid = el('div', 'da-grid');
         root.appendChild(grid);
 
-        // left column — one cell, both selects in a fixed-gap stack
-        const stack = el('div', 'da-stack');
-        const scenarioRow = el('div', 'da-row');
+        // top row — logo, group, scenario
+        const scenarioRow = el('div', 'da-row da-sel-row');
         const logo = el('img', 'da-logo');
         logo.src = LOGO_URI;
         logo.alt = 'DiceAudio';
         logo.title = 'DiceAudio remote control';
+        const groupSelect = el('select', 'da-sel da-group');
+        groupSelect.title = 'Scenario group';
         const scenarioSelect = el('select', 'da-sel da-scenario');
         scenarioSelect.title = 'Scenario';
         scenarioRow.appendChild(logo);
+        scenarioRow.appendChild(groupSelect);
         scenarioRow.appendChild(scenarioSelect);
 
-        const itemRow = el('div', 'da-row');
+        // second row — the item, lined up under the group; the cue cell picks up
+        // immediately right of it
+        const itemRow = el('div', 'da-row da-item-row');
         const itemSelect = el('select', 'da-sel da-item');
         itemSelect.title = 'Item';
         itemRow.appendChild(el('span', 'da-pad'));
         itemRow.appendChild(itemSelect);
 
-        stack.appendChild(scenarioRow);
-        stack.appendChild(itemRow);
-        grid.appendChild(stack);
+        grid.appendChild(scenarioRow);
+        grid.appendChild(itemRow);
 
         // top right — transport, volume, status
         const top = el('div', 'da-top');
@@ -271,12 +301,13 @@
         top.appendChild(status);
         grid.appendChild(top);
 
-        // bottom right — scene cues, or what is playing
+        // second row, right of the item — scene cues, or what is playing
         const cueCell = el('div', 'da-cues');
         grid.appendChild(cueCell);
 
         // ── Data / state ────────────────────────────────────────────────────
-        let scenarios = [];      // { id, name, items: [{ id, name, type, mode, steps }] }
+        // The API shape, kept as it arrives: groups own scenarios, scenarios own items.
+        let groups = [];         // { id, name, scenarios: [{ id, name, items: [{ id, name, type, mode, steps }] }] }
         let cueButtons = [];     // rendered chips of the selected scene
         let disposed = false;
         let connected = true;
@@ -290,8 +321,14 @@
         let volumeHeldUntil = 0;
         let volumeSendTimer = null;
 
+        function selectedGroup() {
+            return groups[groupSelect.selectedIndex] || null;
+        }
+
         function selectedScenario() {
-            return scenarios[scenarioSelect.selectedIndex] || null;
+            const group = selectedGroup();
+            if (!group) return null;
+            return group.scenarios[scenarioSelect.selectedIndex] || null;
         }
 
         function playingSelectedItem() {
@@ -310,9 +347,18 @@
 
         // ── Rendering ───────────────────────────────────────────────────────
 
+        function renderGroups() {
+            groupSelect.innerHTML = '';
+            groups.forEach(function (group) {
+                groupSelect.appendChild(option(group.name));
+            });
+        }
+
         function renderScenarios() {
+            const group = selectedGroup();
             scenarioSelect.innerHTML = '';
-            scenarios.forEach(function (scenario) {
+            if (!group) return;
+            group.scenarios.forEach(function (scenario) {
                 scenarioSelect.appendChild(option(scenario.name));
             });
         }
@@ -324,6 +370,17 @@
             scenario.items.forEach(function (item) {
                 itemSelect.appendChild(option(item.name));
             });
+        }
+
+        // All three share one narrow column, so any of the names can end up
+        // ellipsised; the tooltip carries the whole thing.
+        function renderSelectTitles() {
+            const group = selectedGroup();
+            const scenario = selectedScenario();
+            const item = selectedItem();
+            groupSelect.title = group ? 'Scenario group \u2014 ' + group.name : 'Scenario group';
+            scenarioSelect.title = scenario ? 'Scenario \u2014 ' + scenario.name : 'Scenario';
+            itemSelect.title = item ? 'Item \u2014 ' + item.name : 'Item';
         }
 
         // Cue chips for the selected item: contexts (contextual scenes) or
@@ -427,12 +484,13 @@
         // ── Selection persistence ───────────────────────────────────────────
 
         function saveSelection() {
+            const group = selectedGroup();
             const scenario = selectedScenario();
             const item = selectedItem();
-            if (!scenario) return;
+            if (!group || !scenario) return;
             try {
                 localStorage.setItem(storageKey, JSON.stringify({
-                    scenarioId: scenario.id, itemId: item ? item.id : null
+                    groupId: group.id, scenarioId: scenario.id, itemId: item ? item.id : null
                 }));
             } catch (e) { /* storage unavailable — selection just won't persist */ }
         }
@@ -443,12 +501,31 @@
             catch (e) { }
             if (!saved) return;
 
+            // Selections written before the group dropdown existed name only the
+            // scenario; find the group holding it so those notes keep their player.
+            let groupIndex = groups.findIndex(function (group) {
+                return group.id === saved.groupId;
+            });
+            if (groupIndex < 0) {
+                groupIndex = groups.findIndex(function (group) {
+                    return group.scenarios.some(function (scenario) {
+                        return scenario.id === saved.scenarioId;
+                    });
+                });
+            }
+            if (groupIndex < 0) return;
+            groupSelect.selectedIndex = groupIndex;
+            renderScenarios();
+
+            const scenarios = groups[groupIndex].scenarios;
             const scenarioIndex = scenarios.findIndex(function (scenario) {
                 return scenario.id === saved.scenarioId;
             });
-            if (scenarioIndex < 0) return;
-            scenarioSelect.selectedIndex = scenarioIndex;
+            // A saved scenario that is gone keeps the group and falls back to its
+            // first scenario, rather than back to the first group.
+            if (scenarioIndex >= 0) scenarioSelect.selectedIndex = scenarioIndex;
             renderItems();
+            if (scenarioIndex < 0) return;
 
             const itemIndex = scenarios[scenarioIndex].items.findIndex(function (item) {
                 return item.id === saved.itemId;
@@ -458,35 +535,41 @@
 
         // ── Server ──────────────────────────────────────────────────────────
 
-        // Groups still structure the API response; the widget flattens them —
-        // a scenario name is what identifies a selection during play.
-        async function loadScenarios() {
+        // The group level is kept as the first step of the picker: a library of
+        // many groups is unreadable as one flat scenario list. Scenarios with no
+        // items, and groups left with no scenarios, are dropped — there is
+        // nothing to play in them.
+        async function loadGroups() {
             try {
                 const res = await fetch(base + '/api/groups');
                 const data = await res.json();
-                scenarios = [];
-                (data.groups || []).forEach(function (group) {
-                    (group.scenarios || []).forEach(function (scenario) {
-                        scenarios.push({
-                            id: scenario.id,
-                            name: scenario.name,
-                            items: (scenario.items || []).map(function (item) {
-                                return {
-                                    id: item.id, name: item.name, type: item.type,
-                                    mode: item.sceneMode, steps: item.steps
-                                };
-                            })
-                        });
-                    });
-                });
-                scenarios = scenarios.filter(function (s) { return s.items.length; });
+                groups = (data.groups || []).map(function (group) {
+                    return {
+                        id: group.id,
+                        name: group.name,
+                        scenarios: (group.scenarios || []).map(function (scenario) {
+                            return {
+                                id: scenario.id,
+                                name: scenario.name,
+                                items: (scenario.items || []).map(function (item) {
+                                    return {
+                                        id: item.id, name: item.name, type: item.type,
+                                        mode: item.sceneMode, steps: item.steps
+                                    };
+                                })
+                            };
+                        }).filter(function (scenario) { return scenario.items.length; })
+                    };
+                }).filter(function (group) { return group.scenarios.length; });
 
                 connected = true;
+                renderGroups();
                 renderScenarios();
                 renderItems();
                 restoreSelection();
+                renderSelectTitles();
                 renderCues();
-                if (!scenarios.length) updateHint('No scenario items found in DiceAudio.', true);
+                if (!groups.length) updateHint('No scenario items found in DiceAudio.', true);
             } catch (e) {
                 connected = false;
                 setStatus('offline', 'DiceAudio not reachable on ' + base);
@@ -584,13 +667,23 @@
         }
 
         // ── Wiring ──────────────────────────────────────────────────────────
+        groupSelect.addEventListener('change', function () {
+            renderScenarios();
+            renderItems();
+            renderSelectTitles();
+            renderCues();
+            renderPlaybackState();
+            saveSelection();
+        });
         scenarioSelect.addEventListener('change', function () {
             renderItems();
+            renderSelectTitles();
             renderCues();
             renderPlaybackState();
             saveSelection();
         });
         itemSelect.addEventListener('change', function () {
+            renderSelectTitles();
             renderCues();
             renderPlaybackState();
             saveSelection();
@@ -638,7 +731,7 @@
 
         renderPlaybackState();
         renderVolume();
-        loadScenarios();
+        loadGroups();
         poll();
 
         return {

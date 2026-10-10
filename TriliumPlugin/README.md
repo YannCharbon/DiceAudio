@@ -124,24 +124,34 @@ DiceAudioWidgetJS.frontend
 
 ## Layout
 
-The widget is a fixed 2×2 grid — wide rather than tall, so it sits between two
+The widget is two rows — wide rather than tall, so it sits between two
 paragraphs without eating the note:
 
 ```text
-┌────────────────────────┬─────────────────────────────┐
-│ icon + scenario        │ player · volume · status    │
-├────────────────────────┼─────────────────────────────┤
-│ item                   │ scene steps / contexts      │
-└────────────────────────┴─────────────────────────────┘
+┌──────────────────────┬──────────────────────────┐
+│ icon group · scenario│ player · volume · status │
+├───────────┬──────────┴──────────────────────────┤
+│ item      │ scene steps / contexts              │
+└───────────┴────────────────────────────────────┘
 ```
 
-Nothing ever moves between cells. The left column is a single cell holding both
-dropdowns in a fixed-gap stack, so a cue row that wraps onto a second line never
-pushes them apart; cue chips wrap centred and nothing scrolls. Below ~500 px of
-note width the grid collapses to one column, in the same reading order.
+Nothing ever moves between cells, and the two rows are independent: the top one
+breaks at the right edge of the scenario dropdown, the bottom one at the right
+edge of the item, so the cue cell starts immediately right of the item instead
+of waiting for the wider row above. Cue chips wrap centred and nothing scrolls.
+Below ~620 px of note width the grid collapses to one column, in the same
+reading order.
 
-Scenarios are listed flat — the group level is not shown, since a scenario name
-is what identifies a selection during play.
+Picking is two steps: the **group** dropdown narrows the **scenario** dropdown
+beside it, and the scenario fills the item dropdown below. Without the group
+level a library of a few groups turns the scenario list into one unsorted pile.
+Groups with no playable item in any of their scenarios are left out, as are
+scenarios with no items.
+
+Group, scenario and item are all one width — `--da-sel-w` on `.da-grid`, 130 px,
+the single knob to turn if your names need more room — with the item lined up
+under the group. Any of the three names can be ellipsised, so each dropdown
+carries the full selected name as a tooltip.
 
 When the selected item is the one playing, the whole widget background runs the
 same sliding gradient the app shows behind a playing scenario item — same
@@ -172,8 +182,10 @@ server cannot fight the slider; otherwise it always shows the app's real level
 
 ## Widget state persistence
 
-Each widget instance remembers its selected scenario and item across note
-refreshes and Trilium restarts (stored in `localStorage`).
+Each widget instance remembers its selected group, scenario and item across note
+refreshes and Trilium restarts (stored in `localStorage`). Selections saved
+before the group dropdown existed are still restored: the widget looks up the
+group holding the stored scenario.
 
 ## Scene items
 

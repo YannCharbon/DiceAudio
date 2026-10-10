@@ -20,7 +20,7 @@ namespace DiceAudio
     public class YtDlpService
     {
         private readonly string _baseDirectory;
-        private readonly string _ytDlpPath;
+        private readonly string _bundledYtDlpPath;
         private readonly string _ffmpegPath;
         private readonly string _audioFilesDirectory;
         private Process? _process;
@@ -32,13 +32,80 @@ namespace DiceAudio
         /// </summary>
         private const string JsRuntimesArgs = "--js-runtimes deno --js-runtimes node --js-runtimes bun";
 
+        /// <summary>
+        /// Where <see cref="YtDlpUpdateService"/> keeps the yt-dlp it downloads.
+        /// The bundled binary sits in the install folder, which is read-only for a
+        /// packaged (MSIX) app, so updates land in the app data folder instead.
+        /// </summary>
+        public static string ManagedExecutablePath =>
+            Path.Combine(FileSystem.AppDataDirectory, "Tools", "yt-dlp.exe");
+
+        /// <summary>The yt-dlp that ships inside the application package.</summary>
+        public string BundledExecutablePath => _bundledYtDlpPath;
+
+        /// <summary>
+        /// The binary every yt-dlp call runs: the downloaded one when it exists,
+        /// otherwise the bundled one. Resolved per call so an update that lands
+        /// during this session takes effect immediately.
+        /// </summary>
+        public string ExecutablePath =>
+            File.Exists(ManagedExecutablePath) ? ManagedExecutablePath : _bundledYtDlpPath;
+
         public YtDlpService()
         {
             _baseDirectory = AppContext.BaseDirectory;
-            _ytDlpPath = Path.Combine(_baseDirectory, "Resources", "yt-dlp.exe");
+            _bundledYtDlpPath = Path.Combine(_baseDirectory, "Resources", "yt-dlp.exe");
             _ffmpegPath = Path.Combine(_baseDirectory, "Resources", "ffmpeg.exe");
             _audioFilesDirectory = Path.Combine(FileSystem.AppDataDirectory, "Audio");
             Directory.CreateDirectory(_audioFilesDirectory);
+        }
+
+        /// <summary>
+        /// Runs <c>yt-dlp --version</c>. Returns null when the binary is missing
+        /// or cannot run, which is how the updater tells a usable download from a
+        /// broken one.
+        /// </summary>
+        public async Task<string?> GetYtDlpVersionAsync(CancellationToken cancellationToken = default)
+        {
+            var path = ExecutablePath;
+            if (!File.Exists(path)) return null;
+
+            using var process = new Process
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = path,
+                    Arguments = "--version",
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    StandardOutputEncoding = System.Text.Encoding.UTF8,
+                    StandardErrorEncoding = System.Text.Encoding.UTF8
+                }
+            };
+
+            try
+            {
+                process.Start();
+                var output = await process.StandardOutput.ReadToEndAsync(cancellationToken);
+                await process.WaitForExitAsync(cancellationToken);
+
+                if (process.ExitCode != 0) return null;
+
+                var version = output.Trim();
+                return string.IsNullOrEmpty(version) ? null : version;
+            }
+            catch (OperationCanceledException)
+            {
+                try { if (!process.HasExited) process.Kill(true); } catch { }
+                throw;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Could not read the yt-dlp version: {ex.Message}");
+                return null;
+            }
         }
 
         public async Task<string> GetVideoTitleAsync(string youtubeUrl)
@@ -47,7 +114,7 @@ namespace DiceAudio
             {
                 StartInfo = new ProcessStartInfo
                 {
-                    FileName = _ytDlpPath,
+                    FileName = ExecutablePath,
                     Arguments = $"{JsRuntimesArgs} --print title \"{youtubeUrl}\"",
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
@@ -103,7 +170,7 @@ namespace DiceAudio
             {
                 StartInfo = new ProcessStartInfo
                 {
-                    FileName = _ytDlpPath,
+                    FileName = ExecutablePath,
                     Arguments = $"{JsRuntimesArgs} --flat-playlist --print url \"{playlistUrl}\"",
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
@@ -138,7 +205,7 @@ namespace DiceAudio
             {
                 StartInfo = new ProcessStartInfo
                 {
-                    FileName = _ytDlpPath,
+                    FileName = ExecutablePath,
                     Arguments = $"{JsRuntimesArgs} --flat-playlist --print title --print url \"{playlistUrl}\"",
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
@@ -184,7 +251,7 @@ namespace DiceAudio
             {
                 StartInfo = new ProcessStartInfo
                 {
-                    FileName = _ytDlpPath,
+                    FileName = ExecutablePath,
                     Arguments = arguments,
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,

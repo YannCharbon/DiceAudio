@@ -8,8 +8,11 @@
 
 @page "/settings"
 
+@implements IDisposable
+
 @inject DiceAudioService AudioService
 @inject DAControlServer ControlServer
+@inject YtDlpUpdateService YtDlpUpdates
 
 <style>
     .settings-group-name {
@@ -74,6 +77,76 @@
 <div class="settings-group">
     <div style="display:flex;">
         <div class="settings-group-name">
+            <MudIcon Icon="@Icons.Material.Filled.CloudDownload" Size="@Size.Large" style="color:white;margin:10px;" Title="YouTube downloader" />
+            <h3>YouTube downloader (yt-dlp)</h3>
+        </div>
+    </div>
+
+    @if (!YtDlpUpdateService.IsSupported)
+    {
+        <h5 style="color:grey;">yt-dlp is only available on Windows.</h5>
+    }
+    else
+    {
+        <MudStack Row="true" AlignItems="AlignItems.Center" Style="gap:14px; flex-wrap:wrap;">
+            @if (!_ytDlpVersionRead)
+            {
+                <MudChip T="string" Size="Size.Small">Reading version…</MudChip>
+            }
+            else if (_ytDlpVersion != null)
+            {
+                <MudChip T="string" Color="Color.Info" Size="Size.Small">yt-dlp @_ytDlpVersion</MudChip>
+            }
+            else
+            {
+                <MudChip T="string" Color="Color.Error" Size="Size.Small">yt-dlp could not be run</MudChip>
+            }
+
+            <MudSwitch T="bool" Value="_ytDlpAutoUpdate" ValueChanged="OnYtDlpAutoUpdateToggled"
+                       Color="Color.Secondary" Label="Update yt-dlp automatically" />
+
+            @* Works regardless of the switch: an explicit request is an explicit
+               request, and it reports here rather than on the loading screen. *@
+            <MudButton Variant="Variant.Outlined" Color="Color.Secondary" Size="Size.Small"
+                       StartIcon="@Icons.Material.Filled.Refresh"
+                       Disabled="_ytDlpChecking" OnClick="CheckYtDlpNow">
+                @(_ytDlpChecking ? "Checking…" : "Check now")
+            </MudButton>
+        </MudStack>
+
+        @if (_ytDlpCheckMessage != null)
+        {
+            <MudText Typo="Typo.body2" Style="margin-top:8px;">@_ytDlpCheckMessage</MudText>
+            @if (_ytDlpCheckPercent is int percent)
+            {
+                <MudProgressLinear Color="Color.Secondary" Value="@((double)percent)"
+                                   Style="max-width:320px; margin-top:4px;" />
+            }
+        }
+
+        <MudText Typo="Typo.body2" Style="color:grey; margin-top:6px;">
+            yt-dlp is the tool that downloads audio from YouTube. YouTube breaks it every few
+            weeks, so DiceAudio checks for a newer one at startup, at most twice a day, and shows
+            the progress on the loading screen. Turn this off to keep the version you have.
+            <br />
+            @(YtDlpUpdateService.IsUsingDownloadedBinary
+                ? "In use: a downloaded update."
+                : "In use: the version that shipped with DiceAudio.")
+            @if (YtDlpUpdates.LastCheckUtc is DateTime checkedAt)
+            {
+                @($" Last checked {checkedAt.ToLocalTime():dd.MM.yyyy HH:mm}.")
+            }
+            else
+            {
+                @(" Not checked yet.")
+            }
+        </MudText>
+    }
+</div>
+
+<div class="settings-group">
+    <div style="display:flex;">
+        <div class="settings-group-name">
             <MudIcon Icon="@Icons.Material.Filled.SettingsRemote" Size="@Size.Large" style="color:white;margin:10px;" Title="Remote control" />
             <h3>Remote control (Trilium)</h3>
         </div>
@@ -116,11 +189,76 @@
     private bool _serverEnabled;
     private int _serverPort = DAControlServer.DefaultPort;
 
+    private bool _ytDlpAutoUpdate;
+    private string? _ytDlpVersion;
+    private bool _ytDlpVersionRead;
+
     protected override void OnInitialized()
     {
         _serverEnabled = Preferences.Default.Get(DAControlServer.PrefEnabled, false);
         _serverPort = Preferences.Default.Get(DAControlServer.PrefPort, DAControlServer.DefaultPort);
+        _ytDlpAutoUpdate = YtDlpUpdates.AutoUpdateEnabled;
     }
+
+    void OnYtDlpAutoUpdateToggled(bool enabled)
+    {
+        _ytDlpAutoUpdate = enabled;
+        YtDlpUpdates.AutoUpdateEnabled = enabled;
+    }
+
+    private bool _ytDlpChecking;
+    private string? _ytDlpCheckMessage;
+    private int? _ytDlpCheckPercent;
+
+    async Task CheckYtDlpNow()
+    {
+        if (_ytDlpChecking) return;
+
+        _ytDlpChecking = true;
+        _ytDlpCheckMessage = null;
+        _ytDlpCheckPercent = null;
+
+        // The check outlives the page if the user navigates away mid-download, so
+        // every update to the UI has to be skipped once this component is gone.
+        var progress = new Progress<YtDlpUpdateProgress>(step =>
+        {
+            if (_disposed) return;
+            _ = InvokeAsync(() =>
+            {
+                // Checked again here: disposal can happen between the test above
+                // and this callback actually running on the dispatcher.
+                if (_disposed) return;
+                _ytDlpCheckMessage = step.Message;
+                _ytDlpCheckPercent = step.Percent;
+                StateHasChanged();
+            });
+        });
+
+        try
+        {
+            var report = await YtDlpUpdates.CheckAndUpdateAsync(progress);
+            _ytDlpCheckMessage = report.Message;
+            _ytDlpCheckPercent = null;
+
+            // The binary may have just been replaced, so re-read what runs now.
+            _ytDlpVersion = await YtDlpUpdates.ReadInstalledVersionAsync();
+            _ytDlpVersionRead = true;
+        }
+        catch (Exception ex)
+        {
+            _ytDlpCheckMessage = $"yt-dlp check failed: {ex.Message}";
+            _ytDlpCheckPercent = null;
+        }
+        finally
+        {
+            _ytDlpChecking = false;
+            if (!_disposed) StateHasChanged();
+        }
+    }
+
+    private bool _disposed;
+
+    public void Dispose() => _disposed = true;
 
     void OnServerToggled(bool enabled)
     {
@@ -140,18 +278,24 @@
     private bool _updateAvailable = false;
     private GitHubRelease? _updateInfos = null;
 
+    // Everything here runs once per visit. It used to run on every render, and
+    // because it ends in StateHasChanged that render triggered another one: an
+    // endless loop that hammered the GitHub API until the hourly limit for the
+    // IP was used up (after which api.github.com answers 403 to everything).
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (firstRender)
-        {
-
-        }
+        if (!firstRender) return;
 
         _updateInfos = await AudioService.CheckUpdate();
         if (_updateInfos != null)
         {
             _updateAvailable = (AudioService.GetVersion() != _updateInfos?.tag_name);
         }
+
+        // Spawns yt-dlp, so it happens after the first render rather than
+        // holding the page back.
+        _ytDlpVersion = await YtDlpUpdates.ReadInstalledVersionAsync();
+        _ytDlpVersionRead = true;
 
         StateHasChanged();
     }

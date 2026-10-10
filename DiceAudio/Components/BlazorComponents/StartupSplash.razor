@@ -1,0 +1,103 @@
+﻿@*
+ * DiceAudio - Copyright (C) 2025 Yann Charbon
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ *
+ * This file is part of DiceAudio, released under the GNU GPL v3.
+ * See the LICENSE file in the repository root for details.
+*@
+
+@*
+    Continues the pre-Blazor loading screen of index.html — same logo, same
+    spinner, same geometry — so a startup task (currently the yt-dlp update
+    check) can keep the spinning wheel on screen and say what it is doing
+    instead of freezing a mute splash.
+*@
+
+<style>
+    .da-splash-drag {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 32px;
+        app-region: drag;
+        -webkit-app-region: drag;
+    }
+
+    .da-splash-msg {
+        padding: 10px 20px;
+        min-height: 1.5em;
+        color: #e0e0e0;
+    }
+
+    .da-splash-bar {
+        width: 240px;
+        height: 6px;
+        margin: 6px auto 0 auto;
+        border-radius: 3px;
+        background: #3a3a5a;
+        overflow: hidden;
+    }
+
+    .da-splash-bar > div {
+        height: 100%;
+        background: linear-gradient(90deg, #23a6ab, #e73c7e);
+        transition: width 0.2s linear;
+    }
+
+    .da-splash-skip {
+        margin-top: 18px;
+        padding: 6px 16px;
+        border-radius: 60px;
+        border: 1px solid #5050aa;
+        background: #252545;
+        color: #cfcfe8;
+        font-size: medium;
+        cursor: pointer;
+    }
+
+    .da-splash-skip:hover {
+        background: #323260;
+    }
+</style>
+
+@if (OperatingSystem.IsWindows())
+{
+    @* The web page is the title bar on Windows (see WebTitleBar), so without a
+       drag region the window cannot be moved while the splash is up. *@
+    <div class="da-splash-drag"></div>
+}
+
+<div style="padding-top:200px;text-align:center;color:white;font-size:large;">
+    <div>
+        <img width="200" height="200" src="diceaudio_logo.svg" />
+    </div>
+    <div style="padding: 20px;">
+        <div style="margin: 0 auto;" class="loading-page-circle-loader"></div>
+    </div>
+
+    <div class="da-splash-msg">@Message</div>
+
+    @if (Percent is int percent)
+    {
+        <div class="da-splash-bar">
+            <div style="width:@(Math.Clamp(percent, 0, 100))%;"></div>
+        </div>
+    }
+
+    @if (OnSkip.HasDelegate)
+    {
+        <button type="button" class="da-splash-skip" @onclick="OnSkip">Continue without updating</button>
+    }
+</div>
+
+@code {
+    /// <summary>What the startup task is currently doing.</summary>
+    [Parameter] public string? Message { get; set; }
+
+    /// <summary>Download progress, when the task reports one.</summary>
+    [Parameter] public int? Percent { get; set; }
+
+    /// <summary>When bound, a button lets the user abandon the task and go on.</summary>
+    [Parameter] public EventCallback OnSkip { get; set; }
+}

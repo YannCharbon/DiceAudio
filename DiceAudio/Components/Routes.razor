@@ -6,9 +6,88 @@
  * See the LICENSE file in the repository root for details.
 *@
 
-<Router AppAssembly="@typeof(MauiProgram).Assembly">
-    <Found Context="routeData">
-        <RouteView RouteData="@routeData" DefaultLayout="@typeof(Layout.MainLayout)" />
-        <FocusOnNavigate RouteData="@routeData" Selector="h1" />
-    </Found>
-</Router>
+@inject YtDlpUpdateService YtDlpUpdates
+
+@if (_starting)
+{
+    @* The yt-dlp check is due: keep the loading screen of index.html on screen
+       and report what it is doing, rather than letting the app appear and then
+       stall on the first download. *@
+    <StartupSplash Message="@_message" Percent="@_percent" OnSkip="SkipYtDlpUpdate" />
+}
+else
+{
+    <Router AppAssembly="@typeof(MauiProgram).Assembly">
+        <Found Context="routeData">
+            <RouteView RouteData="@routeData" DefaultLayout="@typeof(Layout.MainLayout)" />
+            <FocusOnNavigate RouteData="@routeData" Selector="h1" />
+        </Found>
+    </Router>
+}
+
+@code {
+    /// <summary>How long a finished update stays on screen so it can be read.</summary>
+    private const int ReportLingerMs = 1600;
+
+    private bool _starting;
+    private string _message = "Starting DiceAudio...";
+    private int? _percent;
+    private CancellationTokenSource? _updateCts;
+
+    protected override void OnInitialized()
+    {
+        // Decided before the first render: when no check is due (the usual case,
+        // the check runs at most twice a day) the app renders straight away and
+        // the splash never appears.
+        _starting = YtDlpUpdates.IsUpdateCheckDue();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || !_starting) return;
+
+        _updateCts = new CancellationTokenSource();
+        var progress = new Progress<YtDlpUpdateProgress>(step =>
+            _ = InvokeAsync(() =>
+            {
+                _message = step.Message;
+                _percent = step.Percent;
+                StateHasChanged();
+            }));
+
+        try
+        {
+            var report = await YtDlpUpdates.CheckAndUpdateAsync(progress, _updateCts.Token);
+
+            // An update that actually did something is worth a moment on screen;
+            // "already up to date" is not — that would only delay startup.
+            if (report.Outcome is YtDlpUpdateOutcome.Updated or YtDlpUpdateOutcome.Failed)
+            {
+                _message = report.Message;
+                _percent = null;
+                StateHasChanged();
+                await Task.Delay(ReportLingerMs);
+            }
+
+            Debug.WriteLine($"yt-dlp startup check: {report.Outcome} — {report.Message}");
+        }
+        catch (Exception ex)
+        {
+            // The check must never keep the app from starting.
+            Debug.WriteLine($"yt-dlp startup check crashed: {ex}");
+        }
+        finally
+        {
+            _updateCts.Dispose();
+            _updateCts = null;
+            _starting = false;
+            StateHasChanged();
+        }
+    }
+
+    private void SkipYtDlpUpdate()
+    {
+        _message = "Skipping the yt-dlp update...";
+        _updateCts?.Cancel();
+    }
+}

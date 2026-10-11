@@ -18,7 +18,7 @@
 @if (Folder != null)
 {
     <FolderBrowser ActionLabel="Move"
-                   ActionIcon="@Icons.Material.Filled.DriveFileMove"
+                   ActionIcon="folder-move"
                    InitialFolder="@_initialFolder"
                    IsCurrent="IsCurrentParent"
                    LockedFolder="@Folder"
@@ -26,19 +26,20 @@
                    OnFolderChosen="MoveTo"
                    OnFolderCreated="OnFolderCreated">
         <HeaderContent>
-            <MudText Typo="Typo.body2" Style="color:grey; margin-bottom:4px;">
+            <div class="da-meta" style="margin-bottom:4px;">
                 <b>@Folder.Name</b> — currently in <b>@DAService.FolderDisplayPath(ParentFolder)</b>
-            </MudText>
-            <MudText Typo="Typo.body2" Style="color:grey; margin-bottom:12px;">
+            </div>
+            <div class="da-meta" style="margin-bottom:12px;">
                 @ContentsLabel move with it.
-            </MudText>
+            </div>
         </HeaderContent>
         <FooterContent>
             @if (_moved)
             {
-                <MudText Style="color:#4caf50; margin-top:12px;" Typo="Typo.body2">
+                @* The sheet has no green; the secondary teal is the nearest token. *@
+                <div class="da-meta" style="color:var(--ok); margin-top:12px;">
                     Moved <b>@Folder.Name</b> to <b>@DAService.FolderDisplayPath(ParentFolder)</b> ✓
-                </MudText>
+                </div>
             }
         </FooterContent>
     </FolderBrowser>

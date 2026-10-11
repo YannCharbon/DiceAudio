@@ -98,13 +98,13 @@
         @if (IsStarting)
         {
             <div class="da-cmd-btn da-cmd-btn-pending da-cmd-btn-staging" title="Starting — waiting for the fade out to finish">
-                <MudIcon Icon="@Icons.Material.Filled.HourglassTop" Style="color:#e73c7e;" />
+                <DaIcon Name="hourglass" Size="22" style="color:var(--a1);" />
             </div>
         }
         else if (!scenePlaying)
         {
             <div class="da-cmd-btn" @onclick="RequestPlay" title="Start scene">
-                <MudIcon Icon="@Icons.Material.Filled.PlayArrow" Class="da-play" />
+                <DaIcon Name="play" Size="22" Class="da-play" />
             </div>
         }
         else
@@ -112,19 +112,19 @@
             @if (!contextual)
             {
                 <div class="da-cmd-btn" @onclick="() => Player.AdvanceSceneAsync()" title="Advance to next step">
-                    <MudIcon Icon="@Icons.Material.Filled.SkipNext" Class="da-skip" />
+                    <DaIcon Name="skip-next" Size="20" Class="da-skip" />
                 </div>
             }
             @if (IsFadingOut)
             {
                 <div class="da-cmd-btn da-cmd-btn-pending" title="Stopping — fading out">
-                    <MudIcon Icon="@Icons.Material.Filled.Stop" Class="da-stop" />
+                    <DaIcon Name="stop" Size="20" Class="da-stop" />
                 </div>
             }
             else
             {
                 <div class="da-cmd-btn" @onclick="() => Player.StopWithFadeAsync()" title="Stop scene">
-                    <MudIcon Icon="@Icons.Material.Filled.Stop" Class="da-stop" />
+                    <DaIcon Name="stop" Size="20" Class="da-stop" />
                 </div>
             }
         }
@@ -197,42 +197,42 @@ else if (Player != null)
     @* ── Transport controls ── *@
     <div style="display:flex; justify-content:center; margin:6px 0;">
         <div class="da-cmd-btn" @onclick="() => Player.SkipBackwardAsync()" title="Skip backward">
-            <MudIcon Icon="@Icons.Material.Filled.SkipPrevious" Class="da-skip" />
+            <DaIcon Name="skip-previous" Size="20" Class="da-skip" />
         </div>
 
         @if (IsStarting)
         {
             <div class="da-cmd-btn da-cmd-btn-pending da-cmd-btn-staging" title="Starting — waiting for the fade out to finish">
-                <MudIcon Icon="@Icons.Material.Filled.HourglassTop" Style="color:#e73c7e;" />
+                <DaIcon Name="hourglass" Size="22" style="color:var(--a1);" />
             </div>
         }
         else if (Player.State == DAScenarioItemPlayer.PlayState.Play)
         {
             <div class="da-cmd-btn" @onclick="() => Player.Pause()" title="Pause">
-                <MudIcon Icon="@Icons.Material.Filled.Pause" Class="da-pause" />
+                <DaIcon Name="pause" Size="22" Class="da-pause" />
             </div>
         }
         else
         {
             <div class="da-cmd-btn" @onclick="RequestPlay" title="Play">
-                <MudIcon Icon="@Icons.Material.Filled.PlayArrow" Class="da-play" />
+                <DaIcon Name="play" Size="22" Class="da-play" />
             </div>
         }
 
         @if (IsFadingOut)
         {
             <div class="da-cmd-btn da-cmd-btn-pending" title="Stopping — fading out">
-                <MudIcon Icon="@Icons.Material.Filled.Stop" Class="da-stop" />
+                <DaIcon Name="stop" Size="20" Class="da-stop" />
             </div>
         }
         else
         {
             <div class="da-cmd-btn" @onclick="() => Player.StopWithFadeAsync()" title="Stop">
-                <MudIcon Icon="@Icons.Material.Filled.Stop" Class="da-stop" />
+                <DaIcon Name="stop" Size="20" Class="da-stop" />
             </div>
         }
         <div class="da-cmd-btn" @onclick="() => Player.SkipForwardAsync()" title="Skip forward">
-            <MudIcon Icon="@Icons.Material.Filled.SkipNext" Class="da-skip" />
+            <DaIcon Name="skip-next" Size="20" Class="da-skip" />
         </div>
     </div>
 
@@ -240,11 +240,12 @@ else if (Player != null)
     <div style="font-size:11px; color:grey; margin:2px 0;">
         Duration: @TimeSpan.FromSeconds(Player.DisplayDuration).ToString(@"hh\:mm\:ss")
     </div>
-    <MudSlider T="double"
-               Value="Player.CurrentPosition"
-               ValueChanged="SeekTo"
-               Min="0" Max="@(Math.Max(Player.Duration, 1))"
-               Step="1" Style="margin:0 0 4px 0;" />
+    @* A native range brings dragging, touch and the arrow keys for free. --pp
+       is what paints the played part of the track, which MudSlider drew itself. *@
+    <input type="range" class="da-range" aria-label="Seek"
+           style="@($"margin:0 0 4px 0; --pp:{SeekPercent};")"
+           min="0" max="@(Math.Max(Player.Duration, 1))" step="1"
+           value="@Inv(Player.CurrentPosition)" @oninput="OnSeekInput" />
 
     @* ── Next in queue ── *@
     @if (ScenarioItem.Type != DAScenarioItem.ItemType.Single && Player.NextAudioItem != null)
@@ -268,14 +269,14 @@ else if (Player != null)
                 {
                     <div class="da-cmd-btn" style="width:30px;height:30px;"
                          @onclick="() => Player.StopSound(idx)" title="Stop">
-                        <MudIcon Icon="@Icons.Material.Filled.Stop" Style="font-size:16px; color:#f44336;" />
+                        <DaIcon Name="stop" Size="16" Class="da-stop" />
                     </div>
                 }
                 else
                 {
                     <div class="da-cmd-btn" style="width:30px;height:30px;"
                          @onclick="() => Player.PlaySound(idx)" title="Play">
-                        <MudIcon Icon="@Icons.Material.Filled.PlayArrow" Style="font-size:16px; color:#4caf50;" />
+                        <DaIcon Name="play" Size="16" Class="da-play" />
                     </div>
                 }
                 <span>@sound.Name</span>
@@ -285,6 +286,14 @@ else if (Player != null)
 }
 
 @code {
+    /// A double as the HTML a range input will actually accept. Razor renders
+    /// a double in the CURRENT culture, so on a French locale value="0,37" is
+    /// rejected and the thumb snaps elsewhere - while --pp, written invariantly,
+    /// stays put. That disagreement is what made the thumb jitter and the fill
+    /// stop matching it.
+    static string Inv(double value) =>
+        value.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture);
+
     [Parameter] public DAScenarioItem ScenarioItem { get; set; } = default!;
     /// <summary>Owning scenario group — resolves group-local scenes.</summary>
     [Parameter] public DAScenarioGroup? Group { get; set; }
@@ -378,6 +387,28 @@ else if (Player != null)
     void OnProgressChanged(object? s, EventArgs e) => InvokeAsync(StateHasChanged);
 
     void SeekTo(double val) => Player?.Seek(val);
+
+    /// MudSlider reported every move, so seeking stays bound to oninput rather
+    /// than waiting for the drag to be released.
+    void OnSeekInput(ChangeEventArgs e)
+    {
+        if (double.TryParse(e.Value?.ToString(),
+                            System.Globalization.NumberStyles.Float,
+                            System.Globalization.CultureInfo.InvariantCulture,
+                            out double seconds))
+            SeekTo(seconds);
+    }
+
+    /// How much of the seek track is behind the thumb, as a CSS percentage.
+    private string SeekPercent
+    {
+        get
+        {
+            double max = Math.Max(Player?.Duration ?? 1, 1);
+            double done = Math.Clamp((Player?.CurrentPosition ?? 0) / max, 0, 1) * 100;
+            return done.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) + "%";
+        }
+    }
 
     public void Dispose()
     {

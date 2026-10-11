@@ -18,24 +18,28 @@
 
 <style>
     .fbr-crumbs { display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-bottom:8px; }
-    .fbr-crumb  { cursor:pointer; color:#90caf9; }
+    .fbr-crumb  { cursor:pointer; color:var(--a2); }
     .fbr-crumb:hover { text-decoration:underline; }
     .fbr-crumb-current { font-weight:bold; }
-    .fbr-sep    { color:#888; }
+    .fbr-sep    { color:var(--t4); }
     .fbr-row {
         display:flex; align-items:center; gap:10px; padding:6px 10px; margin:5px 0;
-        background:#1a1a2e; border:1px solid #2a2a4a; border-radius:8px;
+        background:var(--s4); border:1px solid var(--b1); border-radius:8px;
         transition: background 0.15s, border-color 0.15s;
     }
-    .fbr-row:hover { background:#24243e; border-color:#444470; }
-    .fbr-current   { border-color:#23a6d5; }
+    .fbr-row:hover { background:var(--s5); border-color:var(--b3); }
+    .fbr-current   { border-color:var(--a2); }
     .fbr-navzone   { display:flex; align-items:center; gap:10px; flex:1; cursor:pointer; min-width:0; }
     .fbr-name      { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-    .fbr-count     { color:#8fa3b8; font-size:12px; }
-    .fbr-empty     { color:grey; font-size:13px; padding:8px 2px; }
-    .fbr-here      { color:#23a6d5; font-size:12px; }
+    .fbr-count     { color:var(--t3); font-size:12px; }
+    .fbr-empty     { color:var(--t3); font-size:13px; padding:8px 2px; }
+    .fbr-here      { color:var(--a2); font-size:12px; }
     .fbr-locked    { opacity:0.45; }
     .fbr-locked .fbr-navzone { cursor:default; }
+    /* The chevron was a bare clickable MudIcon, so it stays a bare clickable
+       mark rather than growing an icon button's 32px box inside the row. */
+    .fbr-chev { display:inline-flex; color:var(--t4); cursor:pointer; }
+    .fbr-chev:hover { color:var(--t2); }
 </style>
 
 @if (HeaderContent != null)
@@ -84,7 +88,7 @@ else
         <div class="fbr-row @(isCurrent ? "fbr-current" : "") @(isLocked ? "fbr-locked" : "")">
             <div class="fbr-navzone" @onclick="() => { if (!isLocked) NavigateTo(f); }"
                  title="@(isLocked ? null : "Open")">
-                <MudIcon Icon="@Icons.Material.Filled.Folder" Style="color:#90caf9;" />
+                <DaIcon Name="folder" Size="18" style="color:var(--a2);" />
                 <span class="fbr-name">@f.Name</span>
                 @if (ShowItemCounts)
                 {
@@ -101,14 +105,15 @@ else
             }
             else
             {
-                <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary"
-                           StartIcon="@ActionIcon"
-                           OnClick="() => Choose(f)">@ActionLabel here</MudButton>
+                <button type="button" class="da-btn da-btn-fill da-btn-sm" @onclick="() => Choose(f)">
+                    <DaIcon Name="@ActionIcon" Size="16" />@ActionLabel here
+                </button>
             }
             @if (!isLocked)
             {
-                <MudIcon Icon="@Icons.Material.Filled.ChevronRight" Style="color:#888; cursor:pointer;"
-                         @onclick="() => NavigateTo(f)" />
+                <span class="fbr-chev" @onclick="() => NavigateTo(f)">
+                    <DaIcon Name="chevron-right" Size="18" />
+                </span>
             }
         </div>
     }
@@ -116,18 +121,18 @@ else
 
 @* Actions: pick the folder currently open, and create a subfolder *@
 <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:14px;">
-    <MudButton Variant="Variant.Filled" Color="Color.Primary"
-               StartIcon="@ActionIcon"
-               Disabled="@(!CanChooseViewFolder)"
-               OnClick="() => Choose(_viewFolder)">
+    <button type="button" class="da-btn da-btn-fill"
+            disabled="@(!CanChooseViewFolder)"
+            @onclick="() => Choose(_viewFolder)">
+        <DaIcon Name="@ActionIcon" Size="18" />
         @($"{ActionLabel} here → {(_viewFolder?.Name ?? "Root")}")
-    </MudButton>
+    </button>
 
     @if (AllowCreate && !_showCreate)
     {
-        <MudButton Variant="Variant.Outlined" Color="Color.Secondary"
-                   StartIcon="@Icons.Material.Filled.CreateNewFolder"
-                   OnClick="() => _showCreate = true">New folder</MudButton>
+        <button type="button" class="da-btn da-btn-out" @onclick="() => _showCreate = true">
+            <DaIcon Name="folder-add" Size="18" />New folder
+        </button>
     }
 </div>
 
@@ -136,16 +141,22 @@ else
     <div style="display:flex; align-items:center; gap:8px; margin-top:10px; flex-wrap:wrap;">
         @* Immediate: Enter is handled here, and OnKeyUp fires before a
            blur-bound value would have reached _newFolderName. *@
-        <MudTextField @bind-Value="_newFolderName" Variant="Variant.Filled" Margin="Margin.Dense"
-                      Label="@($"New folder in {(_viewFolder?.Name ?? "Root")}")" Style="max-width:280px;"
-                      Immediate="true" OnKeyUp="OnCreateKeyUp" />
-        <MudButton Variant="Variant.Filled" Color="Color.Secondary"
-                   StartIcon="@Icons.Material.Filled.Add" OnClick="CreateFolder">Create</MudButton>
-        <MudButton Variant="Variant.Text" OnClick="CancelCreate">Cancel</MudButton>
+        @* oninput, not a change binding: that is what Immediate="true" bought,
+           and the Enter key below reads _newFolderName as it is typed. *@
+        <div class="da-field" style="max-width:280px;">
+            <span class="da-flabel">@($"New folder in {(_viewFolder?.Name ?? "Root")}")</span>
+            <input class="da-inp" type="text" value="@_newFolderName"
+                   @oninput="e => _newFolderName = e.Value?.ToString() ?? string.Empty"
+                   @onkeyup="OnCreateKeyUp" />
+        </div>
+        <button type="button" class="da-btn da-btn-fill" @onclick="CreateFolder">
+            <DaIcon Name="add" Size="18" />Create
+        </button>
+        <button type="button" class="da-btn da-btn-text" @onclick="CancelCreate">Cancel</button>
     </div>
     @if (_folderExists)
     {
-        <MudText Color="Color.Error" Typo="Typo.caption">A folder with that name already exists.</MudText>
+        <div class="da-meta" style="color:var(--danger);">A folder with that name already exists.</div>
     }
 }
 
@@ -158,7 +169,8 @@ else
     /// <summary>Verb shown on the picking buttons ("Move here", "Select here", …).</summary>
     [Parameter] public string ActionLabel { get; set; } = "Select";
 
-    [Parameter] public string ActionIcon { get; set; } = Icons.Material.Filled.DriveFileMove;
+    /// <summary>Name of the <see cref="DaIcon"/> drawn on the picking buttons.</summary>
+    [Parameter] public string ActionIcon { get; set; } = "folder-move";
 
     /// <summary>Folder the browser opens on (null = root). Changing it re-opens the browser there.</summary>
     [Parameter] public DAVirtualAudioFolder? InitialFolder { get; set; }

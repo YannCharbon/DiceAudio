@@ -85,19 +85,30 @@
     <div class="sc-left">
         @* Scenario name *@
         <div class="sc-name-field">
-            <MudTextField T="string" Value="Scenario.Name" ValueChanged="OnNameChanged"
-                          Label="Scenario" Variant="Variant.Outlined"
-                          Margin="Margin.Dense" Style="width:100%;" />
+            @* onchange, not oninput: MudTextField only reported the new name when
+               the box was left, and every report queues a save of the group. *@
+            <label class="da-field">
+                <span class="da-flabel">Scenario</span>
+                <input class="da-inp" type="text" spellcheck="false"
+                       value="@Scenario.Name"
+                       @onchange="@(e => OnNameChanged(e.Value?.ToString() ?? string.Empty))" />
+            </label>
         </div>
 
         @* Move + delete *@
         <div class="sc-move-row">
-            <MudIconButton Icon="@Icons.Material.Filled.ArrowCircleUp" Size="Size.Medium"
-                           Title="Move up" OnClick="() => MoveScenario?.Invoke(Scenario, true)" />
-            <MudIconButton Icon="@Icons.Material.Filled.ArrowCircleDown" Size="Size.Medium"
-                           Title="Move down" OnClick="() => MoveScenario?.Invoke(Scenario, false)" />
-            <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Medium"
-                           Title="Delete" OnClick="() => DeleteScenario?.Invoke(Scenario)" />
+            <button type="button" class="da-ib" title="Move up" aria-label="Move up"
+                    @onclick="() => MoveScenario?.Invoke(Scenario, true)">
+                <DaIcon Name="circle-up" Size="20" />
+            </button>
+            <button type="button" class="da-ib" title="Move down" aria-label="Move down"
+                    @onclick="() => MoveScenario?.Invoke(Scenario, false)">
+                <DaIcon Name="circle-down" Size="20" />
+            </button>
+            <button type="button" class="da-ib da-danger" title="Delete" aria-label="Delete"
+                    @onclick="() => DeleteScenario?.Invoke(Scenario)">
+                <DaIcon Name="delete" Size="20" />
+            </button>
         </div>
 
         @* Big transport buttons *@
@@ -107,20 +118,20 @@
                 @if (_player.IsPlaying)
                 {
                     <div class="da-cmd-btn-lg" @onclick="() => _player.Pause()" title="Pause">
-                        <MudIcon Icon="@Icons.Material.Filled.Pause" Class="da-pause-lg" />
+                        <DaIcon Name="pause" Size="28" Class="da-pause-lg" />
                     </div>
                 }
                 else
                 {
                     <div class="da-cmd-btn-lg" @onclick="() => _player.PlayAsync()" title="Play">
-                        <MudIcon Icon="@Icons.Material.Filled.PlayArrow" Class="da-play-lg" />
+                        <DaIcon Name="play" Size="28" Class="da-play-lg" />
                     </div>
                 }
                 <div class="da-cmd-btn-lg" @onclick="() => _player.StopAsync()" title="Stop">
-                    <MudIcon Icon="@Icons.Material.Filled.Stop" Class="da-stop-lg" />
+                    <DaIcon Name="stop" Size="26" Class="da-stop-lg" />
                 </div>
                 <div class="da-cmd-btn-lg" @onclick="() => _player.PlayNextAsync()" title="Skip to next item">
-                    <MudIcon Icon="@Icons.Material.Filled.SkipNext" Class="da-skip-lg" />
+                    <DaIcon Name="skip-next" Size="26" Class="da-skip-lg" />
                 </div>
             </div>
         }
@@ -140,7 +151,7 @@
                 <SortableItemTemplate>
                     <div class="si-drag-item">
                         <div class="si-drag-handle" title="Drag to reorder">
-                            <MudIcon Icon="@Icons.Material.Filled.DragIndicator" Style="font-size:18px;" />
+                            <DaIcon Name="drag" Size="18" />
                         </div>
                         <ScenarioItemComp ScenarioItem="context"
                                           Scenario="Scenario"
@@ -158,23 +169,41 @@
 
         <div style="display:flex; flex-direction:column; gap:8px; justify-content:center;
                     padding:16px 20px; flex-shrink:0;">
-            <MudButton Variant="Variant.Filled" Color="Color.Primary"
-                       StartIcon="@Icons.Material.Filled.Add"
-                       OnClick="CreateNewItem">New item</MudButton>
+            <button type="button" class="da-btn da-btn-fill" @onclick="CreateNewItem">
+                <DaIcon Name="add" Size="16" />
+                New item
+            </button>
 
             @{ var itemPresets = DAService.Presets.Where(p => p.Kind == DAPresetKind.ScenarioItem).ToList(); }
             @if (itemPresets.Count > 0)
             {
-                <MudMenu Label="From preset" Variant="Variant.Outlined" Color="Color.Secondary"
-                         StartIcon="@Icons.Material.Filled.Bookmark" Dense="true">
-                    @foreach (var preset in itemPresets)
+                @* The house set has no menu widget, so the preset list is a button
+                   that reveals a .da-pop. The fixed sheet behind it keeps MudMenu's
+                   click-anywhere-to-dismiss, which a bare popover would lose. *@
+                <div style="position:relative;">
+                    <button type="button" class="da-btn da-btn-out"
+                            @onclick="() => _presetMenuOpen = !_presetMenuOpen">
+                        <DaIcon Name="bookmark" Size="16" />
+                        From preset
+                        <DaIcon Name="chevron-down" Size="16" />
+                    </button>
+                    @if (_presetMenuOpen)
                     {
-                        var p = preset;
-                        <MudMenuItem OnClick="() => InsertPreset(p)">
-                            @(string.IsNullOrEmpty(p.Category) ? p.Name : $"{p.Category} / {p.Name}")
-                        </MudMenuItem>
+                        <div style="position:fixed; inset:0; z-index:59;"
+                             @onclick="() => _presetMenuOpen = false"></div>
+                        <div class="da-pop">
+                            @foreach (var preset in itemPresets)
+                            {
+                                var p = preset;
+                                <button type="button" class="da-btn da-btn-text"
+                                        style="width:100%; justify-content:flex-start;"
+                                        @onclick="() => InsertPreset(p)">
+                                    @(string.IsNullOrEmpty(p.Category) ? p.Name : $"{p.Category} / {p.Name}")
+                                </button>
+                            }
+                        </div>
                     }
-                </MudMenu>
+                </div>
             }
         </div>
     </div>
@@ -189,6 +218,9 @@
     [Parameter] public Action<DAScenario>? DeleteScenario { get; set; }
 
     private DAScenarioPlayer? _player;
+
+    /// Whether the "From preset" popover is showing.
+    private bool _presetMenuOpen;
 
     protected override void OnInitialized()
     {
@@ -216,6 +248,7 @@
 
     void InsertPreset(DAPreset preset)
     {
+        _presetMenuOpen = false;
         var item = preset.ToScenarioItem();   // independent deep copy, fresh ids
         if (item == null) return;
         Scenario.Items.Add(item);

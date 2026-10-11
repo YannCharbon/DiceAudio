@@ -15,8 +15,8 @@
     .ace-wave-box {
         position: relative;
         height: 110px;
-        background: #0c0c18;
-        border: 1px solid #2a2a4a;
+        background: var(--s1);
+        border: 1px solid var(--b1);
         border-radius: 8px;
         overflow: hidden;
         margin: 10px 0 2px 0;
@@ -81,8 +81,8 @@
 
     /* ── Control panel below the waveform ── */
     .ace-panel {
-        background: #1a1a30;
-        border: 1px solid #2a2a4a;
+        background: var(--s4);
+        border: 1px solid var(--b1);
         border-radius: 8px;
         padding: 4px 12px;
         margin-top: 10px;
@@ -91,11 +91,11 @@
         display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
         padding: 10px 0;
     }
-    .ace-row + .ace-row { border-top: 1px solid #26263e; }
+    .ace-row + .ace-row { border-top: 1px solid var(--b1); }
     .ace-spacer { flex: 1 1 auto; }
 
     .ace-readout {
-        font-size: 12px; color: #9a9ab5; font-variant-numeric: tabular-nums;
+        font-size: 12px; color: var(--t3); font-variant-numeric: tabular-nums;
         white-space: nowrap;
     }
     /* Fixed width so Bounds / Edges / Preview form one column and every row's
@@ -103,18 +103,19 @@
     .ace-label {
         flex: 0 0 62px;
         font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase;
-        color: #6a6a8a; white-space: nowrap;
+        color: var(--t4); white-space: nowrap;
     }
 
     /* Checkbox + its own caption: MudBlazor's built-in label renders at body1
        (16px), which towered over the field labels around it. */
-    /* The checkbox brings its own padding, so no extra gap is wanted here. */
-    .ace-toggle { display: inline-flex; align-items: center; gap: 0; }
+    /* The box is a bare .da-chk now, which brings no padding of its own, so
+       the gap the control used to supply is declared here. */
+    .ace-toggle { display: inline-flex; align-items: center; gap: 7px; }
     .ace-toggle-name {
-        font-size: 13px; color: #d8d8ea; cursor: pointer; user-select: none;
+        font-size: 13px; color: var(--t2); cursor: pointer; user-select: none;
         white-space: nowrap;
     }
-    .ace-toggle-name-off { color: #74748f; }
+    .ace-toggle-name-off { color: var(--t4); }
     .ace-fade-group { display: inline-flex; align-items: center; gap: 8px; }
 
     /* Zoom / scroll furniture */
@@ -124,10 +125,11 @@
     }
     .ace-view-range {
         display: flex; justify-content: space-between;
-        font-size: 11px; color: #6a6a8a; font-variant-numeric: tabular-nums;
+        font-size: 11px; color: var(--t4); font-variant-numeric: tabular-nums;
         padding: 0 2px;
     }
-    .ace-zoom-hint { font-size: 11px; color: #6a6a8a; margin-left: auto; }
+    .ace-zoom-hint { font-size: 11px; color: var(--t4); margin-left: auto; }
+
 </style>
 
 @if (_visible && Usage != null && Item != null)
@@ -135,42 +137,64 @@
 <div style="position:fixed; top:0; left:0; width:100%; height:100%;
             background:rgba(0,0,0,0.85); z-index:5200; overflow-y:auto;"
      @onclick="CloseAsync">
-    <div style="background:#232338; margin:5% auto; max-width:720px; border-radius:12px;
+    <div style="background:var(--s5); margin:5% auto; max-width:720px; border-radius:12px;
                 padding:22px 26px; position:relative;"
          @onclick:stopPropagation="true">
 
-        <MudText Typo="Typo.h6" Style="margin-bottom:4px;">Track settings</MudText>
-        <MudText Typo="Typo.body2" Style="color:grey; margin-bottom:12px;">@Item.Name</MudText>
+        <h2 class="da-h2" style="margin-bottom:4px;">Track settings</h2>
+        <p class="da-sub" style="margin-bottom:12px;">@Item.Name</p>
 
         @* ── Volume ── *@
-        <MudText Typo="Typo.caption" Style="color:grey;">Volume: @Usage.Volume.ToString("P0")</MudText>
-        <MudSlider T="double" Value="Usage.Volume" ValueChanged="v => Usage.Volume = v"
-                   Min="0" Max="1" Step="0.01" Style="margin-bottom:8px;" />
+        <div class="da-flabel">Volume: @Usage.Volume.ToString("P0")</div>
+        @* --pp fills the track up to the thumb, the same way the music player's
+           seek bar does. *@
+        <input type="range" class="da-range" min="0" max="1" step="0.01"
+               style="margin-bottom:8px; --pp:@Pct(Usage.Volume);"
+               aria-label="Volume" value="@Inv(Usage.Volume)"
+               @oninput="@(e => Usage.Volume = ParseD(e.Value, Usage.Volume))" />
 
         @if (ShowSceneSettings)
         {
-            <MudStack Row="true" Spacing="3" Style="margin-bottom:8px;">
-                <MudCheckBox T="bool" Value="Usage.Loop" ValueChanged="v => Usage.Loop = v" Label="Loop" />
+            <div class="da-irow da-irow-wrap" style="gap:18px; margin-bottom:8px;">
+                <label class="da-chk">
+                    <input type="checkbox" checked="@Usage.Loop"
+                           @onchange="@(e => Usage.Loop = e.Value is bool v && v)" />
+                    Loop
+                </label>
                 @* Distinct from the clip-edge ramps below: these apply when the layer
                    itself is brought in or taken out, not at the clip's own bounds. *@
-                <MudNumericField T="double" Value="Usage.FadeInSeconds" ValueChanged="v => Usage.FadeInSeconds = Math.Max(0, v)"
-                                 Label="Layer fade-in (s)" Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width:140px;" />
-                <MudNumericField T="double" Value="Usage.FadeOutSeconds" ValueChanged="v => Usage.FadeOutSeconds = Math.Max(0, v)"
-                                 Label="Layer fade-out (s)" Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width:140px;" />
-            </MudStack>
+                <div class="da-field">
+                    <span class="da-flabel">Layer fade-in (s)</span>
+                    <div class="da-step">
+                        <button type="button" @onclick="@(() => Usage.FadeInSeconds = Math.Max(0, Usage.FadeInSeconds - 1))">&minus;</button>
+                        <input type="number" value="@Inv(Usage.FadeInSeconds)" min="0" step="1"
+                               @onchange="@(e => Usage.FadeInSeconds = Math.Max(0, ParseD(e.Value, Usage.FadeInSeconds)))" />
+                        <button type="button" @onclick="@(() => Usage.FadeInSeconds = Math.Max(0, Usage.FadeInSeconds + 1))">+</button>
+                    </div>
+                </div>
+                <div class="da-field">
+                    <span class="da-flabel">Layer fade-out (s)</span>
+                    <div class="da-step">
+                        <button type="button" @onclick="@(() => Usage.FadeOutSeconds = Math.Max(0, Usage.FadeOutSeconds - 1))">&minus;</button>
+                        <input type="number" value="@Inv(Usage.FadeOutSeconds)" min="0" step="1"
+                               @onchange="@(e => Usage.FadeOutSeconds = Math.Max(0, ParseD(e.Value, Usage.FadeOutSeconds)))" />
+                        <button type="button" @onclick="@(() => Usage.FadeOutSeconds = Math.Max(0, Usage.FadeOutSeconds + 1))">+</button>
+                    </div>
+                </div>
+            </div>
         }
 
         @* ── Clip region ── *@
-        <MudStack Row="true" AlignItems="AlignItems.Center" Style="gap:8px; margin-top:6px;">
-            <MudIcon Icon="@Icons.Material.Filled.ContentCut" Style="font-size:16px; color:#e73c7e;" />
-            <MudText Typo="Typo.subtitle2">Clip (non-destructive — the file is never modified)</MudText>
-        </MudStack>
+        <div class="da-irow" style="gap:8px; margin-top:6px;">
+            <DaIcon Name="cut" Size="16" Class="da-i-accent" />
+            <span style="font-size:14px; font-weight:600;">Clip (non-destructive — the file is never modified)</span>
+        </div>
 
         @if (_fileDuration <= 0)
         {
-            <MudText Typo="Typo.body2" Style="color:#ff6b6b; padding:8px 0;">
+            <div style="color:var(--danger); padding:8px 0; font-size:13px;">
                 Audio file unavailable — cannot edit the clip.
-            </MudText>
+            </div>
         }
         else
         {
@@ -239,23 +263,29 @@
             @* Horizontal scroll over the file; only meaningful once zoomed in. *@
             @if (IsZoomed)
             {
-                <MudSlider T="double" Value="ScrollFraction" ValueChanged="OnScrollChanged"
-                           Min="0" Max="1" Step="0.0005" Style="margin:0 2px;" />
+                <input type="range" class="da-range" min="0" max="1" step="0.0005"
+                       style="margin:0 2px; --pp:@Pct(ScrollFraction);"
+                       aria-label="Scroll the view over the file" value="@Inv(ScrollFraction)"
+                       @oninput="@(e => OnScrollChanged(ParseD(e.Value, ScrollFraction)))" />
             }
 
             <div class="ace-toolbar">
-                <MudIconButton Icon="@Icons.Material.Filled.ZoomOut" Size="Size.Small"
-                               Title="Zoom out" Disabled="@(!IsZoomed)"
-                               OnClick="() => ZoomByAroundCentre(0.5)" />
-                <MudIconButton Icon="@Icons.Material.Filled.ZoomIn" Size="Size.Small"
-                               Title="Zoom in" Disabled="@(_viewDuration <= MinViewDuration + 1e-6)"
-                               OnClick="() => ZoomByAroundCentre(2)" />
-                <MudButton Size="Size.Small" Variant="Variant.Text"
-                           StartIcon="@Icons.Material.Filled.CenterFocusStrong"
-                           OnClick="ZoomToClip">Zoom to clip</MudButton>
-                <MudButton Size="Size.Small" Variant="Variant.Text"
-                           StartIcon="@Icons.Material.Filled.FitScreen"
-                           Disabled="@(!IsZoomed)" OnClick="ZoomFit">Whole track</MudButton>
+                <button type="button" class="da-ib" title="Zoom out" aria-label="Zoom out"
+                        disabled="@(!IsZoomed)" @onclick="() => ZoomByAroundCentre(0.5)">
+                    <DaIcon Name="zoom-out" Size="18" />
+                </button>
+                <button type="button" class="da-ib" title="Zoom in" aria-label="Zoom in"
+                        disabled="@(_viewDuration <= MinViewDuration + 1e-6)"
+                        @onclick="() => ZoomByAroundCentre(2)">
+                    <DaIcon Name="zoom-in" Size="18" />
+                </button>
+                <button type="button" class="da-btn da-btn-text da-btn-sm" @onclick="ZoomToClip">
+                    <DaIcon Name="center-focus" Size="16" />Zoom to clip
+                </button>
+                <button type="button" class="da-btn da-btn-text da-btn-sm"
+                        disabled="@(!IsZoomed)" @onclick="ZoomFit">
+                    <DaIcon Name="fit-screen" Size="16" />Whole track
+                </button>
                 <span class="ace-zoom-hint">
                     showing @FormatTime(_viewDuration) of @FormatTime(_fileDuration)
                 </span>
@@ -266,20 +296,36 @@
                 @* Bounds *@
                 <div class="ace-row">
                     <span class="ace-label">Bounds</span>
-                    <MudNumericField T="double" Value="ClipStartValue" ValueChanged="SetClipStart"
-                                     Label="Start (s)" Variant="Variant.Outlined" Margin="Margin.Dense"
-                                     Min="0" Max="@_fileDuration" Step="0.05" Format="F2"
-                                     Style="width:120px;" />
-                    <MudNumericField T="double" Value="ClipEndValue" ValueChanged="SetClipEnd"
-                                     Label="End (s)" Variant="Variant.Outlined" Margin="Margin.Dense"
-                                     Min="0" Max="@_fileDuration" Step="0.05" Format="F2"
-                                     Style="width:120px;" />
+                    <div class="da-field">
+                        <span class="da-flabel">Start (s)</span>
+                        <div class="da-step da-step-wide">
+                            <button type="button" @onclick="@(() => SetClipStart(ClipStartValue - 0.05))">&minus;</button>
+                            <input type="number" value="@Inv(ClipStartValue, "F2")"
+                                   min="0" max="@Inv(_fileDuration)" step="0.05"
+                                   @onchange="@(e => SetClipStart(ParseD(e.Value, ClipStartValue)))" />
+                            <button type="button" @onclick="@(() => SetClipStart(ClipStartValue + 0.05))">+</button>
+                        </div>
+                    </div>
+                    <div class="da-field">
+                        <span class="da-flabel">End (s)</span>
+                        <div class="da-step da-step-wide">
+                            <button type="button" @onclick="@(() => SetClipEnd(ClipEndValue - 0.05))">&minus;</button>
+                            <input type="number" value="@Inv(ClipEndValue, "F2")"
+                                   min="0" max="@Inv(_fileDuration)" step="0.05"
+                                   @onchange="@(e => SetClipEnd(ParseD(e.Value, ClipEndValue)))" />
+                            <button type="button" @onclick="@(() => SetClipEnd(ClipEndValue + 0.05))">+</button>
+                        </div>
+                    </div>
                     <span class="ace-spacer"></span>
                     <span class="ace-readout">
                         @FormatTime(ClipEndValue - ClipStartValue) of @FormatTime(_fileDuration)
                     </span>
-                    <MudIconButton Icon="@Icons.Material.Filled.Restore" Size="Size.Small"
-                                   Title="Reset the clip to the whole track" OnClick="ResetClip" />
+                    <button type="button" class="da-ib"
+                            title="Reset the clip to the whole track"
+                            aria-label="Reset the clip to the whole track"
+                            @onclick="ResetClip">
+                        <DaIcon Name="restore" Size="18" />
+                    </button>
                 </div>
 
                 @* Edge fades. Both fields stay mounted and disable when off, so
@@ -289,39 +335,60 @@
 
                     <div class="ace-fade-group">
                         <span class="ace-toggle">
-                            <MudCheckBox T="bool" Value="@(Usage.ClipFadeInSeconds != null)"
-                                         ValueChanged="ToggleClipFadeIn" Dense="true" Size="Size.Small" />
+                            @* The label carries only the box: the name beside it is
+                               its own click target, as it already was. *@
+                            <label class="da-chk" aria-label="Fade in">
+                                <input type="checkbox" checked="@(Usage.ClipFadeInSeconds != null)"
+                                       @onchange="@(e => ToggleClipFadeIn(e.Value is bool v && v))" />
+                            </label>
                             <span class="ace-toggle-name @(Usage.ClipFadeInSeconds == null ? "ace-toggle-name-off" : "")"
                                   @onclick="() => ToggleClipFadeIn(Usage.ClipFadeInSeconds == null)">Fade in</span>
                         </span>
-                        <MudNumericField T="double" Value="@(Usage.ClipFadeInSeconds ?? DefaultClipFadeSeconds)"
-                                         ValueChanged="SetClipFadeIn"
-                                         Disabled="@(Usage.ClipFadeInSeconds == null)"
-                                         Label="Seconds" Variant="Variant.Outlined" Margin="Margin.Dense"
-                                         Min="0" Max="@_fileDuration" Step="0.1" Format="F2"
-                                         Style="width:110px;" />
+                        <div class="da-field">
+                            <span class="da-flabel">Seconds</span>
+                            <div class="da-step da-step-wide">
+                                <button type="button" disabled="@(Usage.ClipFadeInSeconds == null)"
+                                        @onclick="@(() => SetClipFadeIn((Usage.ClipFadeInSeconds ?? DefaultClipFadeSeconds) - 0.1))">&minus;</button>
+                                <input type="number" value="@Inv(Usage.ClipFadeInSeconds ?? DefaultClipFadeSeconds, "F2")"
+                                       disabled="@(Usage.ClipFadeInSeconds == null)"
+                                       min="0" max="@Inv(_fileDuration)" step="0.1"
+                                       @onchange="@(e => SetClipFadeIn(ParseD(e.Value, Usage.ClipFadeInSeconds ?? DefaultClipFadeSeconds)))" />
+                                <button type="button" disabled="@(Usage.ClipFadeInSeconds == null)"
+                                        @onclick="@(() => SetClipFadeIn((Usage.ClipFadeInSeconds ?? DefaultClipFadeSeconds) + 0.1))">+</button>
+                            </div>
+                        </div>
                     </div>
 
                     <div class="ace-fade-group">
                         <span class="ace-toggle">
-                            <MudCheckBox T="bool" Value="@(Usage.ClipFadeOutSeconds != null)"
-                                         ValueChanged="ToggleClipFadeOut" Dense="true" Size="Size.Small" />
+                            <label class="da-chk" aria-label="Fade out">
+                                <input type="checkbox" checked="@(Usage.ClipFadeOutSeconds != null)"
+                                       @onchange="@(e => ToggleClipFadeOut(e.Value is bool v && v))" />
+                            </label>
                             <span class="ace-toggle-name @(Usage.ClipFadeOutSeconds == null ? "ace-toggle-name-off" : "")"
                                   @onclick="() => ToggleClipFadeOut(Usage.ClipFadeOutSeconds == null)">Fade out</span>
                         </span>
-                        <MudNumericField T="double" Value="@(Usage.ClipFadeOutSeconds ?? DefaultClipFadeSeconds)"
-                                         ValueChanged="SetClipFadeOut"
-                                         Disabled="@(Usage.ClipFadeOutSeconds == null)"
-                                         Label="Seconds" Variant="Variant.Outlined" Margin="Margin.Dense"
-                                         Min="0" Max="@_fileDuration" Step="0.1" Format="F2"
-                                         Style="width:110px;" />
+                        <div class="da-field">
+                            <span class="da-flabel">Seconds</span>
+                            <div class="da-step da-step-wide">
+                                <button type="button" disabled="@(Usage.ClipFadeOutSeconds == null)"
+                                        @onclick="@(() => SetClipFadeOut((Usage.ClipFadeOutSeconds ?? DefaultClipFadeSeconds) - 0.1))">&minus;</button>
+                                <input type="number" value="@Inv(Usage.ClipFadeOutSeconds ?? DefaultClipFadeSeconds, "F2")"
+                                       disabled="@(Usage.ClipFadeOutSeconds == null)"
+                                       min="0" max="@Inv(_fileDuration)" step="0.1"
+                                       @onchange="@(e => SetClipFadeOut(ParseD(e.Value, Usage.ClipFadeOutSeconds ?? DefaultClipFadeSeconds)))" />
+                                <button type="button" disabled="@(Usage.ClipFadeOutSeconds == null)"
+                                        @onclick="@(() => SetClipFadeOut((Usage.ClipFadeOutSeconds ?? DefaultClipFadeSeconds) + 0.1))">+</button>
+                            </div>
+                        </div>
                     </div>
 
                     <span class="ace-spacer"></span>
-                    <MudTooltip Text="A cut rarely lands on a zero crossing, which is what clicks. These ramps apply wherever this clip plays, and on every loop.">
-                        <MudIcon Icon="@Icons.Material.Filled.HelpOutline"
-                                 Style="font-size:17px; color:#6a6a8a;" />
-                    </MudTooltip>
+                    @* The tooltip MudTooltip carried. A title attribute on an <svg>
+                       is not a tooltip, so the wrapper holds it. *@
+                    <span title="A cut rarely lands on a zero crossing, which is what clicks. These ramps apply wherever this clip plays, and on every loop.">
+                        <DaIcon Name="help" Size="17" style="color:var(--t4);" />
+                    </span>
                 </div>
 
                 @* Preview *@
@@ -331,7 +398,7 @@
                     @if (_previewPlayer != null && _previewPlayer.IsPlaying)
                     {
                         <div class="da-cmd-btn" @onclick="StopPreview" title="Stop preview">
-                            <MudIcon Icon="@Icons.Material.Filled.Stop" Class="da-stop" />
+                            <DaIcon Name="stop" Size="20" Class="da-stop" Filled="true" />
                         </div>
                         <span class="ace-readout">
                             @FormatTime(_previewPosition) / @FormatTime(ClipEndValue - ClipStartValue)
@@ -341,15 +408,17 @@
                     else
                     {
                         <div class="da-cmd-btn" @onclick="StartPreview" title="Preview the clip">
-                            <MudIcon Icon="@Icons.Material.Filled.PlayArrow" Class="da-play" />
+                            <DaIcon Name="play" Size="22" Class="da-play" Filled="true" />
                         </div>
                         <span class="ace-readout">Plays the selected region only</span>
                     }
 
                     <span class="ace-spacer"></span>
                     <span class="ace-toggle">
-                        <MudCheckBox T="bool" Value="_previewLoop" ValueChanged="OnPreviewLoopChanged"
-                                     Dense="true" Size="Size.Small" />
+                        <label class="da-chk" aria-label="Loop the selection">
+                            <input type="checkbox" checked="@_previewLoop"
+                                   @onchange="@(e => OnPreviewLoopChanged(e.Value is bool v && v))" />
+                        </label>
                         <span class="ace-toggle-name @(_previewLoop ? "" : "ace-toggle-name-off")"
                               @onclick="() => OnPreviewLoopChanged(!_previewLoop)">Loop the selection</span>
                     </span>
@@ -359,9 +428,9 @@
 
         @* ── Footer ── *@
         <div style="display:flex; justify-content:flex-end; margin-top:18px;">
-            <MudButton Variant="Variant.Filled" Color="Color.Success"
-                       StartIcon="@Icons.Material.Filled.Check"
-                       OnClick="CloseAsync">OK</MudButton>
+            <button type="button" class="da-btn da-btn-fill" @onclick="CloseAsync">
+                <DaIcon Name="check" Size="18" />OK
+            </button>
         </div>
     </div>
 </div>
@@ -454,6 +523,24 @@
             .ToString("F5", System.Globalization.CultureInfo.InvariantCulture);
         return $"calc({HandleWidthPx / 2}px + (100% - {HandleWidthPx}px) * {fraction})";
     }
+
+    /// <summary>
+    /// A number written for an HTML attribute. The whole file is careful about
+    /// this already (see TrackPos): fr-FR would emit "0,42", which a browser
+    /// drops on the floor — and a range input would snap back to its minimum.
+    /// </summary>
+    private static string Inv(double value, string format = "0.####") =>
+        value.ToString(format, System.Globalization.CultureInfo.InvariantCulture);
+
+    /// <summary>A 0..1 fraction as a CSS percentage, for a range track's fill.</summary>
+    private static string Pct(double fraction) =>
+        (Math.Clamp(fraction, 0, 1) * 100).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) + "%";
+
+    /// <summary>Reads back what a number input holds, keeping the old value if it holds nothing.</summary>
+    private static double ParseD(object? raw, double fallback) =>
+        double.TryParse(raw?.ToString(), System.Globalization.NumberStyles.Any,
+                        System.Globalization.CultureInfo.InvariantCulture, out var parsed)
+            ? parsed : fallback;
 
     private static string FormatTime(double seconds)
     {

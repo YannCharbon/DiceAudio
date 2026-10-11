@@ -19,12 +19,33 @@
                 padding:20px 24px; position:relative;"
          @onclick:stopPropagation="true">
 
-        <MudText Typo="Typo.h6" Style="margin-bottom:10px;">@_title</MudText>
+        <h4 style="margin-bottom:10px;">@_title</h4>
 
-        <MudTextField T="string" @bind-Value="_search" Placeholder="Search by name or category…"
-                      Variant="Variant.Outlined" Margin="Margin.Dense" Immediate="true" Clearable="true"
-                      Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
-                      Style="margin-bottom:12px;" />
+        @* The leading search mark and the clear button were MudTextField
+           adornments; as a plain box they are absolutely placed inside it, which
+           is how the rest of the app draws an adorned field. *@
+        <div class="da-field" style="margin-bottom:12px;">
+            <span style="position:relative; display:block;">
+                <span style="position:absolute; left:9px; top:50%; transform:translateY(-50%);
+                             color:var(--t3); pointer-events:none; display:inline-flex;">
+                    <DaIcon Name="search" />
+                </span>
+                <input class="da-inp" type="text" spellcheck="false"
+                       style="padding-left:32px; padding-right:32px;"
+                       placeholder="Search by name or category…"
+                       value="@_search"
+                       @oninput="@(e => _search = e.Value?.ToString() ?? string.Empty)" />
+                @if (_search.Length > 0)
+                {
+                    <button type="button" class="da-ib" title="Clear" aria-label="Clear"
+                            style="position:absolute; right:2px; top:50%; transform:translateY(-50%);
+                                   width:28px; height:28px;"
+                            @onclick="() => _search = string.Empty">
+                        <DaIcon Name="close" Size="14" />
+                    </button>
+                }
+            </span>
+        </div>
 
         @{ var groups = FilteredScenes()
                .GroupBy(s => string.IsNullOrWhiteSpace(s.Category) ? "(uncategorized)" : s.Category)
@@ -47,21 +68,21 @@
                 {
                     var s = scene;
                     <div class="scp-row" @onclick="() => PickScene(s)">
-                        <MudIcon Icon="@Icons.Material.Filled.Theaters" Style="color:#e73c7e;" />
+                        <DaIcon Name="movie" Size="20" Class="da-i-accent" />
                         <div style="flex:1;">
                             <div style="font-weight:bold;">@s.Name</div>
                             <div style="font-size:12px; color:grey;">
                                 @(s.Mode == DASceneMode.Contextual ? "Contextual" : "Linear") · @s.CueSummary
                             </div>
                         </div>
-                        <MudIcon Icon="@Icons.Material.Filled.ChevronRight" Style="color:#666;" />
+                        <DaIcon Name="chevron-right" Size="18" Class="da-i-muted" />
                     </div>
                 }
             }
         </div>
 
         <div style="display:flex; justify-content:flex-end; margin-top:12px;">
-            <MudButton Variant="Variant.Text" OnClick="Hide">Cancel</MudButton>
+            <button type="button" class="da-btn da-btn-text" @onclick="Hide">Cancel</button>
         </div>
     </div>
 </div>

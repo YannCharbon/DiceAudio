@@ -9,9 +9,37 @@
 @inject DiceAudioService DAService
 
 <style>
-.scenario-type-popover {
-    z-index: 5000 !important;
-}
+    /* A picked track is one chip with two targets, which is what MudChip drew:
+       the name opens the clip editor, the x removes the track. .da-tag supplies
+       the shell, so only the two inner buttons are declared here. */
+    .sie-chip-name {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        background: none;
+        border: 0;
+        padding: 0;
+        color: inherit;
+        font: inherit;
+        cursor: pointer;
+    }
+
+    .sie-chip-x {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        flex: none;
+        background: none;
+        border: 0;
+        padding: 0;
+        color: var(--t3);
+        cursor: pointer;
+    }
+
+    .sie-chip-x:hover { background: var(--s6); color: var(--t1); }
 </style>
 
 @* ── Self-contained modal overlay ── *@
@@ -24,41 +52,42 @@
                 padding:24px; position:relative;"
          @onclick:stopPropagation="true">
 
-        <MudText Typo="Typo.h6" Style="margin-bottom:16px;">Edit scenario item</MudText>
+        <h4 style="margin-bottom:16px;">Edit scenario item</h4>
 
         @* ── Name & type ── *@
-        <MudStack Row="false" Spacing="2" Style="margin-bottom:12px; max-width:500px;">
-            <MudTextField @bind-Value="ScenarioItem.Name" Label="Item name" Variant="Variant.Outlined" />
-            <MudSelect T="DAScenarioItem.ItemType"
-                   Label="Type"
-                   Variant="Variant.Outlined"
-                   Value="ScenarioItem.Type"
-                   ValueChanged="OnTypeChanged"
-                   PopoverClass="scenario-type-popover">
-            <MudSelectItem T="DAScenarioItem.ItemType" Value="@DAScenarioItem.ItemType.Single">
-                Single audio
-            </MudSelectItem>
-            <MudSelectItem T="DAScenarioItem.ItemType" Value="@DAScenarioItem.ItemType.Playlist">
-                Playlist
-            </MudSelectItem>
-            <MudSelectItem T="DAScenarioItem.ItemType" Value="@DAScenarioItem.ItemType.RandomWithCriteria">
-                Random with criteria
-            </MudSelectItem>
-            <MudSelectItem T="DAScenarioItem.ItemType" Value="@DAScenarioItem.ItemType.Scene">
-                Scene (layered soundscape)
-            </MudSelectItem>
-        </MudSelect>
+        @* The native select is drawn by the OS, so the popover that had to be
+           lifted over this modal with scenario-type-popover is gone with it. *@
+        <div class="da-stack" style="gap:8px; margin-bottom:12px; max-width:500px;">
+            <label class="da-field">
+                <span class="da-flabel">Item name</span>
+                <input class="da-inp" type="text" spellcheck="false" @bind="ScenarioItem.Name" />
+            </label>
+            <label class="da-field">
+                <span class="da-flabel">Type</span>
+                <select class="da-inp" value="@ScenarioItem.Type" @onchange="OnTypeSelected">
+                    <option value="@DAScenarioItem.ItemType.Single">Single audio</option>
+                    <option value="@DAScenarioItem.ItemType.Playlist">Playlist</option>
+                    <option value="@DAScenarioItem.ItemType.RandomWithCriteria">Random with criteria</option>
+                    <option value="@DAScenarioItem.ItemType.Scene">Scene (layered soundscape)</option>
+                </select>
+            </label>
             @if (ScenarioItem.Type != DAScenarioItem.ItemType.Scene)
             {
-                <MudStack Row="true">
-                    <MudCheckBox @bind-Value="ScenarioItem.PlayInLoop" Label="Loop" />
+                <div class="da-irow" style="gap:14px;">
+                    <label class="da-chk">
+                        <input type="checkbox" @bind="ScenarioItem.PlayInLoop" />
+                        Loop
+                    </label>
                     @if (ScenarioItem.Type == DAScenarioItem.ItemType.Playlist)
                     {
-                        <MudCheckBox @bind-Value="ScenarioItem.PlaylistOrderIsRandom" Label="Randomize playlist" />
+                        <label class="da-chk">
+                            <input type="checkbox" @bind="ScenarioItem.PlaylistOrderIsRandom" />
+                            Randomize playlist
+                        </label>
                     }
-                </MudStack>
+                </div>
             }
-        </MudStack>
+        </div>
 
         @* ── Scene ── *@
         @if (ScenarioItem.Type == DAScenarioItem.ItemType.Scene)
@@ -66,106 +95,109 @@
             var currentScene = CurrentScene;
             bool isLocal = ScenarioItem.LocalSceneId != null;
 
-            <MudDivider Style="margin-bottom:10px;" />
-            <MudText Typo="Typo.subtitle2" Style="margin-bottom:8px;">Scene</MudText>
+            <hr style="border:0; border-top:1px solid var(--b1); margin-bottom:10px;" />
+            <h5 style="margin:0 0 8px;">Scene</h5>
 
-            <MudStack Row="true" AlignItems="AlignItems.Center" Style="gap:10px; flex-wrap:wrap;">
+            <div class="da-irow da-irow-wrap" style="gap:10px;">
                 @if (currentScene != null)
                 {
-                    <MudText Typo="Typo.body2">
+                    <span>
                         <b>@currentScene.Name</b>
-                        <span style="color:grey;"> — @(currentScene.Mode == DASceneMode.Contextual ? "contextual" : "linear"), @currentScene.CueSummary</span>
-                    </MudText>
+                        <span class="da-meta"> — @(currentScene.Mode == DASceneMode.Contextual ? "contextual" : "linear"), @currentScene.CueSummary</span>
+                    </span>
                 }
                 else if (isLocal)
                 {
-                    <MudText Typo="Typo.body2" Style="color:orange;">
+                    <span style="color:var(--warn);">
                         The referenced local scene no longer exists.
-                    </MudText>
+                    </span>
                 }
 
-                <MudButton Variant="Variant.Filled" Color="Color.Secondary"
-                           StartIcon="@Icons.Material.Filled.Theaters"
-                           OnClick="EditScene">
+                <button type="button" class="da-btn da-btn-fill" @onclick="EditScene">
+                    <DaIcon Name="movie" Size="16" />
                     @(currentScene == null ? "Create scene…" : isLocal ? "Edit local scene…" : "Edit scene…")
-                </MudButton>
+                </button>
 
                 @if (Group is { LocalScenes.Count: > 0 })
                 {
-                    <MudButton Variant="Variant.Outlined" Color="Color.Info"
-                               StartIcon="@Icons.Material.Filled.Theaters"
-                               Title="Use one of the scenario group's local scenes — the item references it, so editing the scene once updates every item using it"
-                               OnClick="ShowLocalPicker">
+                    <button type="button" class="da-btn da-btn-out"
+                            title="Use one of the scenario group's local scenes — the item references it, so editing the scene once updates every item using it"
+                            @onclick="ShowLocalPicker">
+                        <DaIcon Name="movie" Size="16" />
                         Pick locally…
-                    </MudButton>
+                    </button>
                 }
 
                 @if (DAService.Scenes.Count > 0)
                 {
-                    <MudButton Variant="Variant.Outlined" Color="Color.Secondary"
-                               StartIcon="@Icons.Material.Filled.LibraryBooks"
-                               Title="Copy a scene from the global catalogue into this item"
-                               OnClick="() => _catalogPicker?.Show()">
+                    @* An open book for the catalogue: the set has no stack-of-books
+                       mark and this is the one it uses for a body of material. *@
+                    <button type="button" class="da-btn da-btn-out"
+                            title="Copy a scene from the global catalogue into this item"
+                            @onclick="() => _catalogPicker?.Show()">
+                        <DaIcon Name="auto-stories" Size="16" />
                         Pick from catalogue…
-                    </MudButton>
+                    </button>
                 }
 
                 @if (!isLocal && Group != null && ScenarioItem.Scene != null)
                 {
-                    <MudButton Variant="Variant.Outlined" Color="Color.Info"
-                               StartIcon="@Icons.Material.Filled.DriveFileMove"
-                               Title="Move this scene into the group's local scenes so any scenario of the group can use it too"
-                               OnClick="MoveSceneToLocal">
+                    <button type="button" class="da-btn da-btn-out"
+                            title="Move this scene into the group's local scenes so any scenario of the group can use it too"
+                            @onclick="MoveSceneToLocal">
+                        <DaIcon Name="folder-move" Size="16" />
                         Move to local scenes
-                    </MudButton>
+                    </button>
                 }
 
                 @if (isLocal && currentScene != null)
                 {
-                    <MudButton Variant="Variant.Outlined" Color="Color.Default"
-                               StartIcon="@Icons.Material.Filled.LinkOff"
-                               Title="Stop sharing: give this item its own private copy of the scene"
-                               OnClick="DetachLocalScene">
+                    <button type="button" class="da-btn da-btn-out"
+                            title="Stop sharing: give this item its own private copy of the scene"
+                            @onclick="DetachLocalScene">
+                        <DaIcon Name="link-off" Size="16" />
                         Make item-owned copy
-                    </MudButton>
+                    </button>
                 }
-            </MudStack>
+            </div>
 
             @if (isLocal && currentScene != null)
             {
                 var otherUsers = Group!.ItemsUsingLocalScene(currentScene).Count() - 1;
-                <MudText Typo="Typo.caption" Style="color:grey; display:block; margin-top:6px;">
+                <div class="da-meta" style="margin-top:6px;">
                     Group-local scene — edits apply here and in the “Local scenes” tab of the group@(otherUsers > 0
                         ? $", and to the {otherUsers} other item(s) playing it"
                         : "").
-                </MudText>
+                </div>
             }
 
             @* Which context this item enters when it starts playing. *@
             @if (currentScene is { Mode: DASceneMode.Contextual } contextualScene
                  && contextualScene.Contexts.Count > 0)
             {
-                <MudSelect T="Guid?" Value="contextualScene.DefaultContextId"
-                           ValueChanged="OnDefaultContextChanged"
-                           Label="Default context (plays on start)"
-                           Variant="Variant.Outlined" Margin="Margin.Dense"
-                           Style="max-width:300px; margin-top:8px;">
-                    <MudSelectItem T="Guid?" Value="@((Guid?)null)">
-                        First context (@contextualScene.Contexts[0].Name)
-                    </MudSelectItem>
-                    @foreach (var ctx in contextualScene.Contexts)
-                    {
-                        <MudSelectItem T="Guid?" Value="@((Guid?)ctx.Id)">@ctx.Name</MudSelectItem>
-                    }
-                </MudSelect>
+                @* The empty option carries the null default, which is "whichever
+                   context comes first" rather than a context of its own. *@
+                <label class="da-field" style="max-width:300px; margin-top:8px;">
+                    <span class="da-flabel">Default context (plays on start)</span>
+                    <select class="da-inp" value="@contextualScene.DefaultContextId"
+                            @onchange="OnDefaultContextSelected">
+                        <option value="">
+                            First context (@contextualScene.Contexts[0].Name)
+                        </option>
+                        @foreach (var ctx in contextualScene.Contexts)
+                        {
+                            <option value="@ctx.Id">@ctx.Name</option>
+                        }
+                    </select>
+                </label>
             }
         }
 
         @* ── Random criteria ── *@
         @if (ScenarioItem.Type == DAScenarioItem.ItemType.RandomWithCriteria)
         {
-            <MudDivider Style="margin-bottom:10px;" />
-            <MudText Typo="Typo.subtitle2" Style="margin-bottom:8px;">Random play criteria</MudText>
+            <hr style="border:0; border-top:1px solid var(--b1); margin-bottom:10px;" />
+            <h5 style="margin:0 0 8px;">Random play criteria</h5>
             <ScenarioItemCriteriaEditor ScenarioItem="ScenarioItem" UpdateParent="StateHasChanged" />
         }
 
@@ -173,15 +205,15 @@
         @if (ScenarioItem.Type != DAScenarioItem.ItemType.RandomWithCriteria
           && ScenarioItem.Type != DAScenarioItem.ItemType.Scene)
         {
-            <MudDivider Style="margin:12px 0;" />
-            <MudStack Row="true" AlignItems="AlignItems.Center" Style="margin-bottom:8px; gap:8px;">
-                <MudText Typo="Typo.subtitle2">Ambience / music</MudText>
+            <hr style="border:0; border-top:1px solid var(--b1); margin:12px 0;" />
+            <div class="da-irow" style="margin-bottom:8px; gap:8px;">
+                <h5 style="margin:0;">Ambience / music</h5>
                 @if (ScenarioItem.Type == DAScenarioItem.ItemType.Single && ScenarioItem.PlaylistTracks.Count > 1)
                 {
-                    <MudText Typo="Typo.caption" Style="color:orange;">(Single: only first track plays)</MudText>
+                    <span style="font-size:12px; color:var(--warn);">(Single: only first track plays)</span>
                 }
-                <MudText Typo="Typo.caption" Style="color:grey;">(click a track to edit volume / clip)</MudText>
-            </MudStack>
+                <span class="da-meta">(click a track to edit volume / clip)</span>
+            </div>
 
             <div style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; min-height:28px;">
                 @foreach (var usage in ScenarioItem.PlaylistTracks)
@@ -190,25 +222,41 @@
                     var item = DAService.AudioItems.FirstOrDefault(a => a.Id == captured.AudioItemId);
                     if (item != null)
                     {
-                        <MudChip T="string" OnClick="() => OpenClipEditor(captured, item)"
-                                 OnClose="() => ScenarioItem.PlaylistTracks.Remove(captured)"
-                                 Icon="@(captured.IsClipped ? Icons.Material.Filled.ContentCut : null)"
-                                 Color="Color.Primary">@item.Name</MudChip>
+                        @* Primary was the pink; --a1t is the readable tint of it. *@
+                        <span class="da-tag" style="padding-right:2px; color:var(--a1t); border-color:var(--a1);">
+                            <button type="button" class="sie-chip-name" title="Edit volume / clip"
+                                    @onclick="() => OpenClipEditor(captured, item)">
+                                @if (captured.IsClipped)
+                                {
+                                    @* The scissors already live in the set as the
+                                       ContentCut damage kind; the name is its key. *@
+                                    <DaIcon Name="ContentCut" Size="13" />
+                                }
+                                @item.Name
+                            </button>
+                            <button type="button" class="sie-chip-x" title="Remove" aria-label="Remove"
+                                    @onclick="() => ScenarioItem.PlaylistTracks.Remove(captured)">
+                                <DaIcon Name="close" Size="12" />
+                            </button>
+                        </span>
                     }
                 }
                 @if (!ScenarioItem.PlaylistTracks.Any())
                 { <span style="color:grey; font-size:small; align-self:center;">None selected</span> }
             </div>
 
-            <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.MusicNote"
-                       OnClick="() => _ambiencePicker?.Show(new[] { AudioKind.Music, AudioKind.Ambiance })">Pick music files…</MudButton>
+            <button type="button" class="da-btn da-btn-out"
+                    @onclick="() => _ambiencePicker?.Show(new[] { AudioKind.Music, AudioKind.Ambiance })">
+                <DaIcon Name="music-note" Size="16" />
+                Pick music files…
+            </button>
         }
 
         @* ── Sound effects (scenes carry their own SFX layers) ── *@
         @if (ScenarioItem.Type != DAScenarioItem.ItemType.Scene)
         {
-        <MudDivider Style="margin:12px 0;" />
-        <MudText Typo="Typo.subtitle2" Style="margin-bottom:8px;">Sound effects</MudText>
+        <hr style="border:0; border-top:1px solid var(--b1); margin:12px 0;" />
+        <h5 style="margin:0 0 8px;">Sound effects</h5>
 
         <div style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; min-height:28px;">
             @foreach (var usage in ScenarioItem.SoundEffects)
@@ -217,35 +265,56 @@
                 var item = DAService.AudioItems.FirstOrDefault(a => a.Id == captured.AudioItemId);
                 if (item != null)
                 {
-                    <MudChip T="string" OnClick="() => OpenClipEditor(captured, item)"
-                             OnClose="() => ScenarioItem.SoundEffects.Remove(captured)"
-                             Icon="@(captured.IsClipped ? Icons.Material.Filled.ContentCut : null)"
-                             Color="Color.Secondary">@item.Name</MudChip>
+                    @* Secondary was the teal, which is the --a3 token. *@
+                    <span class="da-tag" style="padding-right:2px; color:var(--a3); border-color:var(--a3);">
+                        <button type="button" class="sie-chip-name" title="Edit volume / clip"
+                                @onclick="() => OpenClipEditor(captured, item)">
+                            @if (captured.IsClipped)
+                            {
+                                <DaIcon Name="ContentCut" Size="13" />
+                            }
+                            @item.Name
+                        </button>
+                        <button type="button" class="sie-chip-x" title="Remove" aria-label="Remove"
+                                @onclick="() => ScenarioItem.SoundEffects.Remove(captured)">
+                            <DaIcon Name="close" Size="12" />
+                        </button>
+                    </span>
                 }
             }
             @if (!ScenarioItem.SoundEffects.Any())
             { <span style="color:grey; font-size:small; align-self:center;">None selected</span> }
         </div>
 
-        <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.VolumeUp"
-                   OnClick="() => _soundsPicker?.Show(new[] { AudioKind.SoundEffect })">Pick sound effects…</MudButton>
+        <button type="button" class="da-btn da-btn-out"
+                @onclick="() => _soundsPicker?.Show(new[] { AudioKind.SoundEffect })">
+            <DaIcon Name="volume-up" Size="16" />
+            Pick sound effects…
+        </button>
         }
 
         @* ── Footer ── *@
         <div style="display:flex; align-items:center; gap:8px; margin-top:24px; flex-wrap:wrap;">
-            <MudTextField @bind-Value="_presetCategory" Label="Preset category" Placeholder="e.g. Town, Combat"
-                          Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width:180px;" />
-            <MudButton Variant="Variant.Outlined" Color="Color.Secondary"
-                       StartIcon="@Icons.Material.Filled.BookmarkAdd"
-                       OnClick="SaveAsPreset">Save as preset</MudButton>
+            <label class="da-field" style="max-width:180px;">
+                <span class="da-flabel">Preset category</span>
+                <input class="da-inp" type="text" spellcheck="false" placeholder="e.g. Town, Combat"
+                       @bind="_presetCategory" />
+            </label>
+            <button type="button" class="da-btn da-btn-out" @onclick="SaveAsPreset">
+                <DaIcon Name="bookmark-add" Size="16" />
+                Save as preset
+            </button>
             @if (_presetSaved)
             {
-                <MudText Typo="Typo.caption" Style="color:#4caf50;">Saved to catalogue ✓</MudText>
+                @* The confirmation green has no token; the secondary teal is the
+                   nearest one the app owns. *@
+                <span style="font-size:12px; color:var(--a3);">Saved to catalogue ✓</span>
             }
             <div style="flex:1;"></div>
-            <MudButton Variant="Variant.Filled" Color="Color.Success"
-                       StartIcon="@Icons.Material.Filled.Check"
-                       OnClick="Close">OK</MudButton>
+            <button type="button" class="da-btn da-btn-fill" @onclick="Close">
+                <DaIcon Name="check" Size="16" />
+                OK
+            </button>
         </div>
     </div>
 </div>
@@ -348,6 +417,11 @@
         StateHasChanged();
     }
 
+    /// Reads the native select back. An empty value is the "first context"
+    /// choice, which the model stores as null.
+    void OnDefaultContextSelected(ChangeEventArgs e) =>
+        OnDefaultContextChanged(Guid.TryParse(e.Value?.ToString(), out var id) ? id : null);
+
     void OnDefaultContextChanged(Guid? contextId)
     {
         var scene = CurrentScene;
@@ -366,6 +440,12 @@
 
     private string _presetCategory = "";
     private bool _presetSaved;
+
+    void OnTypeSelected(ChangeEventArgs e)
+    {
+        if (Enum.TryParse<DAScenarioItem.ItemType>(e.Value?.ToString(), out var type))
+            OnTypeChanged(type);
+    }
 
     void OnTypeChanged(DAScenarioItem.ItemType newType)
     {

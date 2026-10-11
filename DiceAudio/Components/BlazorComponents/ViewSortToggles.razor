@@ -14,24 +14,22 @@
     <button type="button" class="da-viewbtn"
             title="@($"Folders are shown as {(FolderView == DAViewMode.Big ? "big cards" : "a list")} — click to switch")"
             @onclick="ToggleFolders">
-        <MudIcon Icon="@(FolderView == DAViewMode.Big ? Icons.Material.Filled.GridView : Icons.Material.Filled.ViewList)"
-                 Style="font-size:15px;" />
+        <DaIcon Name="@(FolderView == DAViewMode.Big ? "grid-view" : "list")" Size="15" />
         Folders
     </button>
 
     <button type="button" class="da-viewbtn"
             title="@($"Audio items are shown as {(ItemView == DAViewMode.Big ? "big cards" : "a list")} — click to switch")"
             @onclick="ToggleItems">
-        <MudIcon Icon="@(ItemView == DAViewMode.Big ? Icons.Material.Filled.GridView : Icons.Material.Filled.ViewList)"
-                 Style="font-size:15px;" />
+        <DaIcon Name="@(ItemView == DAViewMode.Big ? "grid-view" : "list")" Size="15" />
         Items
     </button>
 
     <button type="button" class="da-viewbtn"
             title="@($"Sorted by {(Sort == DASortMode.Name ? "name" : "the order things were added")} — click to switch")"
             @onclick="ToggleSort">
-        <MudIcon Icon="@(Sort == DASortMode.Name ? Icons.Material.Filled.SortByAlpha : Icons.Material.Filled.Schedule)"
-                 Style="font-size:15px;" />
+        @* access-time stands in for Material's Schedule: both are a clock face. *@
+        <DaIcon Name="@(Sort == DASortMode.Name ? "sort-alpha" : "access-time")" Size="15" />
         @(Sort == DASortMode.Name ? "Name" : "Added")
     </button>
 </div>

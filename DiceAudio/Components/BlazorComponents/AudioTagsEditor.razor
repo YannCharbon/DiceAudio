@@ -6,63 +6,9 @@
  * See the LICENSE file in the repository root for details.
 *@
 
-<style>
-	.audio-tag-editor-item {
-		padding: 10px;
-		margin: 5px;
-		background-color: #303030;
-	}
-
-	.audio-tag-editor-tag-name {
-		color: black;
-		background-color: #a0a0a0;
-		border-color: #040020;
-		border-width: 3px;
-		border-style: solid;
-		border-radius: 3px;
-		padding: 3px;
-	}
-
-	.audio-tag-editor-tag {
-		color: black;
-		background-color: #e73c7e;
-		border-color: #040020;
-		border-width: 3px;
-		border-style: solid;
-		border-radius: 3px;
-		padding: 3px;
-		cursor: pointer;
-	}
-
-	.audio-tag-editor-tag-selected {
-		color: black;
-		background-color: #3ce77e;
-		border-color: #040020;
-		border-width: 3px;
-		border-style: solid;
-		border-radius: 3px;
-		padding: 3px;
-		cursor: pointer;
-	}
-
-	.audio-item-tag {
-		color: black;
-		background-color: #e73c7e;
-		border-color: #040020;
-		border-width: 3px;
-		border-style: solid;
-		border-radius: 3px;
-		padding: 3px;
-	}
-
-	.audio-tag-filter-flex-container {
-		display: flex;
-		flex-direction: row;
-		flex-wrap: wrap;
-		justify-content: flex-start;
-		align-items: baseline
-	}
-</style>
+@* ── The three fixed tag categories, each a row of its own tags plus a field
+     to add one. A tag chip here is a delete button: clicking it drops the tag
+     from its category, which is why it carries the bin. ── *@
 
 <div>
 	<h4 class="modal-title">Tags editor&nbsp;</h4>
@@ -72,42 +18,69 @@
 		<h4>Add/Remove tags</h4>
 		<div style="padding:5px;">
 			<p>Type</p>
-			<div class="audio-tag-filter-flex-container">
+			<div class="da-irow da-irow-wrap">
 				@foreach (string tagName in DAAudioTagsProvider.Instance.CategoryTypes)
 				{
-					<span title="Delete tag from this category" class="audio-tag-editor-tag" @onclick="() => DAAudioTagsProvider.Instance.CategoryTypes.Remove(tagName)">@tagName.ToString() <span class="oi oi-trash"></span></span>
+					<button type="button" class="da-tog" title="Delete tag from this category"
+							@onclick="() => DAAudioTagsProvider.Instance.CategoryTypes.Remove(tagName)">
+						@tagName.ToString()<DaIcon Name="delete" Size="13" />
+					</button>
 				}
 			</div>
-			<MudStack Row="true" style="padding-top:10px;">
-				<MudTextField Variant="Variant.Filled" @bind-Value="newCategoryTypeTagName" Label="Enter new tag name"></MudTextField>
-				<MudButton Variant="@Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" @onclick="() => AddNewTag(DAAudioTag.TagCategory.Type, newCategoryTypeTagName)">Add new tag</MudButton>
-			</MudStack>
+			<div class="da-irow da-irow-wrap" style="padding-top:10px;">
+				<div class="da-field" style="max-width:260px;">
+					<span class="da-flabel">Enter new tag name</span>
+					<input class="da-inp" type="text" @bind="newCategoryTypeTagName" />
+				</div>
+				<button type="button" class="da-btn da-btn-fill"
+						@onclick="() => AddNewTag(DAAudioTag.TagCategory.Type, newCategoryTypeTagName)">
+					<DaIcon Name="add" Size="18" />Add new tag
+				</button>
+			</div>
 		</div>
 		<div style="padding:5px;">
 			<p>Location</p>
-			<div class="audio-tag-filter-flex-container">
+			<div class="da-irow da-irow-wrap">
 				@foreach (string tagName in DAAudioTagsProvider.Instance.CategoryLocations)
 				{
-					<span title="Delete tag from this category" class="audio-tag-editor-tag" @onclick="() => DAAudioTagsProvider.Instance.CategoryLocations.Remove(tagName)">@tagName.ToString() <span class="oi oi-trash"></span></span>
+					<button type="button" class="da-tog" title="Delete tag from this category"
+							@onclick="() => DAAudioTagsProvider.Instance.CategoryLocations.Remove(tagName)">
+						@tagName.ToString()<DaIcon Name="delete" Size="13" />
+					</button>
 				}
 			</div>
-			<MudStack Row="true" style="padding-top:10px;">
-				<MudTextField Variant="Variant.Filled" @bind-Value="newCategoryLocationTagName" Label="Enter new tag name"></MudTextField>
-				<MudButton Variant="@Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" @onclick="() => AddNewTag(DAAudioTag.TagCategory.Location, newCategoryLocationTagName)">Add new tag</MudButton>
-			</MudStack>
+			<div class="da-irow da-irow-wrap" style="padding-top:10px;">
+				<div class="da-field" style="max-width:260px;">
+					<span class="da-flabel">Enter new tag name</span>
+					<input class="da-inp" type="text" @bind="newCategoryLocationTagName" />
+				</div>
+				<button type="button" class="da-btn da-btn-fill"
+						@onclick="() => AddNewTag(DAAudioTag.TagCategory.Location, newCategoryLocationTagName)">
+					<DaIcon Name="add" Size="18" />Add new tag
+				</button>
+			</div>
 		</div>
 		<div style="padding:5px;">
 			<p>Expression</p>
-			<div class="audio-tag-filter-flex-container">
+			<div class="da-irow da-irow-wrap">
 				@foreach (string tagName in DAAudioTagsProvider.Instance.CategoryExpressions)
 				{
-					<span title="Delete tag from this category" class="audio-tag-editor-tag" @onclick="() => DAAudioTagsProvider.Instance.CategoryExpressions.Remove(tagName)">@tagName.ToString() <span class="oi oi-trash"></span></span>
+					<button type="button" class="da-tog" title="Delete tag from this category"
+							@onclick="() => DAAudioTagsProvider.Instance.CategoryExpressions.Remove(tagName)">
+						@tagName.ToString()<DaIcon Name="delete" Size="13" />
+					</button>
 				}
 			</div>
-			<MudStack Row="true" style="padding-top:10px;">
-				<MudTextField Variant="Variant.Filled" @bind-Value="newCategoryExpressionTagName" Label="Enter new tag name"></MudTextField>
-				<MudButton Variant="@Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" @onclick="() => AddNewTag(DAAudioTag.TagCategory.Expression, newCategoryExpressionTagName)">Add new tag</MudButton>
-			</MudStack>
+			<div class="da-irow da-irow-wrap" style="padding-top:10px;">
+				<div class="da-field" style="max-width:260px;">
+					<span class="da-flabel">Enter new tag name</span>
+					<input class="da-inp" type="text" @bind="newCategoryExpressionTagName" />
+				</div>
+				<button type="button" class="da-btn da-btn-fill"
+						@onclick="() => AddNewTag(DAAudioTag.TagCategory.Expression, newCategoryExpressionTagName)">
+					<DaIcon Name="add" Size="18" />Add new tag
+				</button>
+			</div>
 		</div>
 	</div>
 </div>

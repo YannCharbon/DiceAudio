@@ -24,10 +24,12 @@
         -webkit-app-region: drag;
     }
 
+    /* The colours the splash was written with, now taken from the sheet's
+       tokens: they are the same values, named once. */
     .da-splash-msg {
         padding: 10px 20px;
         min-height: 1.5em;
-        color: #e0e0e0;
+        color: var(--t2);
     }
 
     .da-splash-bar {
@@ -35,13 +37,13 @@
         height: 6px;
         margin: 6px auto 0 auto;
         border-radius: 3px;
-        background: #3a3a5a;
+        background: var(--b2);
         overflow: hidden;
     }
 
     .da-splash-bar > div {
         height: 100%;
-        background: linear-gradient(90deg, #23a6ab, #e73c7e);
+        background: linear-gradient(90deg, var(--a3), var(--a1));
         transition: width 0.2s linear;
     }
 
@@ -49,15 +51,15 @@
         margin-top: 18px;
         padding: 6px 16px;
         border-radius: 60px;
-        border: 1px solid #5050aa;
-        background: #252545;
-        color: #cfcfe8;
+        border: 1px solid var(--b4);
+        background: var(--s5);
+        color: var(--t2);
         font-size: medium;
         cursor: pointer;
     }
 
     .da-splash-skip:hover {
-        background: #323260;
+        background: var(--s8);
     }
 </style>
 
@@ -68,7 +70,7 @@
     <div class="da-splash-drag"></div>
 }
 
-<div style="padding-top:200px;text-align:center;color:white;font-size:large;">
+<div style="padding-top:200px;text-align:center;color:var(--t1);font-size:large;">
     <div>
         <img width="200" height="200" src="diceaudio_logo.svg" />
     </div>

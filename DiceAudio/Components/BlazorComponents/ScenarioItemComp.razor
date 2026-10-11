@@ -45,9 +45,9 @@
     .si-card-fading { opacity: 0.6; }
     .si-body   { padding: 8px 10px; flex: 1; display: flex; flex-direction: column; gap: 4px; }
     .si-name   { font-weight: bold; font-size: 13px; word-break: break-word; }
-    .si-meta   { font-size: 11px; color: grey; display: flex; align-items: center; gap: 4px; }
+    .si-meta   { font-size: 11px; color: var(--t3); display: flex; align-items: center; gap: 4px; }
     .si-footer { display: flex; justify-content: flex-end; gap: 4px; padding: 6px 8px;
-                 border-top: 1px solid #2a2a4a; }
+                 border-top: 1px solid var(--b1); }
 </style>
 
 @{
@@ -71,7 +71,11 @@
         }
         else
         {
-            <MudIcon Icon="@Icons.Material.Filled.MusicNote" Style="font-size:32px; opacity:0.35;" />
+            @* A scene item has no track to name, so the placeholder was the only
+               thing on the banner - and it was a music note, which is what every
+               other kind of item is. It wears the mark the Scenes menu wears. *@
+            <DaIcon Name="@(ScenarioItem.Type == DAScenarioItem.ItemType.Scene ? "movie" : "music-note")"
+                    Size="32" style="opacity:0.35;" />
         }
     </div>
 
@@ -86,10 +90,12 @@
         <div class="si-name">@ScenarioItem.Name</div>
         <div class="si-meta">
             <span>@ScenarioItem.Type</span>
+            @* lightgreen has no token; the secondary teal is the nearest one and
+               is what the rest of the app uses for an "on" marker. *@
             @if (ScenarioItem.PlayInLoop)
-            { <MudIcon Icon="@Icons.Material.Filled.Repeat" Style="font-size:13px; color:lightgreen;" /> }
+            { <DaIcon Name="loop" Size="14" style="color:var(--a3);" /> }
             @if (ScenarioItem.Type == DAScenarioItem.ItemType.Playlist && ScenarioItem.PlaylistOrderIsRandom)
-            { <MudIcon Icon="@Icons.Material.Filled.Shuffle" Style="font-size:13px; color:lightgreen;" /> }
+            { <DaIcon Name="shuffle" Size="14" style="color:var(--a3);" /> }
         </div>
 
         <ScenarioItemPlayerComp ScenarioItem="ScenarioItem" Group="Group" Player="Player"
@@ -98,9 +104,13 @@
     </div>
 
     <div class="si-footer">
-        <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" Title="Edit" OnClick="OpenEditor" />
-        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
-                       Title="Delete" OnClick="() => DeleteItem?.Invoke(ScenarioItem)" />
+        <button type="button" class="da-ib" title="Edit" aria-label="Edit" @onclick="OpenEditor">
+            <DaIcon Name="edit" Size="16" />
+        </button>
+        <button type="button" class="da-ib da-danger" title="Delete" aria-label="Delete"
+                @onclick="() => DeleteItem?.Invoke(ScenarioItem)">
+            <DaIcon Name="delete" Size="16" />
+        </button>
     </div>
 </div>
 

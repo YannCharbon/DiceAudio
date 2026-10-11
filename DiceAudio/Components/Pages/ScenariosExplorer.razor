@@ -11,85 +11,56 @@
 @inject NavigationManager NavManager
 
 <style>
-    .sce-group-card {
-        border-radius: 12px;
-        background: linear-gradient(-45deg, rgba(238,119,82,0.15), rgba(231,60,126,0.35),
-                    rgba(35,166,213,0.55), rgba(35,166,171,0.75));
-        padding: 20px;
-        margin: 10px;
-        cursor: pointer;
-        font-weight: bold;
-        font-size: large;
-        transition: box-shadow 0.2s;
-        display: flex;
-        align-items: center;
-        gap: 12px;
-    }
-    .sce-group-card:hover {
-        box-shadow: 0 4px 16px rgba(255,255,255,0.15);
-    }
-    .sce-group-name {
-        flex: 1;
-        min-width: 0;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
 
-    /* Collection folders: a flat card rather than the group gradient, so the two
-       levels of the explorer never read as the same kind of thing. */
-    .sce-coll-card {
-        border-radius: 12px;
-        background: #12121f;
-        border: 1px solid #2a2a4a;
-        padding: 20px;
-        margin: 10px;
-        cursor: pointer;
-        font-weight: bold;
-        font-size: large;
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        transition: box-shadow 0.2s, border-color 0.2s;
-    }
-    .sce-coll-card:hover {
-        box-shadow: 0 4px 16px rgba(255,255,255,0.08);
-        border-color: #444470;
-    }
-    .sce-coll-name {
-        flex: 1;
-        min-width: 0;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
 
     .sce-cat-header {
-        font-size: 15px; font-weight: bold; color: #23a6ab;
-        border-bottom: 1px solid #2a2a4a;
+        font-size: 15px; font-weight: bold; color: var(--a3);
+        border-bottom: 1px solid var(--b1);
         padding: 14px 4px 4px 4px; margin: 4px 8px;
     }
 
-    .sce-empty { color: grey; padding: 20px; }
+    .sce-empty { color: var(--t3); padding: 20px; }
 </style>
 
 <h3>Scenarios</h3>
-<MudText Typo="Typo.body2" Style="color:grey; margin-bottom:14px;">
+<p class="da-sub" style="margin-bottom:14px;">
     Scenario groups, optionally filed into collections — one per adventure, season,
     show or whatever else keeps a set of groups together.
-</MudText>
+</p>
 
-<MudStack Row="true" Wrap="Wrap.Wrap" AlignItems="AlignItems.Center" Style="gap:10px; margin-bottom:10px;">
-    <MudButton Variant="Variant.Filled" Color="Color.Primary"
-               StartIcon="@Icons.Material.Filled.Add"
-               OnClick="CreateNewGroup">
+<div class="da-irow da-irow-wrap" style="gap:10px; margin-bottom:10px;">
+    <button type="button" class="da-btn da-btn-fill" @onclick="CreateNewGroup">
+        <DaIcon Name="add" Size="16" />
         New scenario group
-    </MudButton>
-</MudStack>
+    </button>
+</div>
 
 <div style="max-width:420px; margin-bottom:6px;">
-    <MudTextField T="string" Immediate="true" Value="@_search"
-                  ValueChanged="@((string v) => _search = v)"
-                  Label="Search scenario groups" Variant="Variant.Outlined" Clearable="true"
-                  Adornment="Adornment.End" AdornmentIcon="@Icons.Material.Filled.Search" />
+    @* The search mark and the clear button were MudTextField adornments; as a
+       plain box they are placed inside it, which is how the rest of the app
+       draws an adorned field. Immediate became oninput. *@
+    <label class="da-field">
+        <span class="da-flabel">Search scenario groups</span>
+        <span style="position:relative; display:block;">
+            <input class="da-inp" type="text" spellcheck="false"
+                   style="padding-right:@(_search.Length > 0 ? "60px" : "32px");"
+                   value="@_search"
+                   @oninput="@(e => _search = e.Value?.ToString() ?? string.Empty)" />
+            @if (_search.Length > 0)
+            {
+                <button type="button" class="da-ib" title="Clear" aria-label="Clear"
+                        style="position:absolute; right:30px; top:50%; transform:translateY(-50%);
+                               width:28px; height:28px;"
+                        @onclick="() => _search = string.Empty">
+                    <DaIcon Name="close" Size="14" />
+                </button>
+            }
+            <span style="position:absolute; right:9px; top:50%; transform:translateY(-50%);
+                         color:var(--t3); pointer-events:none; display:inline-flex;">
+                <DaIcon Name="search" />
+            </span>
+        </span>
+    </label>
 </div>
 
 @if (DAService.ScenarioGroups.Count == 0)
@@ -124,8 +95,7 @@ else if (_openCollection == null && !string.IsNullOrWhiteSpace(_search))
             else
             {
                 <span style="cursor:pointer;" @onclick="() => OpenCollection(name)">
-                    <MudIcon Icon="@Icons.Material.Filled.FolderOpen"
-                             Style="font-size:16px; vertical-align:text-bottom;" />
+                    <DaIcon Name="folder-open" Size="16" />
                     @name
                 </span>
             }
@@ -145,15 +115,18 @@ else if (_openCollection == null)
             {
                 var name = collection;
                 var groups = DAService.GetGroupsOfCollection(name);
-                <div class="col col-md-4 sce-coll-card" @onclick="() => OpenCollection(name)">
-                    <MudIcon Icon="@Icons.Material.Filled.FolderOpen" Color="Color.Primary" />
-                    <div class="sce-coll-name">
-                        <div>@name</div>
-                        <MudText Typo="Typo.caption" Style="color:grey;">
+                @* A collection is the same strip; the chevron is what says it
+                   opens into something rather than being the thing itself. *@
+                <div class="col col-md-4 da-strip da-clickable" style="margin:10px;"
+                     @onclick="() => OpenCollection(name)">
+                    <div class="da-icon"><DaIcon Name="folder-open" Size="24" /></div>
+                    <div class="da-strip-body">
+                        <div class="da-strip-name">@name</div>
+                        <div class="da-meta">
                             @groups.Count group(s) · @groups.Sum(g => g.Scenarios.Count) scenario(s)
-                        </MudText>
+                        </div>
                     </div>
-                    <MudIcon Icon="@Icons.Material.Filled.ChevronRight" Style="color:grey;" />
+                    <DaIcon Name="chevron-right" Size="20" Class="da-i-muted" />
                 </div>
             }
         </div>
@@ -169,31 +142,41 @@ else if (_openCollection == null)
 else
 {
     @* Inside a collection: only its groups, plus the way out and a rename. *@
-    <MudStack Row="true" Wrap="Wrap.Wrap" AlignItems="AlignItems.Center" Style="gap:10px; margin:10px 0 0 0;">
-        <MudButton Variant="Variant.Outlined" Color="Color.Primary"
-                   StartIcon="@Icons.Material.Filled.ArrowBack"
-                   OnClick="CloseCollection">Back</MudButton>
-        <MudIcon Icon="@Icons.Material.Filled.FolderOpen" Color="Color.Primary" />
+    <div class="da-irow da-irow-wrap" style="gap:10px; margin:10px 0 0 0;">
+        <button type="button" class="da-btn da-btn-out" @onclick="CloseCollection">
+            <DaIcon Name="arrow-back" Size="16" />
+            Back
+        </button>
+        <DaIcon Name="folder-open" Size="20" Class="da-i-accent" />
         @if (_renamingCollection)
         {
-            @* Sized wrapper: the MudTextField root is width:100%, so as a bare flex
-               item it would eat the row and shove the confirm/cancel to the far right. *@
+            @* The sized wrapper stays: a .da-inp is width:100% too, so as a bare
+               flex item it would eat the row and shove the confirm/cancel right. *@
             <div style="width:320px;">
-                <MudTextField T="string" @bind-Value="_collectionRename" Label="Collection name"
-                              Variant="Variant.Outlined" Margin="Margin.Dense" Immediate="true" />
+                <label class="da-field">
+                    <span class="da-flabel">Collection name</span>
+                    <input class="da-inp" type="text" spellcheck="false"
+                           @bind="_collectionRename" @bind:event="oninput" />
+                </label>
             </div>
-            <MudIconButton Icon="@Icons.Material.Filled.Check" Color="Color.Success"
-                           Title="Rename collection" OnClick="ConfirmRenameCollection" />
-            <MudIconButton Icon="@Icons.Material.Filled.Close" Title="Cancel"
-                           OnClick="() => _renamingCollection = false" />
+            <button type="button" class="da-ib" title="Rename collection" aria-label="Rename collection"
+                    @onclick="ConfirmRenameCollection">
+                <DaIcon Name="check" Size="18" />
+            </button>
+            <button type="button" class="da-ib" title="Cancel" aria-label="Cancel"
+                    @onclick="() => _renamingCollection = false">
+                <DaIcon Name="close" Size="18" />
+            </button>
         }
         else
         {
-            <MudText Typo="Typo.h6">@_openCollection</MudText>
-            <MudIconButton Icon="@Icons.Material.Filled.Edit" Title="Rename collection"
-                           OnClick="StartRenameCollection" />
+            <span style="font-size:20px; font-weight:700;">@_openCollection</span>
+            <button type="button" class="da-ib" title="Rename collection" aria-label="Rename collection"
+                    @onclick="StartRenameCollection">
+                <DaIcon Name="edit" Size="18" />
+            </button>
         }
-    </MudStack>
+    </div>
 
     @RenderGroups(VisibleGroups(_openCollection), "This collection is empty.")
 }
@@ -207,21 +190,26 @@ else
         <div style="background:#2D2D2D; margin:10% auto; max-width:460px; border-radius:12px;
                     padding:24px; position:relative;"
              @onclick:stopPropagation="true">
-            <MudText Typo="Typo.h6" Style="margin-bottom:4px;">New collection</MudText>
-            <MudText Typo="Typo.body2" Style="color:grey; margin-bottom:18px;">
+            <h4 style="margin-bottom:4px;">New collection</h4>
+            <p class="da-sub" style="margin-bottom:18px;">
                 “@_newCollectionFor.Name” will be the first scenario group filed under it.
-            </MudText>
+            </p>
 
-            <MudTextField T="string" @bind-Value="_newCollectionName" Label="Collection name"
-                          Variant="Variant.Outlined" Immediate="true" />
+            <label class="da-field">
+                <span class="da-flabel">Collection name</span>
+                <input class="da-inp" type="text" spellcheck="false"
+                       @bind="_newCollectionName" @bind:event="oninput" />
+            </label>
 
             <div style="display:flex; gap:10px; margin-top:22px;">
                 <div style="flex:1;"></div>
-                <MudButton Variant="Variant.Text" OnClick="CancelNewCollection">Cancel</MudButton>
-                <MudButton Variant="Variant.Filled" Color="Color.Success"
-                           StartIcon="@Icons.Material.Filled.Check"
-                           Disabled="@string.IsNullOrWhiteSpace(_newCollectionName)"
-                           OnClick="ConfirmNewCollection">Create</MudButton>
+                <button type="button" class="da-btn da-btn-text" @onclick="CancelNewCollection">Cancel</button>
+                <button type="button" class="da-btn da-btn-fill"
+                        disabled="@string.IsNullOrWhiteSpace(_newCollectionName)"
+                        @onclick="ConfirmNewCollection">
+                    <DaIcon Name="check" Size="16" />
+                    Create
+                </button>
             </div>
         </div>
     </div>
@@ -240,6 +228,9 @@ else
     /// The group waiting for the name of the collection being created for it.
     private DAScenarioGroup? _newCollectionFor;
     private string _newCollectionName = string.Empty;
+
+    /// The group whose "file in a collection" popover is showing, if any.
+    private DAScenarioGroup? _fileMenuFor;
 
     private bool MatchesSearch(string text) =>
         string.IsNullOrWhiteSpace(_search) ||
@@ -282,32 +273,72 @@ else
             @foreach (var group in groups)
             {
                 var g = group;
-                <div class="col col-md-4 sce-group-card" @onclick="() => OpenGroup(g)">
-                    <MudIcon Icon="@Icons.Material.Filled.LibraryMusic" />
-                    <div class="sce-group-name">@g.Name</div>
-                    <MudText Typo="Typo.caption" Style="color:rgba(255,255,255,0.6);">
-                        @g.Scenarios.Count scenario(s)
-                    </MudText>
-                    <div @onclick:stopPropagation="true">
-                        <MudMenu Icon="@Icons.Material.Filled.DriveFileMove" Dense="true"
-                                 AriaLabel="File in a collection"
-                                 Title="File in a collection">
-                            @foreach (var collection in DAService.GetCollections())
-                            {
-                                var c = collection;
-                                var current = string.Equals(g.Collection, c, StringComparison.CurrentCultureIgnoreCase);
-                                <MudMenuItem Icon="@(current ? Icons.Material.Filled.Check : Icons.Material.Filled.Folder)"
-                                             Disabled="@current"
-                                             OnClick="() => MoveToCollection(g, c)">@c</MudMenuItem>
-                            }
-                            <MudMenuItem Icon="@Icons.Material.Filled.CreateNewFolder"
-                                         OnClick="() => StartNewCollection(g)">New collection…</MudMenuItem>
-                            @if (!string.IsNullOrWhiteSpace(g.Collection))
-                            {
-                                <MudMenuItem Icon="@Icons.Material.Filled.FolderOff"
-                                             OnClick="() => MoveToCollection(g, string.Empty)">Remove from collection</MudMenuItem>
-                            }
-                        </MudMenu>
+                @* The same shape a scene wears: a gradient tile, the name over
+                   one line of meta, then the actions. The card used to be a
+                   slab of the brand gradient with a 20px icon loose on it, so a
+                   group and a scene read as different kinds of object. *@
+                <div class="col col-md-4 da-strip da-clickable" style="margin:10px;"
+                     @onclick="() => OpenGroup(g)">
+                    <div class="da-icon"><DaIcon Name="auto-stories" Size="24" /></div>
+                    <div class="da-strip-body">
+                        <div class="da-strip-name">@g.Name</div>
+                        <div class="da-meta">@g.Scenarios.Count scenario(s)</div>
+                    </div>
+
+                    @* The card itself navigates, so every action on it stops the
+                       click from reaching the card. *@
+                    <button type="button" class="da-ib"
+                            title="@(DAService.IsScenarioGroupPinned(g) ? "Unpin" : "Pin")"
+                            aria-label="@(DAService.IsScenarioGroupPinned(g) ? "Unpin" : "Pin")"
+                            @onclick="@(() => TogglePinAsync(g))" @onclick:stopPropagation="true">
+                        <DaIcon Name="pin" Filled="@DAService.IsScenarioGroupPinned(g)"
+                                Class="@(DAService.IsScenarioGroupPinned(g) ? "da-i-accent" : null)" />
+                    </button>
+
+                    @* MudMenu had no replacement in the house set: the choices are
+                       a .da-pop under the button, with a fixed sheet behind it so
+                       clicking anywhere still dismisses it. It opens to the right
+                       because the button sits on the card's right edge. *@
+                    <div style="position:relative;" @onclick:stopPropagation="true">
+                        <button type="button" class="da-ib" title="File in a collection"
+                                aria-label="File in a collection"
+                                @onclick="() => _fileMenuFor = ReferenceEquals(_fileMenuFor, g) ? null : g">
+                            <DaIcon Name="folder-move" Size="18" />
+                        </button>
+                        @if (ReferenceEquals(_fileMenuFor, g))
+                        {
+                            <div style="position:fixed; inset:0; z-index:59;"
+                                 @onclick="() => _fileMenuFor = null"></div>
+                            <div class="da-pop" style="left:auto; right:0;">
+                                @foreach (var collection in DAService.GetCollections())
+                                {
+                                    var c = collection;
+                                    var current = string.Equals(g.Collection, c, StringComparison.CurrentCultureIgnoreCase);
+                                    <button type="button" class="da-btn da-btn-text"
+                                            style="width:100%; justify-content:flex-start;"
+                                            disabled="@current"
+                                            @onclick="() => MoveToCollection(g, c)">
+                                        <DaIcon Name="@(current ? "check" : "folder")" Size="16" />
+                                        @c
+                                    </button>
+                                }
+                                <button type="button" class="da-btn da-btn-text"
+                                        style="width:100%; justify-content:flex-start;"
+                                        @onclick="() => StartNewCollection(g)">
+                                    <DaIcon Name="folder-add" Size="16" />
+                                    New collection…
+                                </button>
+                                @if (!string.IsNullOrWhiteSpace(g.Collection))
+                                {
+                                    <button type="button" class="da-btn da-btn-text"
+                                            style="width:100%; justify-content:flex-start;"
+                                            @onclick="() => MoveToCollection(g, string.Empty)">
+                                        <DaIcon Name="folder-off" Size="16" />
+                                        Remove from collection
+                                    </button>
+                                }
+                            </div>
+                        }
                     </div>
                 </div>
             }
@@ -361,8 +392,15 @@ else
         _renamingCollection = false;
     }
 
+    async Task TogglePinAsync(DAScenarioGroup group)
+    {
+        await DAService.ToggleScenarioGroupPinnedAsync(group);
+        StateHasChanged();
+    }
+
     async Task MoveToCollection(DAScenarioGroup group, string collection)
     {
+        _fileMenuFor = null;
         await DAService.SetGroupCollectionAsync(group, collection);
 
         // The open collection may have just lost its last group, so its folder is gone.
@@ -372,6 +410,7 @@ else
 
     void StartNewCollection(DAScenarioGroup group)
     {
+        _fileMenuFor = null;
         _newCollectionFor = group;
         _newCollectionName = string.Empty;
     }

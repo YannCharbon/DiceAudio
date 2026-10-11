@@ -29,11 +29,11 @@
 </style>
 
 <h3>Presets</h3>
-<MudText Typo="Typo.body2" Style="color:grey; margin-bottom:14px;">
+<p class="da-sub" style="margin-bottom:14px;">
     Reusable scenario items and scenes. Save presets from the item and scene editors;
     insert copies from the Scenarios and Scenes pages. Inserted copies are independent —
     editing them never changes the preset.
-</MudText>
+</p>
 
 @if (DAService.Presets.Count == 0)
 {
@@ -52,13 +52,15 @@
         {
             var p = preset;
             <div class="col col-md-5 pre-card">
-                <MudIcon Icon="@(p.Kind == DAPresetKind.Scene ? Icons.Material.Filled.Theaters : Icons.Material.Filled.MusicNote)"
-                         Style="@($"color:{(p.Kind == DAPresetKind.Scene ? "#e73c7e" : "#23a6d5")};")" />
+                @* The two kinds kept the primary pink and the info blue they
+                   already wore; the tint classes are those same two tokens. *@
+                <DaIcon Name="@(p.Kind == DAPresetKind.Scene ? "theaters" : "music-note")" Size="20"
+                        Class="@(p.Kind == DAPresetKind.Scene ? "da-i-accent" : "da-i-info")" />
                 <div style="flex:1;">
                     @if (_renaming == p)
                     {
-                        <MudTextField @bind-Value="p.Name" Variant="Variant.Outlined" Margin="Margin.Dense"
-                                      OnBlur="StopRenaming" AutoFocus="true" />
+                        <input class="da-inp" type="text" @ref="_renameInput"
+                               @bind="p.Name" @bind:event="oninput" @onblur="StopRenaming" />
                     }
                     else
                     {
@@ -66,10 +68,14 @@
                     }
                     <div class="pre-meta">@KindLabel(p) · @PreviewLabel(p)</div>
                 </div>
-                <MudIconButton Icon="@Icons.Material.Filled.DriveFileRenameOutline" Size="Size.Small"
-                               Title="Rename" OnClick="() => _renaming = p" />
-                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small"
-                               Title="Delete" OnClick="() => DeletePreset(p)" />
+                <button type="button" class="da-ib" title="Rename" aria-label="Rename"
+                        @onclick="() => StartRenaming(p)">
+                    <DaIcon Name="edit" Size="16" />
+                </button>
+                <button type="button" class="da-ib da-danger" title="Delete" aria-label="Delete"
+                        @onclick="() => DeletePreset(p)">
+                    <DaIcon Name="delete" Size="16" />
+                </button>
             </div>
         }
     </div>
@@ -77,6 +83,28 @@
 
 @code {
     private DAPreset? _renaming;
+
+    /// MudTextField's AutoFocus has no plain-HTML equivalent — the `autofocus`
+    /// attribute only fires on a document load, not when Blazor swaps the label
+    /// for the box — so the focus is placed explicitly on the render after the
+    /// pencil is pressed.
+    private ElementReference _renameInput;
+    private bool _focusRename;
+
+    void StartRenaming(DAPreset preset)
+    {
+        _renaming = preset;
+        _focusRename = true;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_focusRename)
+        {
+            _focusRename = false;
+            await _renameInput.FocusAsync();
+        }
+    }
 
     static string KindLabel(DAPreset p) =>
         p.Kind == DAPresetKind.Scene ? "Scene" : "Scenario item";

@@ -13,26 +13,24 @@
      browsing itself is the shared <FolderBrowser>; this component only names
      what is moving and applies the move to the folder that comes back. ── *@
 
-<style>
-    .mtf-chip { background:#2a2a4a; border-radius:4px; padding:2px 7px;
-                font-size:12px; color:#cfd3dc; }
-</style>
+@* The names of what is moving are read-only label chips, so they are the
+   sheet's .da-tag rather than a chip this file paints itself. *@
 
 <h3 style="margin-bottom:4px;">Move to folder</h3>
 
 @if (_targets.Count > 0)
 {
     <FolderBrowser ActionLabel="Move"
-                   ActionIcon="@Icons.Material.Filled.DriveFileMove"
+                   ActionIcon="folder-move"
                    InitialFolder="@_initialFolder"
                    IsCurrent="AllTargetsIn"
                    AllowRoot="true"
                    OnFolderChosen="MoveTo"
                    OnFolderCreated="OnFolderCreated">
         <HeaderContent>
-            <MudText Typo="Typo.body2" Style="color:grey; margin-bottom:12px;">
+            <div class="da-meta" style="margin-bottom:12px;">
                 <b>@TargetsLabel</b> — currently in <b>@CurrentFolderLabel</b>
-            </MudText>
+            </div>
 
             @* In bulk mode, name what is about to move so the choice is never blind. *@
             @if (_targets.Count > 1)
@@ -40,11 +38,11 @@
                 <div style="display:flex; flex-wrap:wrap; gap:4px; margin:-6px 0 12px 0;">
                     @foreach (var target in _targets.Take(MaxNamesShown))
                     {
-                        <span class="mtf-chip">@target.Name</span>
+                        <span class="da-tag">@target.Name</span>
                     }
                     @if (_targets.Count > MaxNamesShown)
                     {
-                        <span class="mtf-chip">+@(_targets.Count - MaxNamesShown) more</span>
+                        <span class="da-tag">+@(_targets.Count - MaxNamesShown) more</span>
                     }
                 </div>
             }
@@ -52,9 +50,10 @@
         <FooterContent>
             @if (_moved)
             {
-                <MudText Style="color:#4caf50; margin-top:12px;" Typo="Typo.body2">
+                @* The sheet has no green; the secondary teal is the nearest token. *@
+                <div class="da-meta" style="color:var(--ok); margin-top:12px;">
                     Moved @(_movedCount == 1 ? "1 item" : $"{_movedCount} items") to <b>@CurrentFolderLabel</b> ✓
-                </MudText>
+                </div>
             }
         </FooterContent>
     </FolderBrowser>

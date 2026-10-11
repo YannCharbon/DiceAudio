@@ -27,7 +27,7 @@
         margin-bottom: 15px;
         padding:10px;
         border-radius:10px;
-        background-color:#0F0F0F;
+        background-color: var(--s1);
         box-shadow: 0 2px 10px rgba(255, 255, 255, 0.2);
     }
 
@@ -64,7 +64,7 @@
     {
         <h5>DiceAudio <b>@UpdateInfos?.tag_name</b> is available.</h5>
         <br />
-        <h5>Visit <a style="color:darkcyan;" href="@UpdateInfos?.html_url">@UpdateInfos?.html_url</a> to download the update or go to app settings if you want to do it later.</h5>
+        <h5>Visit <a style="color:var(--a3);" href="@UpdateInfos?.html_url">@UpdateInfos?.html_url</a> to download the update or go to app settings if you want to do it later.</h5>
     } else
     {
         @if (!NewVersion)
@@ -85,10 +85,12 @@
             </div>
         }
         <h3>License</h3>
-        <p>DiceAudio is open-source software licensed under the <b>Apache 2.0 license</b>. For details, visit <a href="https://github.com/YannCharbon/DiceAudio" style="color:white;" target="_blank"><MudIcon Icon="@Icons.Custom.Brands.GitHub" Title="GitHub" />&nbsp;GitHub</a>.</p>
+        @* The mark keeps its tooltip through a wrapper: a title attribute on an
+           <svg> is not a tooltip, only a <title> child is. *@
+        <p>DiceAudio is open-source software licensed under the <b>Apache 2.0 license</b>. For details, visit <a href="https://github.com/YannCharbon/DiceAudio" style="color:var(--t1);" target="_blank"><span title="GitHub"><DaIcon Name="github" Size="16" /></span>&nbsp;GitHub</a>.</p>
         <h3>Support the project</h3>
         <p>
-            Feel free to suggest any new feature, improvements and bug fixes on <a href="https://github.com/YannCharbon/DiceAudio" style="color:white;" target="_blank"><MudIcon Icon="@Icons.Custom.Brands.GitHub" Title="GitHub" />&nbsp;GitHub</a>.
+            Feel free to suggest any new feature, improvements and bug fixes on <a href="https://github.com/YannCharbon/DiceAudio" style="color:var(--t1);" target="_blank"><span title="GitHub"><DaIcon Name="github" Size="16" /></span>&nbsp;GitHub</a>.
             As I am developing this software on my free time, please consider that updating/bug fixing might be slow.
         </p>
         <p>If you enjoy using DiceAudio and want to support its development, a donation on Paypal is really appreciated.</p>

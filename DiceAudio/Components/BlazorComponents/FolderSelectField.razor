@@ -15,34 +15,34 @@
      rather than the whole point of the dialog. ── *@
 
 <style>
-    .fsf-box   { background:#1a1a2e; border:1px solid #2a2a4a; border-radius:8px; padding:8px 12px; }
+    .fsf-box   { background:var(--s4); border:1px solid var(--b1); border-radius:8px; padding:8px 12px; }
     .fsf-head  { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
-    .fsf-path  { color:#cfd3dc; cursor:pointer; }
+    .fsf-path  { color:var(--t2); cursor:pointer; }
     .fsf-path:hover { text-decoration:underline; }
-    .fsf-panel { margin-top:10px; border-top:1px solid #2a2a4a; padding-top:10px; }
+    .fsf-panel { margin-top:10px; border-top:1px solid var(--b1); padding-top:10px; }
 </style>
 
 <div class="fsf-box">
     <div class="fsf-head">
-        <MudIcon Icon="@Icons.Material.Filled.Folder" Style="color:#90caf9;" />
-        <MudText Typo="Typo.body2">
+        <DaIcon Name="folder" Size="18" style="color:var(--a2);" />
+        <span style="font-size:13px;">
             @Label: <b class="fsf-path" @onclick="Toggle">@DAService.FolderDisplayPath(Folder)</b>
-        </MudText>
-        <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Primary"
-                   StartIcon="@(_expanded ? Icons.Material.Filled.ExpandLess : Icons.Material.Filled.Edit)"
-                   OnClick="Toggle">@(_expanded ? "Done" : "Change")</MudButton>
+        </span>
+        <button type="button" class="da-btn da-btn-text da-btn-sm" @onclick="Toggle">
+            <DaIcon Name="@(_expanded ? "chevron-up" : "edit")" Size="16" />@(_expanded ? "Done" : "Change")
+        </button>
     </div>
 
     @if (!string.IsNullOrEmpty(Hint))
     {
-        <MudText Typo="Typo.caption" Style="color:grey;">@Hint</MudText>
+        <div class="da-meta">@Hint</div>
     }
 
     @if (_expanded)
     {
         <div class="fsf-panel">
             <FolderBrowser ActionLabel="Select"
-                           ActionIcon="@Icons.Material.Filled.Check"
+                           ActionIcon="check"
                            InitialFolder="@_browseFrom"
                            IsCurrent="@(f => (f?.Id ?? Guid.Empty) == (Folder?.Id ?? Guid.Empty))"
                            CurrentLabel="selected"

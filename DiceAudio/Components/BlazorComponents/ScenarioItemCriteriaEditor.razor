@@ -26,43 +26,52 @@
     @foreach (var criteria in ScenarioItem.RandomPlayCriterias)
     {
         <div style="background:#252535; border-radius:8px; padding:10px; margin-bottom:10px;">
-            <MudStack Row="true" Style="margin-bottom:8px;">
+            @* Size.Small has no class of its own in the house set, so the
+               three small buttons carry the reduced metrics inline. *@
+            <div class="da-irow" style="margin-bottom:8px;">
                 @if (criteria.EditionModeEnabled)
                 {
-                    <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Success"
-                               StartIcon="@Icons.Material.Filled.Check"
-                               OnClick="() => { criteria.EditionModeEnabled = false; UpdateParent?.Invoke(); }">
+                    <button type="button" class="da-btn da-btn-fill"
+                            style="min-height:32px; padding:0 12px; font-size:12.5px;"
+                            @onclick="() => { criteria.EditionModeEnabled = false; UpdateParent?.Invoke(); }">
+                        <DaIcon Name="check" Size="15" />
                         Validate
-                    </MudButton>
+                    </button>
                 }
                 else
                 {
-                    <MudButton Size="Size.Small" Variant="Variant.Outlined"
-                               StartIcon="@Icons.Material.Filled.Edit"
-                               OnClick="() => criteria.EditionModeEnabled = true">
+                    <button type="button" class="da-btn da-btn-out"
+                            style="min-height:32px; padding:0 12px; font-size:12.5px;"
+                            @onclick="() => criteria.EditionModeEnabled = true">
+                        <DaIcon Name="edit" Size="15" />
                         Edit
-                    </MudButton>
+                    </button>
                 }
-                <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Error"
-                           StartIcon="@Icons.Material.Filled.Delete"
-                           OnClick="() => { ScenarioItem.RandomPlayCriterias.Remove(criteria); UpdateParent?.Invoke(); }">
+                <button type="button" class="da-btn da-btn-danger"
+                        style="min-height:32px; padding:0 12px; font-size:12.5px;"
+                        @onclick="() => { ScenarioItem.RandomPlayCriterias.Remove(criteria); UpdateParent?.Invoke(); }">
+                    <DaIcon Name="delete" Size="15" />
                     Delete
-                </MudButton>
-            </MudStack>
+                </button>
+            </div>
 
             @if (criteria.EditionModeEnabled)
             {
-                <MudSelect T="int" Label="Condition" Variant="Variant.Outlined"
-                           Value="@GetCondInt(criteria)"
-                           ValueChanged="@((int v) => SetCondInt(criteria, v))"
-                           PopoverClass="da-popover-top"
-                           Style="max-width:150px; margin-bottom:8px;">
-                    <MudSelectItem T="int" Value="0">NOT</MudSelectItem>
-                    <MudSelectItem T="int" Value="1">AND</MudSelectItem>
-                    <MudSelectItem T="int" Value="2">OR</MudSelectItem>
-                </MudSelect>
+                @* A native select drops the popover that had to be lifted over
+                   the modal with da-popover-top: it is drawn by the OS. The
+                   label wraps the control rather than pointing at an id, since a
+                   criteria has no identity of its own to build one from. *@
+                <label class="da-field" style="max-width:150px; margin-bottom:8px;">
+                    <span class="da-flabel">Condition</span>
+                    <select class="da-inp" value="@GetCondInt(criteria)"
+                            @onchange="@(e => SetCondInt(criteria, int.TryParse(e.Value?.ToString(), out int v) ? v : 0))">
+                        <option value="0">NOT</option>
+                        <option value="1">AND</option>
+                        <option value="2">OR</option>
+                    </select>
+                </label>
 
-                <MudText Typo="Typo.caption" Style="color:grey;">Type</MudText>
+                <div class="da-flabel">Type</div>
                 <div style="display:flex; flex-wrap:wrap; padding:4px 0 8px 0;">
                     @foreach (var tag in DAAudioTag.GetAllCategoryTypeTags())
                     {
@@ -70,7 +79,7 @@
                               @onclick="() => ToggleCriteriaTag(criteria, tag)">@tag</span>
                     }
                 </div>
-                <MudText Typo="Typo.caption" Style="color:grey;">Location</MudText>
+                <div class="da-flabel">Location</div>
                 <div style="display:flex; flex-wrap:wrap; padding:4px 0 8px 0;">
                     @foreach (var tag in DAAudioTag.GetAllCategoryLocationTags())
                     {
@@ -78,7 +87,7 @@
                               @onclick="() => ToggleCriteriaTag(criteria, tag)">@tag</span>
                     }
                 </div>
-                <MudText Typo="Typo.caption" Style="color:grey;">Expression</MudText>
+                <div class="da-flabel">Expression</div>
                 <div style="display:flex; flex-wrap:wrap; padding:4px 0 4px 0;">
                     @foreach (var tag in DAAudioTag.GetAllCategoryExpressionTags())
                     {
@@ -89,19 +98,21 @@
             }
             else
             {
-                <MudStack Row="true" AlignItems="AlignItems.Center">
-                    <MudChip T="string" Color="Color.Warning">@criteria.Condition.ToString()</MudChip>
+                <div class="da-irow da-irow-wrap">
+                    <span class="da-tag" style="color:var(--warn); border-color:var(--warn);">@criteria.Condition.ToString()</span>
                     @foreach (var tag in criteria.TagNames)
                     {
                         <span class="criteria-tag-chip-selected">@tag</span>
                     }
-                </MudStack>
+                </div>
             }
         </div>
     }
 
-    <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Add"
-               OnClick="AddCriteria">Add criteria</MudButton>
+    <button type="button" class="da-btn da-btn-out" @onclick="AddCriteria">
+        <DaIcon Name="add" Size="16" />
+        Add criteria
+    </button>
 </div>
 
 @code {

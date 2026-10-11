@@ -7,139 +7,137 @@
 *@
 
 <style>
-    .filter-tag-chip {
-        color: black; background: #aaa; border-radius: 3px;
-        padding: 2px 6px; margin: 2px; cursor: pointer; font-size: small;
-    }
-    .filter-tag-chip-selected {
-        color: black; background: #e73c7e; border-radius: 3px;
-        padding: 2px 6px; margin: 2px; cursor: pointer; font-size: small;
-    }
     .filter-expression {
-        background: #1b1b2b; border: 1px solid #363660; border-radius: 8px;
+        background: var(--s2); border: 1px solid var(--b2); border-radius: 8px;
         padding: 10px 12px; margin-bottom: 12px;
     }
-    .filter-expression-text { color: #e2b6ff; font-weight: 600; }
+    /* The expression reads in the Expression category's own tint, which the
+       .cat-expr class on the box above supplies as --cf. */
+    .filter-expression-text { color: var(--cf); font-weight: 600; }
+    .filter-criteria { background: var(--s4); border-radius: 8px; padding: 10px; margin-bottom: 10px; }
 </style>
 
 <h4 style="margin-bottom:6px;">Filter by tags</h4>
 
-<div class="filter-expression">
+<div class="filter-expression cat-expr">
     @if (Filter.IsActive)
     {
-        <span style="color:grey;">Show all audio items matching:&nbsp;</span>
+        <span style="color:var(--t3);">Show all audio items matching:&nbsp;</span>
         <span class="filter-expression-text">@Filter.Describe()</span>
     }
     else
     {
-        <span style="color:grey;">No filter yet — add a criteria and click tags to build an expression.</span>
+        <span style="color:var(--t3);">No filter yet — add a criteria and click tags to build an expression.</span>
     }
     @if (MatchCount != null)
     {
-        <div style="color:#8fa3b8; font-size:small; margin-top:6px;">
+        <div style="color:var(--t3); font-size:small; margin-top:6px;">
             @MatchCount() item(s) match in @(Filter.IncludeSubfolders ? "this folder and its subfolders" : "this folder")
         </div>
     }
 </div>
 
-<MudCheckBox T="bool" Value="Filter.IncludeSubfolders"
-             ValueChanged="@((bool v) => { Filter.IncludeSubfolders = v; UpdateParent?.Invoke(); })"
-             Color="Color.Secondary"
-             Label="Include the subfolders (their matches are shown next to the current folder's items)" />
+<label class="da-chk">
+    <input type="checkbox" checked="@Filter.IncludeSubfolders"
+           @onchange="@((ChangeEventArgs e) => { Filter.IncludeSubfolders = e.Value is bool v && v; UpdateParent?.Invoke(); })" />
+    Include the subfolders (their matches are shown next to the current folder's items)
+</label>
 
 <div style="margin-top:10px;">
     @if (Filter.Criterias.Count == 0)
     {
-        <p style="color:grey;">No criteria added yet.</p>
+        <p style="color:var(--t3);">No criteria added yet.</p>
     }
 
     @foreach (var criteria in Filter.Criterias)
     {
-        <div style="background:#252535; border-radius:8px; padding:10px; margin-bottom:10px;">
-            <MudStack Row="true" Style="margin-bottom:8px;">
+        <div class="filter-criteria">
+            <div class="da-irow" style="margin-bottom:8px;">
                 @if (criteria.EditionModeEnabled)
                 {
-                    <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Success"
-                               StartIcon="@Icons.Material.Filled.Check"
-                               OnClick="() => { criteria.EditionModeEnabled = false; UpdateParent?.Invoke(); }">
-                        Validate
-                    </MudButton>
+                    <button type="button" class="da-btn da-btn-fill da-btn-sm"
+                            @onclick="() => { criteria.EditionModeEnabled = false; UpdateParent?.Invoke(); }">
+                        <DaIcon Name="check" Size="16" />Validate
+                    </button>
                 }
                 else
                 {
-                    <MudButton Size="Size.Small" Variant="Variant.Outlined"
-                               StartIcon="@Icons.Material.Filled.Edit"
-                               OnClick="() => criteria.EditionModeEnabled = true">
-                        Edit
-                    </MudButton>
+                    <button type="button" class="da-btn da-btn-out da-btn-sm"
+                            @onclick="() => criteria.EditionModeEnabled = true">
+                        <DaIcon Name="edit" Size="16" />Edit
+                    </button>
                 }
-                <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Error"
-                           StartIcon="@Icons.Material.Filled.Delete"
-                           OnClick="() => { Filter.Criterias.Remove(criteria); UpdateParent?.Invoke(); }">
-                    Delete
-                </MudButton>
-            </MudStack>
+                <button type="button" class="da-btn da-btn-danger da-btn-sm"
+                        @onclick="() => { Filter.Criterias.Remove(criteria); UpdateParent?.Invoke(); }">
+                    <DaIcon Name="delete" Size="16" />Delete
+                </button>
+            </div>
 
             @if (criteria.EditionModeEnabled)
             {
-                <MudSelect T="int" Label="Condition" Variant="Variant.Outlined"
-                           Value="@GetCondInt(criteria)"
-                           ValueChanged="@((int v) => { SetCondInt(criteria, v); UpdateParent?.Invoke(); })"
-                           PopoverClass="da-popover-top"
-                           Style="max-width:150px; margin-bottom:8px;">
-                    <MudSelectItem T="int" Value="0">NOT</MudSelectItem>
-                    <MudSelectItem T="int" Value="1">AND</MudSelectItem>
-                    <MudSelectItem T="int" Value="2">OR</MudSelectItem>
-                </MudSelect>
+                @* A native select needs no popover placement, so MudSelect's
+                   PopoverClass has nothing to carry over. *@
+                <div class="da-field" style="max-width:150px; margin-bottom:8px;">
+                    <span class="da-flabel">Condition</span>
+                    <select class="da-inp" value="@GetCondInt(criteria)"
+                            @onchange="@(e => { SetCondInt(criteria, int.TryParse(e.Value?.ToString(), out var v) ? v : GetCondInt(criteria)); UpdateParent?.Invoke(); })">
+                        <option value="0">NOT</option>
+                        <option value="1">AND</option>
+                        <option value="2">OR</option>
+                    </select>
+                </div>
 
-                <MudText Typo="Typo.caption" Style="color:grey;">Type</MudText>
-                <div style="display:flex; flex-wrap:wrap; padding:4px 0 8px 0;">
+                <div class="da-flabel">Type</div>
+                <div style="display:flex; flex-wrap:wrap; gap:4px; padding:4px 0 8px 0;">
                     @foreach (var tag in DAAudioTag.GetAllCategoryTypeTags())
                     {
-                        <span class="@CriteriaTagClass(criteria, tag)"
-                              @onclick="() => ToggleCriteriaTag(criteria, tag)">@tag</span>
+                        <button type="button" class="@CriteriaTagClass(criteria, tag)"
+                                @onclick="() => ToggleCriteriaTag(criteria, tag)">@tag</button>
                     }
                 </div>
-                <MudText Typo="Typo.caption" Style="color:grey;">Location</MudText>
-                <div style="display:flex; flex-wrap:wrap; padding:4px 0 8px 0;">
+                <div class="da-flabel">Location</div>
+                <div style="display:flex; flex-wrap:wrap; gap:4px; padding:4px 0 8px 0;">
                     @foreach (var tag in DAAudioTag.GetAllCategoryLocationTags())
                     {
-                        <span class="@CriteriaTagClass(criteria, tag)"
-                              @onclick="() => ToggleCriteriaTag(criteria, tag)">@tag</span>
+                        <button type="button" class="@CriteriaTagClass(criteria, tag)"
+                                @onclick="() => ToggleCriteriaTag(criteria, tag)">@tag</button>
                     }
                 </div>
-                <MudText Typo="Typo.caption" Style="color:grey;">Expression</MudText>
-                <div style="display:flex; flex-wrap:wrap; padding:4px 0 4px 0;">
+                <div class="da-flabel">Expression</div>
+                <div style="display:flex; flex-wrap:wrap; gap:4px; padding:4px 0 4px 0;">
                     @foreach (var tag in DAAudioTag.GetAllCategoryExpressionTags())
                     {
-                        <span class="@CriteriaTagClass(criteria, tag)"
-                              @onclick="() => ToggleCriteriaTag(criteria, tag)">@tag</span>
+                        <button type="button" class="@CriteriaTagClass(criteria, tag)"
+                                @onclick="() => ToggleCriteriaTag(criteria, tag)">@tag</button>
                     }
                 </div>
             }
             else
             {
-                <MudStack Row="true" AlignItems="AlignItems.Center">
-                    <MudChip T="string" Color="Color.Warning">@criteria.Condition.ToString()</MudChip>
+                <div class="da-irow da-irow-wrap">
+                    @* The condition kept MudBlazor's Warning colour: it is the
+                       operator, and it has to stand out from the tags it joins. *@
+                    <span class="da-tag" style="color:var(--warn);">@criteria.Condition.ToString()</span>
                     @foreach (var tag in criteria.TagNames)
                     {
-                        <span class="filter-tag-chip-selected">@tag</span>
+                        <span class="da-tag">@tag</span>
                     }
-                </MudStack>
+                </div>
             }
         </div>
     }
 
-    <MudStack Row="true" Style="gap:8px; flex-wrap:wrap;">
-        <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Add"
-                   OnClick="AddCriteria">Add criteria</MudButton>
+    <div class="da-irow da-irow-wrap" style="gap:8px;">
+        <button type="button" class="da-btn da-btn-out" @onclick="AddCriteria">
+            <DaIcon Name="add" Size="18" />Add criteria
+        </button>
         @if (Filter.Criterias.Count > 0)
         {
-            <MudButton Variant="Variant.Outlined" Color="Color.Error"
-                       StartIcon="@Icons.Material.Filled.FilterAltOff"
-                       OnClick="ClearAll">Clear filter</MudButton>
+            <button type="button" class="da-btn da-btn-danger" @onclick="ClearAll">
+                <DaIcon Name="filter-off" Size="18" />Clear filter
+            </button>
         }
-    </MudStack>
+    </div>
 </div>
 
 @code {
@@ -182,5 +180,5 @@
     }
 
     string CriteriaTagClass(DARandomPlayCriteria criteria, string tag) =>
-        criteria.TagNames.Contains(tag) ? "filter-tag-chip-selected" : "filter-tag-chip";
+        criteria.TagNames.Contains(tag) ? "da-tog da-on" : "da-tog";
 }

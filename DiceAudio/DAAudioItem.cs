@@ -27,18 +27,17 @@ namespace DiceAudio
             _ => "Sound effect",
         };
 
-        public static string Icon(this AudioKind kind) => kind switch
+        /// <summary>
+        /// The name of the DaIcon glyph that stands for this kind. It replaces the
+        /// old Icon()/Color() pair, which handed out MudBlazor constants and so kept
+        /// a UI library referenced from a core model; three separate pages had each
+        /// grown a private copy of this switch to avoid them.
+        /// </summary>
+        public static string DaIconName(this AudioKind kind) => kind switch
         {
-            AudioKind.Music => MudBlazor.Icons.Material.Filled.MusicNote,
-            AudioKind.Ambiance => MudBlazor.Icons.Material.Filled.Forest,
-            _ => MudBlazor.Icons.Material.Filled.VolumeUp,
-        };
-
-        public static MudBlazor.Color Color(this AudioKind kind) => kind switch
-        {
-            AudioKind.Music => MudBlazor.Color.Primary,
-            AudioKind.Ambiance => MudBlazor.Color.Info,
-            _ => MudBlazor.Color.Secondary,
+            AudioKind.Music => "music-note",
+            AudioKind.Ambiance => "forest",
+            _ => "volume-up",
         };
 
         /// <summary>CSS class carrying the kind tint (--kc) for the shared audio card.</summary>

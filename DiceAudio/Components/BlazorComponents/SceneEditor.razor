@@ -50,7 +50,6 @@
         font-size: 12px; color: #7a7a9a; white-space: nowrap;
     }
     .se-step-link-auto .se-step-link-label { color: #23a6d5; }
-    .se-step-link-popover { z-index: 5200 !important; }
 </style>
 
 @if (_visible && Scene != null)
@@ -62,17 +61,24 @@
                 padding:22px 26px; position:relative;"
          @onclick:stopPropagation="true">
 
-        <MudStack Row="true" AlignItems="AlignItems.Center" Style="gap:14px; margin-bottom:14px; flex-wrap:wrap;">
-            <MudIcon Icon="@Icons.Material.Filled.Theaters" Style="color:#e73c7e;" />
-            <MudTextField @bind-Value="Scene.Name" Label="Scene name" Variant="Variant.Outlined"
-                          Margin="Margin.Dense" Style="max-width:280px;" />
-            <MudTextField @bind-Value="Scene.Category" Label="Category" Placeholder="e.g. Town, Combat"
-                          Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width:180px;" />
-            <MudSelect T="DASceneMode" Value="Scene.Mode" ValueChanged="m => Scene.Mode = m"
-                       Label="Mode" Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width:200px;">
-                <MudSelectItem T="DASceneMode" Value="DASceneMode.Linear">Linear (steps)</MudSelectItem>
-                <MudSelectItem T="DASceneMode" Value="DASceneMode.Contextual">Contextual (states)</MudSelectItem>
-            </MudSelect>
+        <div class="da-irow da-irow-wrap" style="gap:14px; margin-bottom:14px;">
+            <DaIcon Name="movie" Size="20" Class="da-i-accent" />
+            <label class="da-field" style="max-width:280px;">
+                <span class="da-flabel">Scene name</span>
+                <input class="da-inp" type="text" spellcheck="false" @bind="Scene.Name" />
+            </label>
+            <label class="da-field" style="max-width:180px;">
+                <span class="da-flabel">Category</span>
+                <input class="da-inp" type="text" spellcheck="false" placeholder="e.g. Town, Combat"
+                       @bind="Scene.Category" />
+            </label>
+            <label class="da-field" style="max-width:200px;">
+                <span class="da-flabel">Mode</span>
+                <select class="da-inp" value="@Scene.Mode" @onchange="SetSceneMode">
+                    <option value="@DASceneMode.Linear">Linear (steps)</option>
+                    <option value="@DASceneMode.Contextual">Contextual (states)</option>
+                </select>
+            </label>
 
             @* ── Live preview transport ── *@
             <div style="display:flex; align-items:center; gap:6px; margin-left:auto;">
@@ -80,36 +86,37 @@
                 {
                     <div class="da-cmd-btn" @onclick="() => _preview!.AdvanceAsync()"
                          title="@(Scene.Mode == DASceneMode.Contextual ? "Next context" : "Advance to next step")">
-                        <MudIcon Icon="@Icons.Material.Filled.SkipNext" Class="da-skip" />
+                        <DaIcon Name="skip-next" Size="20" Class="da-skip" />
                     </div>
                     <div class="da-cmd-btn" @onclick="StopPreviewAsync" title="Stop preview">
-                        <MudIcon Icon="@Icons.Material.Filled.Stop" Class="da-stop" />
+                        <DaIcon Name="stop" Size="20" Class="da-stop" />
                     </div>
-                    <MudText Typo="Typo.caption" Style="color:#90caf9;">
+                    @* The light blue of the live caption is the info token. *@
+                    <span style="font-size:12px; color:var(--a2);">
                         @(_preview.CurrentCueName ?? "")
                         @(Scene.Mode == DASceneMode.Linear
                             ? (_preview.NextStep != null ? $" → next: {_preview.NextStep.Name}" : " (last step)")
                             : "")
-                    </MudText>
+                    </span>
                 }
                 else
                 {
                     <div class="da-cmd-btn" @onclick="StartPreviewAsync" title="Preview the scene">
-                        <MudIcon Icon="@Icons.Material.Filled.PlayArrow" Class="da-play" />
+                        <DaIcon Name="play" Size="22" Class="da-play" />
                     </div>
-                    <MudText Typo="Typo.caption" Style="color:grey;">Preview</MudText>
+                    <span class="da-meta">Preview</span>
                 }
             </div>
-        </MudStack>
+        </div>
 
         @* ═══ Layers ═══ *@
         <div class="se-section">
-            <MudStack Row="true" AlignItems="AlignItems.Center" Style="gap:10px; margin-bottom:4px;">
-                <MudText Typo="Typo.subtitle1"><b>Layers</b></MudText>
-                <MudText Typo="Typo.caption" Style="color:grey;">
+            <div class="da-irow" style="gap:10px; margin-bottom:4px;">
+                <h5 style="margin:0;">Layers</h5>
+                <span class="da-meta">
                     The sound sources of the scene — ambiences, music, sound effects
-                </MudText>
-            </MudStack>
+                </span>
+            </div>
 
             @foreach (var layer in Scene.Layers)
             {
@@ -118,73 +125,100 @@
                 bool live = _preview?.IsLayerAudible(l.Id) == true;
 
                 <div class="se-layer-card @(live ? "se-layer-live" : "")">
-                    <MudStack Row="true" AlignItems="AlignItems.Center" Style="gap:10px; flex-wrap:wrap;">
+                    <div class="da-irow da-irow-wrap" style="gap:10px;">
                         <span class="se-role-badge" style="background:@RoleColor(l.Role);">@RoleLabel(l.Role)</span>
 
-                        <MudTextField @bind-Value="l.Name" Label="Layer name" Variant="Variant.Outlined"
-                                      Margin="Margin.Dense" Style="max-width:180px;" />
+                        <label class="da-field" style="max-width:180px;">
+                            <span class="da-flabel">Layer name</span>
+                            <input class="da-inp" type="text" spellcheck="false" @bind="l.Name" />
+                        </label>
 
-                        <MudSelect T="DALayerRole" Value="l.Role" ValueChanged="r => SetLayerRole(l, r)"
-                                   Label="Role" Variant="Variant.Outlined" Margin="Margin.Dense"
-                                   Style="max-width:150px;">
-                            <MudSelectItem T="DALayerRole" Value="DALayerRole.Ambience">Ambience</MudSelectItem>
-                            <MudSelectItem T="DALayerRole" Value="DALayerRole.Music">Music</MudSelectItem>
-                            <MudSelectItem T="DALayerRole" Value="DALayerRole.SoundEffect">Sound effect</MudSelectItem>
-                        </MudSelect>
+                        <label class="da-field" style="max-width:150px;">
+                            <span class="da-flabel">Role</span>
+                            <select class="da-inp" value="@l.Role"
+                                    @onchange="@(e => OnLayerRoleSelected(l, e))">
+                                <option value="@DALayerRole.Ambience">Ambience</option>
+                                <option value="@DALayerRole.Music">Music</option>
+                                <option value="@DALayerRole.SoundEffect">Sound effect</option>
+                            </select>
+                        </label>
 
-                        <MudButton Variant="Variant.Outlined" Color="@(audioItem == null ? Color.Warning : Color.Default)"
-                                   StartIcon="@(audioItem?.Kind.Icon() ?? Icons.Material.Filled.LibraryMusic)"
-                                   OnClick="() => OpenAudioPicker(l)"
-                                   Style="flex:1; min-width:220px; text-transform:none; justify-content:flex-start;">
+                        @* A layer with no file yet keeps the warning tint the
+                           Color.Warning button carried. *@
+                        <button type="button" class="da-btn da-btn-out"
+                                style="@($"flex:1; min-width:220px; text-transform:none; justify-content:flex-start;{(audioItem == null ? " color:var(--warn); border-color:var(--warn);" : "")}")"
+                                @onclick="() => OpenAudioPicker(l)">
+                            <DaIcon Name="@(audioItem != null ? KindIconName(audioItem.Kind) : "library-music")" Size="16" />
                             @(audioItem?.Name ?? "Pick audio file…")
-                        </MudButton>
+                        </button>
 
-                        <MudButton Size="Size.Small" Variant="Variant.Outlined"
-                                   StartIcon="@Icons.Material.Filled.Tune"
-                                   Disabled="audioItem == null"
-                                   OnClick="() => OpenLayerSettings(l, audioItem)">
+                        <button type="button" class="da-btn da-btn-out"
+                                style="min-height:32px; padding:0 12px; font-size:12.5px;"
+                                disabled="@(audioItem == null)"
+                                @onclick="() => OpenLayerSettings(l, audioItem)">
+                            <DaIcon Name="tune" Size="15" />
                             Settings@(l.Audio.IsClipped ? " ✂" : "")
-                        </MudButton>
+                        </button>
 
-                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small"
-                                       Title="Delete layer" OnClick="() => DeleteLayer(l)" />
-                    </MudStack>
+                        <button type="button" class="da-ib da-danger" title="Delete layer"
+                                aria-label="Delete layer" @onclick="() => DeleteLayer(l)">
+                            <DaIcon Name="delete" Size="16" />
+                        </button>
+                    </div>
 
                     @if (l.Role == DALayerRole.SoundEffect)
                     {
-                        <MudStack Row="true" AlignItems="AlignItems.Center" Style="gap:10px; flex-wrap:wrap; margin-top:8px;">
-                            <MudText Typo="Typo.caption" Style="color:grey;">Random scheduling:</MudText>
-                            <MudNumericField T="double" Value="l.RandomMinSeconds"
-                                             ValueChanged="v => l.RandomMinSeconds = Math.Max(0, v)"
-                                             Label="Min wait (s)" Variant="Variant.Outlined" Margin="Margin.Dense"
-                                             Style="max-width:120px;" />
-                            <MudNumericField T="double" Value="l.RandomMaxSeconds"
-                                             ValueChanged="v => l.RandomMaxSeconds = Math.Max(0, v)"
-                                             Label="Max wait (s)" Variant="Variant.Outlined" Margin="Margin.Dense"
-                                             Style="max-width:120px;" />
-                            <MudCheckBox T="bool" @bind-Value="l.FireImmediatelyOnStart" Label="Fire immediately" Dense="true" />
-                            <MudCheckBox T="bool" @bind-Value="l.RandomRepeat" Label="Repeat" Dense="true" />
-                        </MudStack>
+                        <div class="da-irow da-irow-wrap" style="gap:10px; margin-top:8px;">
+                            <span class="da-meta">Random scheduling:</span>
+                            <div class="da-field">
+                                <span class="da-flabel">Min wait (s)</span>
+                                <div class="da-step">
+                                    <button type="button" @onclick="@(() => l.RandomMinSeconds = Math.Max(0, l.RandomMinSeconds - 1))">&minus;</button>
+                                    <input type="number" class="da-num" min="0" step="1" value="@l.RandomMinSeconds"
+                                           @onchange="@(e => l.RandomMinSeconds = Math.Max(0, ParseDouble(e.Value, l.RandomMinSeconds)))" />
+                                    <button type="button" @onclick="@(() => l.RandomMinSeconds = Math.Max(0, l.RandomMinSeconds + 1))">+</button>
+                                </div>
+                            </div>
+                            <div class="da-field">
+                                <span class="da-flabel">Max wait (s)</span>
+                                <div class="da-step">
+                                    <button type="button" @onclick="@(() => l.RandomMaxSeconds = Math.Max(0, l.RandomMaxSeconds - 1))">&minus;</button>
+                                    <input type="number" class="da-num" min="0" step="1" value="@l.RandomMaxSeconds"
+                                           @onchange="@(e => l.RandomMaxSeconds = Math.Max(0, ParseDouble(e.Value, l.RandomMaxSeconds)))" />
+                                    <button type="button" @onclick="@(() => l.RandomMaxSeconds = Math.Max(0, l.RandomMaxSeconds + 1))">+</button>
+                                </div>
+                            </div>
+                            <label class="da-chk">
+                                <input type="checkbox" @bind="l.FireImmediatelyOnStart" />
+                                Fire immediately
+                            </label>
+                            <label class="da-chk">
+                                <input type="checkbox" @bind="l.RandomRepeat" />
+                                Repeat
+                            </label>
+                        </div>
                     }
                 </div>
             }
 
-            <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Add"
-                       OnClick="AddLayer" Style="margin-top:6px;">Add layer</MudButton>
+            <button type="button" class="da-btn da-btn-out" style="margin-top:6px;" @onclick="AddLayer">
+                <DaIcon Name="add" Size="16" />
+                Add layer
+            </button>
         </div>
 
         @* ═══ Steps (linear mode) ═══ *@
         @if (Scene.Mode == DASceneMode.Linear)
         {
         <div class="se-section">
-            <MudStack Row="true" AlignItems="AlignItems.Center" Style="gap:10px; margin-bottom:4px;">
-                <MudText Typo="Typo.subtitle1"><b>Steps</b></MudText>
-                <MudText Typo="Typo.caption" Style="color:grey;">
+            <div class="da-irow" style="gap:10px; margin-bottom:4px;">
+                <h5 style="margin:0;">Steps</h5>
+                <span class="da-meta">
                     Step 1 runs when the scene starts; each next step is triggered by pressing "advance",
                     or automatically after a fixed duration or when a layer this step started
                     without looping reaches its end
-                </MudText>
-            </MudStack>
+                </span>
+            </div>
 
             @for (int si = 0; si < Scene.Steps.Count; si++)
             {
@@ -193,94 +227,128 @@
                 bool isCurrent = _preview?.IsPlaying == true && _preview.CurrentStepIndex == stepIndex;
 
                 <div class="se-step-card" style="@(isCurrent ? "border-color:rgba(35,166,213,0.9);" : "")">
-                    <MudStack Row="true" AlignItems="AlignItems.Center" Style="gap:10px; flex-wrap:wrap;">
-                        <MudChip T="string" Color="@(isCurrent ? Color.Info : Color.Default)" Size="Size.Small">
+                    <div class="da-irow da-irow-wrap" style="gap:10px;">
+                        @* The step the preview is on keeps the info blue it had. *@
+                        <span class="da-tag" style="@(isCurrent ? "color:var(--a2); border-color:var(--a2);" : null)">
                             Step @(stepIndex + 1)
-                        </MudChip>
-                        <MudTextField @bind-Value="step.Name" Label="Step name" Variant="Variant.Outlined"
-                                      Margin="Margin.Dense" Style="max-width:260px;" />
+                        </span>
+                        <label class="da-field" style="max-width:260px;">
+                            <span class="da-flabel">Step name</span>
+                            <input class="da-inp" type="text" spellcheck="false" @bind="step.Name" />
+                        </label>
                         <div style="margin-left:auto; display:flex; gap:2px;">
-                            <MudIconButton Icon="@Icons.Material.Filled.ArrowCircleUp" Size="Size.Small"
-                                           Disabled="stepIndex == 0" OnClick="() => MoveStep(step, -1)" />
-                            <MudIconButton Icon="@Icons.Material.Filled.ArrowCircleDown" Size="Size.Small"
-                                           Disabled="stepIndex == Scene.Steps.Count - 1" OnClick="() => MoveStep(step, +1)" />
-                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small"
-                                           OnClick="() => Scene.Steps.Remove(step)" />
+                            <button type="button" class="da-ib" title="Move up" aria-label="Move up"
+                                    disabled="@(stepIndex == 0)" @onclick="() => MoveStep(step, -1)">
+                                <DaIcon Name="circle-up" Size="16" />
+                            </button>
+                            <button type="button" class="da-ib" title="Move down" aria-label="Move down"
+                                    disabled="@(stepIndex == Scene.Steps.Count - 1)" @onclick="() => MoveStep(step, +1)">
+                                <DaIcon Name="circle-down" Size="16" />
+                            </button>
+                            <button type="button" class="da-ib da-danger" title="Delete step"
+                                    aria-label="Delete step" @onclick="() => Scene.Steps.Remove(step)">
+                                <DaIcon Name="delete" Size="16" />
+                            </button>
                         </div>
-                    </MudStack>
+                    </div>
 
                     @foreach (var command in step.Commands)
                     {
                         var c = command;
                         <div class="se-cmd-row">
-                            <MudSelect T="DACommandType" Value="c.Type" ValueChanged="t => SetCommandType(step, c, t)"
-                                       Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width:170px;" Label="Action">
-                                <MudSelectItem T="DACommandType" Value="DACommandType.FadeInLayer">Fade in</MudSelectItem>
-                                <MudSelectItem T="DACommandType" Value="DACommandType.StartLayer">Start (instant)</MudSelectItem>
-                                <MudSelectItem T="DACommandType" Value="DACommandType.FadeOutLayer">Fade out</MudSelectItem>
-                                <MudSelectItem T="DACommandType" Value="DACommandType.StopLayer">Stop (instant)</MudSelectItem>
-                                <MudSelectItem T="DACommandType" Value="DACommandType.SetVolume">Set volume</MudSelectItem>
-                                <MudSelectItem T="DACommandType" Value="DACommandType.StartRandom">Start random SFX</MudSelectItem>
-                                <MudSelectItem T="DACommandType" Value="DACommandType.StopRandom">Stop random SFX</MudSelectItem>
-                            </MudSelect>
+                            <label class="da-field" style="max-width:170px;">
+                                <span class="da-flabel">Action</span>
+                                <select class="da-inp" value="@c.Type"
+                                        @onchange="@(e => OnCommandTypeSelected(step, c, e))">
+                                    <option value="@DACommandType.FadeInLayer">Fade in</option>
+                                    <option value="@DACommandType.StartLayer">Start (instant)</option>
+                                    <option value="@DACommandType.FadeOutLayer">Fade out</option>
+                                    <option value="@DACommandType.StopLayer">Stop (instant)</option>
+                                    <option value="@DACommandType.SetVolume">Set volume</option>
+                                    <option value="@DACommandType.StartRandom">Start random SFX</option>
+                                    <option value="@DACommandType.StopRandom">Stop random SFX</option>
+                                </select>
+                            </label>
 
                             @* Stops can target everything at once, so one command can
                                clear the scene instead of one per layer. *@
-                            <MudSelect T="string" Value="LayerSelectionKey(c)"
-                                       ValueChanged="v => SetCommandLayerSelection(step, c, v)"
-                                       Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width:190px;" Label="Layer">
-                                @if (c.Type is DACommandType.StopLayer or DACommandType.FadeOutLayer)
-                                {
-                                    <MudSelectItem T="string" Value="@AllLayersKey">All layers</MudSelectItem>
-                                }
-                                @foreach (var layer in Scene.Layers)
-                                {
-                                    <MudSelectItem T="string" Value="@layer.Id.ToString()">@layer.Name</MudSelectItem>
-                                }
-                            </MudSelect>
+                            <label class="da-field" style="max-width:190px;">
+                                <span class="da-flabel">Layer</span>
+                                <select class="da-inp" value="@LayerSelectionKey(c)"
+                                        @onchange="@(e => SetCommandLayerSelection(step, c, e.Value?.ToString() ?? string.Empty))">
+                                    @if (c.Type is DACommandType.StopLayer or DACommandType.FadeOutLayer)
+                                    {
+                                        <option value="@AllLayersKey">All layers</option>
+                                    }
+                                    @foreach (var layer in Scene.Layers)
+                                    {
+                                        <option value="@layer.Id">@layer.Name</option>
+                                    }
+                                </select>
+                            </label>
 
                             @* Only a layer that is being started can be told whether to loop.
                                Unlooped, it reaches an end the step can advance on. *@
                             @if (c.Type is DACommandType.FadeInLayer or DACommandType.StartLayer)
                             {
-                                <MudCheckBox T="bool" Value="EffectiveLoop(c)"
-                                             ValueChanged="v => SetCommandLoop(step, c, v)"
-                                             Label="Loop" Dense="true" Size="Size.Small"
-                                             Title="Unchecked: the layer plays once and can trigger the next step when it ends"
-                                             Style="margin:0;" />
+                                <label class="da-chk"
+                                       title="Unchecked: the layer plays once and can trigger the next step when it ends">
+                                    <input type="checkbox" checked="@EffectiveLoop(c)"
+                                           @onchange="@(e => SetCommandLoop(step, c, e.Value is bool on && on))" />
+                                    Loop
+                                </label>
                             }
 
-                            <MudNumericField T="double" Value="c.DelaySeconds"
-                                             ValueChanged="v => c.DelaySeconds = Math.Max(0, v)"
-                                             Label="Delay (s)" Variant="Variant.Outlined" Margin="Margin.Dense"
-                                             Style="max-width:105px;" />
+                            <div class="da-field">
+                                <span class="da-flabel">Delay (s)</span>
+                                <div class="da-step">
+                                    <button type="button" @onclick="@(() => c.DelaySeconds = Math.Max(0, c.DelaySeconds - 1))">&minus;</button>
+                                    <input type="number" class="da-num" min="0" step="1" value="@c.DelaySeconds"
+                                           @onchange="@(e => c.DelaySeconds = Math.Max(0, ParseDouble(e.Value, c.DelaySeconds)))" />
+                                    <button type="button" @onclick="@(() => c.DelaySeconds = Math.Max(0, c.DelaySeconds + 1))">+</button>
+                                </div>
+                            </div>
 
                             @if (c.Type is DACommandType.FadeInLayer or DACommandType.FadeOutLayer or DACommandType.SetVolume)
                             {
-                                <MudNumericField T="double" Value="c.DurationSeconds"
-                                                 ValueChanged="v => c.DurationSeconds = Math.Max(0, v)"
-                                                 Label="Fade (s)" Variant="Variant.Outlined" Margin="Margin.Dense"
-                                                 Style="max-width:105px;" />
+                                <div class="da-field">
+                                    <span class="da-flabel">Fade (s)</span>
+                                    <div class="da-step">
+                                        <button type="button" @onclick="@(() => c.DurationSeconds = Math.Max(0, c.DurationSeconds - 1))">&minus;</button>
+                                        <input type="number" class="da-num" min="0" step="1" value="@c.DurationSeconds"
+                                               @onchange="@(e => c.DurationSeconds = Math.Max(0, ParseDouble(e.Value, c.DurationSeconds)))" />
+                                        <button type="button" @onclick="@(() => c.DurationSeconds = Math.Max(0, c.DurationSeconds + 1))">+</button>
+                                    </div>
+                                </div>
                             }
                             @if (c.Type is DACommandType.SetVolume or DACommandType.FadeInLayer or DACommandType.StartLayer)
                             {
                                 <div style="display:flex; flex-direction:column; min-width:140px; max-width:170px;">
-                                    <MudText Typo="Typo.caption" Style="color:grey; line-height:1;">
+                                    <span class="da-meta" style="line-height:1;">
                                         @(c.Type == DACommandType.SetVolume ? "Target volume" : "Volume") : @c.TargetVolume.ToString("P0")
-                                    </MudText>
-                                    <MudSlider T="double" Value="c.TargetVolume"
-                                               ValueChanged="v => c.TargetVolume = Math.Clamp(v, 0, 1)"
-                                               Min="0" Max="1" Step="0.01" Style="margin:0;" />
+                                    </span>
+                                    @* --pp paints the filled part of the track, which
+                                       MudSlider drew for itself. *@
+                                    <input type="range" class="da-range" aria-label="Volume"
+                                           style="@($"margin:0; --pp:{Percent(c.TargetVolume)};")"
+                                           min="0" max="1" step="0.01" value="@Inv(c.TargetVolume)"
+                                           @oninput="@(e => c.TargetVolume = Math.Clamp(ParseDouble(e.Value, c.TargetVolume), 0, 1))" />
                                 </div>
                             }
 
-                            <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small"
-                                           Title="Remove command" OnClick="() => RemoveCommand(step, c)" />
+                            <button type="button" class="da-ib" title="Remove command"
+                                    aria-label="Remove command" @onclick="() => RemoveCommand(step, c)">
+                                <DaIcon Name="close" Size="16" />
+                            </button>
                         </div>
                     }
 
-                    <MudButton Size="Size.Small" Variant="Variant.Text" StartIcon="@Icons.Material.Filled.Add"
-                               OnClick="() => AddCommand(step)">Add action</MudButton>
+                    <button type="button" class="da-btn da-btn-text"
+                            style="min-height:32px; padding:0 12px; font-size:12.5px;"
+                            @onclick="() => AddCommand(step)">
+                        <DaIcon Name="add" Size="15" />
+                        Add action
+                    </button>
                 </div>
 
                 @* ── What moves the scene from this step to the next one ── *@
@@ -290,62 +358,68 @@
                     bool isAuto = step.AdvanceMode != DAStepAdvance.Manual;
                     <div class="se-step-link @(isAuto ? "se-step-link-auto" : "")">
                         <div class="se-step-link-label">
-                            <MudIcon Icon="@(step.AdvanceMode switch
-                                             {
-                                                 DAStepAdvance.Manual => Icons.Material.Filled.TouchApp,
-                                                 DAStepAdvance.AfterDuration => Icons.Material.Filled.Timer,
-                                                 _ => Icons.Material.Filled.PlayCircleOutline,
-                                             })"
-                                     Style="font-size:16px;" />
+                            <DaIcon Size="16" Name="@(step.AdvanceMode switch
+                                                      {
+                                                          DAStepAdvance.Manual => "touch-app",
+                                                          DAStepAdvance.AfterDuration => "timer",
+                                                          _ => "play-circle",
+                                                      })" />
                             Advance to step @(stepIndex + 2)
                         </div>
 
-                        <MudSelect T="string" Value="AdvanceTriggerKey(step)"
-                                   ValueChanged="v => SetAdvanceTrigger(step, v)"
-                                   Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true"
-                                   PopoverClass="se-step-link-popover"
-                                   Style="min-width:280px; max-width:360px;">
-                            <MudSelectItem T="string" Value="@AdvanceManualKey">Manual trigger</MudSelectItem>
-                            <MudSelectItem T="string" Value="@AdvanceDurationKey">After a fixed duration</MudSelectItem>
+                        @* The native select is drawn by the OS, so the popover
+                           se-step-link-popover had to lift over the modal is gone. *@
+                        <select class="da-inp" style="min-width:280px; max-width:360px;"
+                                value="@AdvanceTriggerKey(step)"
+                                @onchange="@(e => SetAdvanceTrigger(step, e.Value?.ToString() ?? string.Empty))">
+                            <option value="@AdvanceManualKey">Manual trigger</option>
+                            <option value="@AdvanceDurationKey">After a fixed duration</option>
                             @foreach (var candidate in candidates)
                             {
-                                <MudSelectItem T="string" Value="@candidate.Id.ToString()">
+                                <option value="@candidate.Id">
                                     When “@candidate.Name” reaches its end
-                                </MudSelectItem>
+                                </option>
                             }
                             @* Waiting on every layer only says something new beyond one
                                layer when the step starts more than one — but keep the
                                option visible if the step is already set to it. *@
                             @if (candidates.Count > 1 || step.AdvanceMode == DAStepAdvance.OnAllLayersEnd)
                             {
-                                <MudSelectItem T="string" Value="@AdvanceAllKey">
+                                <option value="@AdvanceAllKey">
                                     When all @candidates.Count layers reach their end (the longest one)
-                                </MudSelectItem>
+                                </option>
                             }
-                        </MudSelect>
+                        </select>
 
                         @if (step.AdvanceMode == DAStepAdvance.AfterDuration)
                         {
-                            <MudNumericField T="double" Value="step.AdvanceAfterSeconds"
-                                             ValueChanged="v => step.AdvanceAfterSeconds = Math.Max(0, v)"
-                                             Label="Seconds" Variant="Variant.Outlined" Margin="Margin.Dense"
-                                             Min="0" Step="1" Style="max-width:120px;" />
-                            <MudText Typo="Typo.caption" Style="color:#6a6a8a;">
+                            <div class="da-field">
+                                <span class="da-flabel">Seconds</span>
+                                <div class="da-step">
+                                    <button type="button" @onclick="@(() => step.AdvanceAfterSeconds = Math.Max(0, step.AdvanceAfterSeconds - 1))">&minus;</button>
+                                    <input type="number" class="da-num" min="0" step="1" value="@step.AdvanceAfterSeconds"
+                                           @onchange="@(e => step.AdvanceAfterSeconds = Math.Max(0, ParseDouble(e.Value, step.AdvanceAfterSeconds)))" />
+                                    <button type="button" @onclick="@(() => step.AdvanceAfterSeconds = Math.Max(0, step.AdvanceAfterSeconds + 1))">+</button>
+                                </div>
+                            </div>
+                            <span style="font-size:12px; color:var(--t4);">
                                 counted from this step's start
-                            </MudText>
+                            </span>
                         }
                         else if (candidates.Count == 0)
                         {
-                            <MudText Typo="Typo.caption" Style="color:#6a6a8a;">
+                            <span style="font-size:12px; color:var(--t4);">
                                 uncheck “Loop” on a layer this step starts to offer it here
-                            </MudText>
+                            </span>
                         }
                     </div>
                 }
             }
 
-            <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Add"
-                       OnClick="AddStep" Style="margin-top:6px;">Add step</MudButton>
+            <button type="button" class="da-btn da-btn-out" style="margin-top:6px;" @onclick="AddStep">
+                <DaIcon Name="add" Size="16" />
+                Add step
+            </button>
         </div>
         }
 
@@ -353,13 +427,13 @@
         @if (Scene.Mode == DASceneMode.Contextual)
         {
         <div class="se-section">
-            <MudStack Row="true" AlignItems="AlignItems.Center" Style="gap:10px; margin-bottom:4px;">
-                <MudText Typo="Typo.subtitle1"><b>Contexts</b></MudText>
-                <MudText Typo="Typo.caption" Style="color:grey;">
+            <div class="da-irow" style="gap:10px; margin-bottom:4px;">
+                <h5 style="margin:0;">Contexts</h5>
+                <span class="da-meta">
                     The selectable states of the scene (e.g. fireplace / crowded / brawl) —
                     switching crossfades every layer to its level in the target context
-                </MudText>
-            </MudStack>
+                </span>
+            </div>
 
             @for (int ci = 0; ci < Scene.Contexts.Count; ci++)
             {
@@ -368,28 +442,41 @@
                 bool isCurrent = _preview?.IsPlaying == true && _preview.CurrentContext?.Id == context.Id;
 
                 <div class="se-step-card" style="@(isCurrent ? "border-color:rgba(35,166,213,0.9);" : "")">
-                    <MudStack Row="true" AlignItems="AlignItems.Center" Style="gap:10px; flex-wrap:wrap;">
+                    <div class="da-irow da-irow-wrap" style="gap:10px;">
                         <div class="da-cmd-btn" style="width:34px; height:34px;"
                              title="Enter this context (starts the preview if needed)"
                              @onclick="() => EnterPreviewContext(context)">
-                            <MudIcon Icon="@(isCurrent ? Icons.Material.Filled.GraphicEq : Icons.Material.Filled.PlayArrow)"
-                                     Style="font-size:17px;" Class="@(isCurrent ? "da-skip" : "da-play")" />
+                            <DaIcon Name="@(isCurrent ? "graphic-eq" : "play")" Size="17"
+                                    Class="@(isCurrent ? "da-skip" : "da-play")" />
                         </div>
-                        <MudTextField @bind-Value="context.Name" Label="Context name" Variant="Variant.Outlined"
-                                      Margin="Margin.Dense" Style="max-width:230px;" />
-                        <MudNumericField T="double" Value="context.TransitionSeconds"
-                                         ValueChanged="v => context.TransitionSeconds = Math.Max(0, v)"
-                                         Label="Transition (s)" Variant="Variant.Outlined" Margin="Margin.Dense"
-                                         Style="max-width:120px;" />
+                        <label class="da-field" style="max-width:230px;">
+                            <span class="da-flabel">Context name</span>
+                            <input class="da-inp" type="text" spellcheck="false" @bind="context.Name" />
+                        </label>
+                        <div class="da-field">
+                            <span class="da-flabel">Transition (s)</span>
+                            <div class="da-step">
+                                <button type="button" @onclick="@(() => context.TransitionSeconds = Math.Max(0, context.TransitionSeconds - 1))">&minus;</button>
+                                <input type="number" class="da-num" min="0" step="1" value="@context.TransitionSeconds"
+                                       @onchange="@(e => context.TransitionSeconds = Math.Max(0, ParseDouble(e.Value, context.TransitionSeconds)))" />
+                                <button type="button" @onclick="@(() => context.TransitionSeconds = Math.Max(0, context.TransitionSeconds + 1))">+</button>
+                            </div>
+                        </div>
                         <div style="margin-left:auto; display:flex; gap:2px;">
-                            <MudIconButton Icon="@Icons.Material.Filled.ArrowCircleUp" Size="Size.Small"
-                                           Disabled="contextIndex == 0" OnClick="() => MoveContext(context, -1)" />
-                            <MudIconButton Icon="@Icons.Material.Filled.ArrowCircleDown" Size="Size.Small"
-                                           Disabled="contextIndex == Scene.Contexts.Count - 1" OnClick="() => MoveContext(context, +1)" />
-                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small"
-                                           OnClick="() => Scene.Contexts.Remove(context)" />
+                            <button type="button" class="da-ib" title="Move up" aria-label="Move up"
+                                    disabled="@(contextIndex == 0)" @onclick="() => MoveContext(context, -1)">
+                                <DaIcon Name="circle-up" Size="16" />
+                            </button>
+                            <button type="button" class="da-ib" title="Move down" aria-label="Move down"
+                                    disabled="@(contextIndex == Scene.Contexts.Count - 1)" @onclick="() => MoveContext(context, +1)">
+                                <DaIcon Name="circle-down" Size="16" />
+                            </button>
+                            <button type="button" class="da-ib da-danger" title="Delete context"
+                                    aria-label="Delete context" @onclick="() => Scene.Contexts.Remove(context)">
+                                <DaIcon Name="delete" Size="16" />
+                            </button>
                         </div>
-                    </MudStack>
+                    </div>
 
                     @foreach (var layer in Scene.Layers)
                     {
@@ -398,49 +485,61 @@
                         <div class="se-cmd-row">
                             <span class="se-role-badge" style="background:@RoleColor(l.Role);">@RoleLabel(l.Role)</span>
                             <span style="min-width:130px; font-size:13px;">@l.Name</span>
-                            <MudCheckBox T="bool" Value="state.Active" ValueChanged="v => state.Active = v"
-                                         Dense="true"
-                                         Label="@(l.Role == DALayerRole.SoundEffect ? "Random SFX on" : "Playing")" />
+                            <label class="da-chk">
+                                <input type="checkbox" checked="@state.Active"
+                                       @onchange="@(e => state.Active = e.Value is bool on && on)" />
+                                @(l.Role == DALayerRole.SoundEffect ? "Random SFX on" : "Playing")
+                            </label>
                             @if (state.Active)
                             {
                                 <div style="display:flex; flex-direction:column; min-width:150px; max-width:190px;">
-                                    <MudText Typo="Typo.caption" Style="color:grey; line-height:1;">
+                                    <span class="da-meta" style="line-height:1;">
                                         Volume: @state.Volume.ToString("P0")
-                                    </MudText>
-                                    <MudSlider T="double" Value="state.Volume"
-                                               ValueChanged="v => SetContextLayerVolume(context, l, state, v)"
-                                               Min="0" Max="1" Step="0.01" Style="margin:0;" />
+                                    </span>
+                                    <input type="range" class="da-range" aria-label="Volume"
+                                           style="@($"margin:0; --pp:{Percent(state.Volume)};")"
+                                           min="0" max="1" step="0.01" value="@Inv(state.Volume)"
+                                           @oninput="@(e => SetContextLayerVolume(context, l, state, ParseDouble(e.Value, state.Volume)))" />
                                 </div>
                             }
                         </div>
                     }
                     @if (Scene.Layers.Count == 0)
                     {
-                        <MudText Typo="Typo.caption" Style="color:grey;">Add layers first — contexts define each layer's level.</MudText>
+                        <span class="da-meta">Add layers first — contexts define each layer's level.</span>
                     }
                 </div>
             }
 
-            <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Add"
-                       OnClick="AddContext" Style="margin-top:6px;">Add context</MudButton>
+            <button type="button" class="da-btn da-btn-out" style="margin-top:6px;" @onclick="AddContext">
+                <DaIcon Name="add" Size="16" />
+                Add context
+            </button>
         </div>
         }
 
         @* ── Footer ── *@
         <div style="display:flex; align-items:center; gap:8px; margin-top:8px; flex-wrap:wrap;">
-            <MudTextField @bind-Value="_presetCategory" Label="Preset category" Placeholder="e.g. Town, Combat"
-                          Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width:180px;" />
-            <MudButton Variant="Variant.Outlined" Color="Color.Secondary"
-                       StartIcon="@Icons.Material.Filled.BookmarkAdd"
-                       OnClick="SaveAsPreset">Save as preset</MudButton>
+            <label class="da-field" style="max-width:180px;">
+                <span class="da-flabel">Preset category</span>
+                <input class="da-inp" type="text" spellcheck="false" placeholder="e.g. Town, Combat"
+                       @bind="_presetCategory" />
+            </label>
+            <button type="button" class="da-btn da-btn-out" @onclick="SaveAsPreset">
+                <DaIcon Name="bookmark-add" Size="16" />
+                Save as preset
+            </button>
             @if (_presetSaved)
             {
-                <MudText Typo="Typo.caption" Style="color:#4caf50;">Saved to catalogue ✓</MudText>
+                @* The confirmation green has no token; the secondary teal is the
+                   nearest one the app owns. *@
+                <span style="font-size:12px; color:var(--a3);">Saved to catalogue ✓</span>
             }
             <div style="flex:1;"></div>
-            <MudButton Variant="Variant.Filled" Color="Color.Success"
-                       StartIcon="@Icons.Material.Filled.Check"
-                       OnClick="CloseAsync">OK</MudButton>
+            <button type="button" class="da-btn da-btn-fill" @onclick="CloseAsync">
+                <DaIcon Name="check" Size="16" />
+                OK
+            </button>
         </div>
     </div>
 </div>
@@ -558,12 +657,66 @@
         _ => "SFX",
     };
 
+    /// The badge fill per role, as tokens: these were #23a6d5, #e73c7e and
+    /// #f0a03c, which are exactly the info, primary and warning tokens.
     static string RoleColor(DALayerRole role) => role switch
     {
-        DALayerRole.Ambience => "#23a6d5",
-        DALayerRole.Music => "#e73c7e",
-        _ => "#f0a03c",
+        DALayerRole.Ambience => "var(--a2)",
+        DALayerRole.Music => "var(--a1)",
+        _ => "var(--warn)",
     };
+
+    /// The DaIcon name for an audio kind. Local to this editor rather than on
+    /// AudioKindExtensions, whose Icon() still hands out a Material glyph name
+    /// that other callers rely on.
+    static string KindIconName(AudioKind kind) => kind switch
+    {
+        AudioKind.Music => "music-note",
+        AudioKind.Ambiance => "forest",
+        _ => "volume-up",
+    };
+
+    /// Reads a number or range box back, keeping the current value when the box
+    /// is empty or mid-edit. Invariant culture: both always report a '.' decimal,
+    /// whatever the system separator is.
+    static double ParseDouble(object? value, double fallback) =>
+        double.TryParse(value?.ToString(),
+                        System.Globalization.NumberStyles.Float,
+                        System.Globalization.CultureInfo.InvariantCulture,
+                        out double parsed)
+            ? parsed
+            : fallback;
+
+    /// A 0..1 level as a CSS percentage, which is how --pp fills a range track.
+    /// A double as the HTML a range input will actually accept. Razor renders
+    /// a double in the CURRENT culture, so on a French locale value="0,37" is
+    /// rejected and the thumb snaps elsewhere - while --pp, written invariantly,
+    /// stays put. That disagreement is what made the thumb jitter and the fill
+    /// stop matching it.
+    static string Inv(double value) =>
+        value.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture);
+
+    static string Percent(double value) =>
+        (Math.Clamp(value, 0, 1) * 100)
+            .ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) + "%";
+
+    void SetSceneMode(ChangeEventArgs e)
+    {
+        if (Scene != null && Enum.TryParse<DASceneMode>(e.Value?.ToString(), out var mode))
+            Scene.Mode = mode;
+    }
+
+    void OnLayerRoleSelected(DASceneLayer layer, ChangeEventArgs e)
+    {
+        if (Enum.TryParse<DALayerRole>(e.Value?.ToString(), out var role))
+            SetLayerRole(layer, role);
+    }
+
+    void OnCommandTypeSelected(DASceneStep step, DASceneCommand command, ChangeEventArgs e)
+    {
+        if (Enum.TryParse<DACommandType>(e.Value?.ToString(), out var type))
+            SetCommandType(step, command, type);
+    }
 
     // ── Steps ───────────────────────────────────────────────────────────────
 

@@ -20,9 +20,9 @@
         right: 0;
         z-index: 10050;
         height: 150px;
-        background-color:#0D0D0D;
+        background-color: var(--s1);
         box-shadow: 0 2px 10px rgba(255, 255, 255, 0.1);
-        color: white;
+        color: var(--t1);
         padding:10px;
         border-radius:5px;
         text-align: center;
@@ -50,10 +50,12 @@
 </style>
 
 <div class="popup-frame popup-frame-width" style="@(_showModal ? "display:block;" : "display:none;")">
+    @* The icon sized to the 28px title it sits in, and tinted from a token.
+       The confirmation takes --ok, the palette's positive. *@
     @if (Type == PopupNotificationService.Type.FAILURE) {
-        <div class="popup-title"><MudIcon Icon="@Icons.Material.Filled.Error" Color="Color.Error" Title="Favorite" />&nbsp;@Title</div>
+        <div class="popup-title"><DaIcon Name="error" Size="26" Class="da-i-danger" />&nbsp;@Title</div>
     } else {
-        <div class="popup-title"><MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" Title="Favorite" />&nbsp;@Title</div>
+        <div class="popup-title"><DaIcon Name="check-circle" Size="26" style="color:var(--ok);" />&nbsp;@Title</div>
     }
     <div class="popup-message">@Message</div>
 </div>

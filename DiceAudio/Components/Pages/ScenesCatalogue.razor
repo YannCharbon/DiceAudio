@@ -10,64 +10,61 @@
 @inject DiceAudioService DAService
 
 <style>
-    .scn-card {
-        border-radius: 12px;
-        background: #12121f;
-        border: 1px solid #2a2a4a;
-        padding: 16px 18px;
-        margin: 10px;
-        display: flex;
-        align-items: center;
-        gap: 14px;
-        transition: box-shadow 0.2s, border-color 0.2s;
-    }
-    .scn-card:hover {
-        box-shadow: 0 4px 16px rgba(255,255,255,0.08);
-        border-color: #444470;
-    }
-    .scn-icon {
-        width: 52px; height: 52px; border-radius: 10px; flex-shrink: 0;
-        display: flex; align-items: center; justify-content: center;
-        background: linear-gradient(-45deg, rgba(238,119,82,0.35), rgba(231,60,126,0.45),
-                    rgba(35,166,213,0.55), rgba(35,166,171,0.65));
-    }
-    .scn-name { font-weight: bold; font-size: 15px; }
-    .scn-meta { font-size: 12px; color: grey; }
+    /* The card itself is .da-strip and the tile .da-icon, both from app.css:
+       a scene, a scenario group and a pinned group on the home page are the
+       same object in three places and now share one shape. What is left here
+       is only this page's grid. */
     .scn-cat-header {
-        font-size: 15px; font-weight: bold; color: #23a6ab;
-        border-bottom: 1px solid #2a2a4a;
+        font-size: 15px; font-weight: bold; color: var(--a3);
+        border-bottom: 1px solid var(--b1);
         padding: 14px 4px 4px 4px; margin: 4px 8px;
     }
 </style>
 
 <h3>Scenes</h3>
-<MudText Typo="Typo.body2" Style="color:grey; margin-bottom:14px;">
+<p class="da-sub" style="margin-bottom:14px;">
     Layered soundscapes — ambiences, music and sound effects driven by steps you trigger live.
     Scenes from this catalogue can be copied into scenarios.
-</MudText>
+</p>
 
-<MudStack Row="true" Style="gap:10px; margin-bottom:10px;">
-    <MudButton Variant="Variant.Filled" Color="Color.Primary"
-               StartIcon="@Icons.Material.Filled.Add"
-               OnClick="CreateScene">
+<div class="da-irow" style="gap:10px; margin-bottom:10px;">
+    <button type="button" class="da-btn da-btn-fill" @onclick="CreateScene">
+        <DaIcon Name="add" Size="16" />
         New scene
-    </MudButton>
+    </button>
 
     @{ var scenePresets = DAService.Presets.Where(p => p.Kind == DAPresetKind.Scene).ToList(); }
     @if (scenePresets.Count > 0)
     {
-        <MudMenu Label="From preset" Variant="Variant.Outlined" Color="Color.Secondary"
-                 StartIcon="@Icons.Material.Filled.Bookmark" Dense="true">
-            @foreach (var preset in scenePresets)
+        @* The house set has no menu widget, so the preset list is a button that
+           reveals a .da-pop. The fixed sheet behind it keeps MudMenu's
+           click-anywhere-to-dismiss, which a bare popover would lose. *@
+        <div style="position:relative;">
+            <button type="button" class="da-btn da-btn-out"
+                    @onclick="() => _presetMenuOpen = !_presetMenuOpen">
+                <DaIcon Name="bookmark" Size="16" />
+                From preset
+                <DaIcon Name="chevron-down" Size="16" />
+            </button>
+            @if (_presetMenuOpen)
             {
-                var p = preset;
-                <MudMenuItem OnClick="() => InsertPreset(p)">
-                    @(string.IsNullOrEmpty(p.Category) ? p.Name : $"{p.Category} / {p.Name}")
-                </MudMenuItem>
+                <div style="position:fixed; inset:0; z-index:59;"
+                     @onclick="() => _presetMenuOpen = false"></div>
+                <div class="da-pop">
+                    @foreach (var preset in scenePresets)
+                    {
+                        var p = preset;
+                        <button type="button" class="da-btn da-btn-text"
+                                style="width:100%; justify-content:flex-start;"
+                                @onclick="() => InsertPreset(p)">
+                            @(string.IsNullOrEmpty(p.Category) ? p.Name : $"{p.Category} / {p.Name}")
+                        </button>
+                    }
+                </div>
             }
-        </MudMenu>
+        </div>
     }
-</MudStack>
+</div>
 
 @if (DAService.Scenes.Count == 0)
 {
@@ -83,20 +80,26 @@
         @foreach (var scene in group)
         {
             var s = scene;
-            <div class="col col-md-5 scn-card">
-                <div class="scn-icon">
-                    <MudIcon Icon="@Icons.Material.Filled.Theaters" />
+            <div class="col col-md-5 da-strip" style="margin:10px;">
+                <div class="da-icon">
+                    <DaIcon Name="movie" Size="24" />
                 </div>
-                <div style="flex:1;">
-                    <div class="scn-name">@s.Name</div>
-                    <div class="scn-meta">@(s.Mode == DASceneMode.Contextual ? "Contextual" : "Linear") · @s.CueSummary</div>
+                <div class="da-strip-body">
+                    <div class="da-strip-name">@s.Name</div>
+                    <div class="da-meta">@(s.Mode == DASceneMode.Contextual ? "Contextual" : "Linear") · @s.CueSummary</div>
                 </div>
-                <MudIconButton Icon="@Icons.Material.Filled.Edit" Title="Edit scene"
-                               OnClick="() => EditScene(s)" />
-                <MudIconButton Icon="@Icons.Material.Filled.ContentCopy" Title="Duplicate"
-                               OnClick="() => DuplicateScene(s)" />
-                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Title="Delete"
-                               OnClick="() => DeleteScene(s)" />
+                <button type="button" class="da-ib" title="Edit scene" aria-label="Edit scene"
+                        @onclick="() => EditScene(s)">
+                    <DaIcon Name="edit" Size="18" />
+                </button>
+                <button type="button" class="da-ib" title="Duplicate" aria-label="Duplicate"
+                        @onclick="() => DuplicateScene(s)">
+                    <DaIcon Name="copy" Size="18" />
+                </button>
+                <button type="button" class="da-ib da-danger" title="Delete" aria-label="Delete"
+                        @onclick="() => DeleteScene(s)">
+                    <DaIcon Name="delete" Size="18" />
+                </button>
             </div>
         }
     </div>
@@ -106,6 +109,24 @@
 
 @code {
     private SceneEditor? _editor;
+
+    /// Lets the home page start a scene rather than merely point at this
+    /// page: /scenes?new=true opens the editor on a new scene as soon as the
+    /// page is up. Guarded so a re-render cannot create a second one.
+    [SupplyParameterFromQuery(Name = "new")] public bool StartNew { get; set; }
+
+    private bool _startNewHandled;
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (!firstRender || !StartNew || _startNewHandled) return;
+        _startNewHandled = true;
+        CreateScene();
+        StateHasChanged();
+    }
+
+    /// Whether the "From preset" popover is showing.
+    private bool _presetMenuOpen;
 
     void CreateScene()
     {
@@ -118,6 +139,7 @@
 
     async Task InsertPreset(DAPreset preset)
     {
+        _presetMenuOpen = false;
         var scene = preset.ToScene();   // independent deep copy, fresh ids
         if (scene == null) return;
         DAService.Scenes.Add(scene);

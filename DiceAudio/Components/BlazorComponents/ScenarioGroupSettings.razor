@@ -18,73 +18,106 @@
                 padding:24px; position:relative;"
          @onclick:stopPropagation="true">
 
-        <MudText Typo="Typo.h6" Style="margin-bottom:4px;">Scenario group settings</MudText>
-        <MudText Typo="Typo.body2" Style="color:grey; margin-bottom:18px;">@Group.Name</MudText>
+        <h4 style="margin-bottom:4px;">Scenario group settings</h4>
+        <p class="da-sub" style="margin-bottom:18px;">@Group.Name</p>
 
         @* ── Collection ── *@
-        <MudText Typo="Typo.subtitle2" Style="margin-bottom:8px;">Collection</MudText>
+        <h5 style="margin:0 0 8px;">Collection</h5>
 
         @* Free text: picking an existing collection or typing a brand new one both
-           just set the group's Collection, and clearing it takes the group back out. *@
-        <MudAutocomplete T="string" Label="Collection" Variant="Variant.Outlined"
-                         Value="@Group.Collection" ValueChanged="OnCollectionChanged"
-                         SearchFunc="@SearchCollections" CoerceValue="true" Clearable="true"
-                         Adornment="Adornment.End" AdornmentIcon="@Icons.Material.Filled.FolderOpen"
-                         Placeholder="Leave empty to keep this group on its own" />
+           just set the group's Collection, and clearing it takes the group back out.
+           A datalist carries MudAutocomplete's suggestions — and its filtering,
+           which the browser does as the user types — without the widget. *@
+        <label class="da-field">
+            <span class="da-flabel">Collection</span>
+            <span style="position:relative; display:block;">
+                <input class="da-inp" type="text" list="scg-collections" spellcheck="false"
+                       style="padding-right:@(Group.Collection.Length > 0 ? "60px" : "32px");"
+                       placeholder="Leave empty to keep this group on its own"
+                       value="@Group.Collection"
+                       @onchange="@(e => OnCollectionChanged(e.Value?.ToString() ?? string.Empty))" />
+                @if (Group.Collection.Length > 0)
+                {
+                    <button type="button" class="da-ib" title="Clear" aria-label="Clear"
+                            style="position:absolute; right:30px; top:50%; transform:translateY(-50%);
+                                   width:28px; height:28px;"
+                            @onclick="() => OnCollectionChanged(string.Empty)">
+                        <DaIcon Name="close" Size="14" />
+                    </button>
+                }
+                <span style="position:absolute; right:9px; top:50%; transform:translateY(-50%);
+                             color:var(--t3); pointer-events:none; display:inline-flex;">
+                    <DaIcon Name="folder-open" />
+                </span>
+            </span>
+        </label>
+        <datalist id="scg-collections">
+            @foreach (var collection in DAService.GetCollections())
+            {
+                <option value="@collection"></option>
+            }
+        </datalist>
 
-        <MudText Typo="Typo.body2" Style="color:grey; margin:6px 0 10px 0;">
+        <p class="da-sub" style="margin:6px 0 10px 0;">
             Files this group with the others of the same collection — one adventure, season
             or show — so the scenarios explorer lists them together in a folder instead of
             all groups side by side. A collection exists as long as one group names it.
-        </MudText>
+        </p>
 
-        <MudDivider Style="margin:18px 0 14px 0;" />
+        <hr style="border:0; border-top:1px solid var(--b1); margin:18px 0 14px 0;" />
 
         @* ── Playback ── *@
-        <MudText Typo="Typo.subtitle2" Style="margin-bottom:8px;">Playback</MudText>
+        <h5 style="margin:0 0 8px;">Playback</h5>
 
-        <MudSwitch T="bool" Value="Group.StopOtherScenariosOnPlay"
-                   ValueChanged="OnStopOthersChanged"
-                   Color="Color.Secondary"
-                   Label="One scenario at a time" />
+        @* The switch becomes the app's own tick box: both carried the same on/off
+           meaning and the tick box is the one shape the set draws. *@
+        <label class="da-chk">
+            <input type="checkbox" checked="@Group.StopOtherScenariosOnPlay"
+                   @onchange="@(e => OnStopOthersChanged(e.Value is bool on && on))" />
+            One scenario at a time
+        </label>
 
-        <MudText Typo="Typo.body2" Style="color:grey; margin:2px 0 10px 0;">
+        <p class="da-sub" style="margin:2px 0 10px 0;">
             On (the default), starting an item in one scenario of this group fades out
             (@DAScenarioPlayer.HandoverFadeSeconds s) whatever the other scenarios are playing, so a
             single scenario is ever audible. Turn it off and the scenarios layer instead: an ambience
             scenario keeps playing under a music one, and each is stopped on its own.
-        </MudText>
+        </p>
 
-        <MudDivider Style="margin:18px 0 14px 0;" />
+        <hr style="border:0; border-top:1px solid var(--b1); margin:18px 0 14px 0;" />
 
         @* ── Deletion ── *@
-        <MudText Typo="Typo.subtitle2" Style="margin-bottom:8px;">Delete</MudText>
+        <h5 style="margin:0 0 8px;">Delete</h5>
 
         @if (!_confirmDelete)
         {
-            <MudButton Variant="Variant.Outlined" Color="Color.Error"
-                       StartIcon="@Icons.Material.Filled.Delete"
-                       OnClick="() => _confirmDelete = true">Delete this group</MudButton>
+            <button type="button" class="da-btn da-btn-danger" @onclick="() => _confirmDelete = true">
+                <DaIcon Name="delete" Size="16" />
+                Delete this group
+            </button>
         }
         else
         {
-            <MudStack Row="true" AlignItems="AlignItems.Center" Style="gap:10px; flex-wrap:wrap;">
-                <MudText Typo="Typo.body2">
+            <div class="da-irow da-irow-wrap" style="gap:10px;">
+                <span>
                     Delete “@Group.Name” and its @Group.Scenarios.Count scenario(s)?
-                </MudText>
-                <MudButton Variant="Variant.Filled" Color="Color.Error"
-                           StartIcon="@Icons.Material.Filled.Delete"
-                           OnClick="ConfirmDelete">Delete</MudButton>
-                <MudButton Variant="Variant.Text"
-                           OnClick="() => _confirmDelete = false">Cancel</MudButton>
-            </MudStack>
+                </span>
+                <button type="button" class="da-btn da-btn-danger" @onclick="ConfirmDelete">
+                    <DaIcon Name="delete" Size="16" />
+                    Delete
+                </button>
+                <button type="button" class="da-btn da-btn-text" @onclick="() => _confirmDelete = false">
+                    Cancel
+                </button>
+            </div>
         }
 
         <div style="display:flex; margin-top:22px;">
             <div style="flex:1;"></div>
-            <MudButton Variant="Variant.Filled" Color="Color.Success"
-                       StartIcon="@Icons.Material.Filled.Check"
-                       OnClick="Close">OK</MudButton>
+            <button type="button" class="da-btn da-btn-fill" @onclick="Close">
+                <DaIcon Name="check" Size="16" />
+                OK
+            </button>
         </div>
     </div>
 </div>
@@ -115,13 +148,8 @@
         StateHasChanged();
     }
 
-    Task<IEnumerable<string>> SearchCollections(string value, CancellationToken token)
-    {
-        var collections = DAService.GetCollections();
-        if (!string.IsNullOrWhiteSpace(value))
-            collections = collections.FindAll(c => c.Contains(value, StringComparison.CurrentCultureIgnoreCase));
-        return Task.FromResult<IEnumerable<string>>(collections);
-    }
+    // MudAutocomplete's SearchFunc went with the widget: the datalist above
+    // offers every collection and the browser narrows it as the user types.
 
     void OnStopOthersChanged(bool value)
     {

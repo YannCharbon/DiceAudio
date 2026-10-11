@@ -18,57 +18,72 @@
 <div style="position:fixed; top:0; left:0; width:100%; height:100%;
             background:rgba(0,0,0,0.82); z-index:5000; overflow-y:auto;"
      @onclick="Hide">
-    <div style="background:#232338; margin:3% auto; max-width:960px; border-radius:12px;
+    <div style="background:var(--s5); margin:3% auto; max-width:960px; border-radius:12px;
                 padding:20px 24px; position:relative;"
          @onclick:stopPropagation="true">
 
-        <MudText Typo="Typo.h6" Style="margin-bottom:14px;">@Title</MudText>
+        <h2 class="da-h2" style="margin-bottom:14px;">@Title</h2>
 
         @* ── Search + kind filter ── *@
-        <MudStack Row="true" AlignItems="AlignItems.Center" Style="margin-bottom:10px; flex-wrap:wrap; gap:6px;">
-            <MudTextField T="string" Value="_search" ValueChanged="OnSearchChanged"
-                          Placeholder="Search by name…" Variant="Variant.Outlined" Margin="Margin.Dense"
-                          Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
-                          Immediate="true" Clearable="true" Style="min-width:240px; flex:1;" />
+        <div class="da-irow da-irow-wrap" style="margin-bottom:10px; gap:6px;">
+            @* The search field keeps its leading icon and its clear button: the
+               box itself is the frame, so the input inside it draws no second one. *@
+            <div class="sap-search">
+                <DaIcon Name="search" Size="16" Class="da-i-muted" />
+                <input class="da-inp" type="text" spellcheck="false" placeholder="Search by name…"
+                       aria-label="Search by name" value="@_search"
+                       @oninput="@(e => OnSearchChanged(e.Value?.ToString() ?? string.Empty))" />
+                @if (!string.IsNullOrEmpty(_search))
+                {
+                    <button type="button" class="da-ib" title="Clear the search" aria-label="Clear the search"
+                            @onclick="@(() => OnSearchChanged(string.Empty))">
+                        <DaIcon Name="close" Size="14" />
+                    </button>
+                }
+            </div>
 
-            <MudButton Variant="@(_kinds.Count == 3 ? Variant.Filled : Variant.Outlined)"
-                       Color="Color.Default" Size="Size.Small"
-                       OnClick="SelectAllKinds">All</MudButton>
+            <button type="button" class="da-btn @(_kinds.Count == 3 ? "da-btn-fill" : "da-btn-out") da-btn-sm"
+                    @onclick="SelectAllKinds">All</button>
             @foreach (var kind in new[] { AudioKind.Music, AudioKind.Ambiance, AudioKind.SoundEffect })
             {
                 var k = kind;
-                <MudButton Variant="@(_kinds.Contains(k) && _kinds.Count < 3 ? Variant.Filled : Variant.Outlined)"
-                           Color="@k.Color()" Size="Size.Small" StartIcon="@k.Icon()"
-                           OnClick="() => ToggleKind(k)">@k.Label()</MudButton>
+                var narrowed = _kinds.Contains(k) && _kinds.Count < 3;
+                @* The kind tint the MudButton's Color carried, taken from the
+                   --kc the kind class defines rather than named again here. *@
+                <button type="button" class="da-btn @(narrowed ? "da-btn-fill" : "da-btn-out") da-btn-sm @k.KindClass()"
+                        style="@(narrowed ? "" : "color:var(--kc); border-color:var(--kc-edge);")"
+                        @onclick="() => ToggleKind(k)">
+                    <DaIcon Name="@KindIcon(k)" Size="16" />@k.Label()
+                </button>
             }
 
-            <MudButton Variant="@(_filterOpen ? Variant.Filled : Variant.Outlined)"
-                       Color="Color.Secondary" Size="Size.Small"
-                       StartIcon="@Icons.Material.Filled.FilterList"
-                       OnClick="() => _filterOpen = !_filterOpen">Tags</MudButton>
+            <button type="button" class="da-btn @(_filterOpen ? "da-btn-fill" : "da-btn-out") da-btn-sm"
+                    @onclick="() => _filterOpen = !_filterOpen">
+                <DaIcon Name="filter" Size="16" />Tags
+            </button>
             @if (_filterTags.Count > 0)
             {
-                <MudButton Size="Size.Small" Variant="Variant.Text" OnClick="() => _filterTags.Clear()">Clear tags</MudButton>
+                <button type="button" class="da-btn da-btn-text da-btn-sm" @onclick="() => _filterTags.Clear()">Clear tags</button>
             }
-        </MudStack>
+        </div>
 
         @if (_filterOpen)
         {
-            <div style="background:#1a1a2e; border-radius:8px; padding:10px; margin-bottom:12px;">
-                <MudText Typo="Typo.caption" Style="color:grey;">Type</MudText>
+            <div style="background:var(--s4); border-radius:8px; padding:10px; margin-bottom:12px;">
+                <div class="da-flabel">Type</div>
                 <div style="display:flex; flex-wrap:wrap; gap:4px; padding:4px 0 8px 0;">
                     @foreach (var tag in DAAudioTag.GetAllCategoryTypeTags())
-                    { <span class="@FilterChipClass(tag)" @onclick="() => ToggleFilterTag(tag)" style="cursor:pointer;">@tag</span> }
+                    { <button type="button" class="@FilterChipClass(tag)" @onclick="() => ToggleFilterTag(tag)">@tag</button> }
                 </div>
-                <MudText Typo="Typo.caption" Style="color:grey;">Location</MudText>
+                <div class="da-flabel">Location</div>
                 <div style="display:flex; flex-wrap:wrap; gap:4px; padding:4px 0 8px 0;">
                     @foreach (var tag in DAAudioTag.GetAllCategoryLocationTags())
-                    { <span class="@FilterChipClass(tag)" @onclick="() => ToggleFilterTag(tag)" style="cursor:pointer;">@tag</span> }
+                    { <button type="button" class="@FilterChipClass(tag)" @onclick="() => ToggleFilterTag(tag)">@tag</button> }
                 </div>
-                <MudText Typo="Typo.caption" Style="color:grey;">Expression</MudText>
+                <div class="da-flabel">Expression</div>
                 <div style="display:flex; flex-wrap:wrap; gap:4px; padding:4px 0;">
                     @foreach (var tag in DAAudioTag.GetAllCategoryExpressionTags())
-                    { <span class="@FilterChipClass(tag)" @onclick="() => ToggleFilterTag(tag)" style="cursor:pointer;">@tag</span> }
+                    { <button type="button" class="@FilterChipClass(tag)" @onclick="() => ToggleFilterTag(tag)">@tag</button> }
                 </div>
             </div>
         }
@@ -84,18 +99,18 @@
                 }
                 else
                 {
-                    <span class="sap-crumb" @onclick='() => _currentFolderName = "."'>Root</span>
+                    <span class="da-crumb" @onclick='() => _currentFolderName = "."'>Root</span>
                     @foreach (var crumb in BreadcrumbChain())
                     {
                         var c = crumb;
-                        <span style="color:#888;">/</span>
+                        <span style="color:var(--t4);">/</span>
                         @if (c.Name == _currentFolderName)
                         {
                             <span style="font-weight:bold;">@c.Name</span>
                         }
                         else
                         {
-                            <span class="sap-crumb" @onclick="() => _currentFolderName = c.Name">@c.Name</span>
+                            <span class="da-crumb" @onclick="() => _currentFolderName = c.Name">@c.Name</span>
                         }
                     }
                 }
@@ -124,7 +139,7 @@
             }
             @if (!visibleItems.Any())
             {
-                <p style="padding:20px; color:grey;">No matching audio items found.</p>
+                <p class="da-empty" style="padding:20px;">No matching audio items found.</p>
             }
             @foreach (var item in visibleItems)
             {
@@ -134,9 +149,9 @@
 
         @* ── Footer ── *@
         <div style="display:flex; justify-content:flex-end; margin-top:14px;">
-            <MudButton Variant="Variant.Filled" Color="Color.Success"
-                       StartIcon="@Icons.Material.Filled.Check"
-                       OnClick="async () => await Hide()">OK</MudButton>
+            <button type="button" class="da-btn da-btn-fill" @onclick="async () => await Hide()">
+                <DaIcon Name="check" Size="18" />OK
+            </button>
         </div>
     </div>
 </div>
@@ -144,17 +159,25 @@
 
 <style>
     /* The item and folder cards come from app.css (.da-card and friends), shared
-       with the explorer. What remains here is the tag-filter panel. */
-    .sap-tag {
-        color:#cfcfdd; background:rgba(139,139,166,.12); border:1px solid rgba(139,139,166,.35);
-        border-radius:5px; padding:3px 7px; margin:2px; font-size:11px; line-height:1;
+       with the explorer. What remains here is the search box and the small
+       toolbar buttons. */
+
+    /* The box is the field: the input inside it is borderless so there is only
+       one frame around the icon, the text and the clear button. */
+    .sap-search {
+        display: flex; align-items: center; gap: 6px;
+        min-width: 240px; flex: 1; height: 32px;
+        padding: 0 5px 0 9px;
+        background: var(--s2);
+        border: 1px solid var(--ctl);
+        border-radius: var(--r-btn);
+        color: var(--t3);
     }
-    .sap-tag-sel {
-        color:#0b0b14; background:#23a6d5; border:1px solid #23a6d5;
-        border-radius:5px; padding:3px 7px; margin:2px; font-size:11px; line-height:1; font-weight:bold;
-    }
-    .sap-crumb { cursor:pointer; color:#90caf9; }
-    .sap-crumb:hover { text-decoration:underline; }
+    .sap-search:focus-within { border-color: var(--a2); }
+    .sap-search .da-inp { border: 0; background: transparent; height: 30px; padding: 0; color: var(--t1); }
+    .sap-search .da-inp:focus-visible { outline: none; }
+    .sap-search .da-ib { width: 24px; height: 24px; }
+
 </style>
 
 @code {
@@ -233,14 +256,14 @@
                               : "Click to add it to the selection")">
                     @* Inert here (pointer-events:none): the whole hero is one target. *@
                     <button type="button" class="da-kind" tabindex="-1" title="@item.Kind.Label()">
-                        <MudIcon Icon="@item.Kind.Icon()" Style="font-size:15px;" />
+                        <DaIcon Name="@KindIcon(item.Kind)" Size="15" />
                         <span class="da-kind-label">@item.Kind.Label()</span>
                     </button>
                     <div class="da-name" title="@($"{item.Name} — {item.Folder.Name}")">@item.Name</div>
                     @if (!SingleSelect)
                     {
                         <span class="da-pickmark">
-                            <MudIcon Icon="@Icons.Material.Filled.Check" Style="font-size:17px;" />
+                            <DaIcon Name="check" Size="17" />
                         </span>
                     }
                 </div>
@@ -259,7 +282,7 @@
                     else
                     {
                         <div class="da-offline">
-                            <MudIcon Icon="@Icons.Material.Filled.CloudDownload" Style="font-size:13px;" />
+                            <DaIcon Name="cloud-download" Size="13" />
                             Not downloaded
                         </div>
                     }
@@ -276,7 +299,7 @@
         <div class="da-row @item.Kind.KindClass() @(_playingIds.Contains(item.Id) ? "playing" : "") @(isSelected ? "added" : "")"
              @onclick="() => PickItem(item)" title="@PickTitle(item)">
             <span class="da-row-kind" title="@item.Kind.Label()">
-                <MudIcon Icon="@item.Kind.Icon()" Style="font-size:18px;" />
+                <DaIcon Name="@KindIcon(item.Kind)" Size="18" />
             </span>
             <div class="da-row-name" title="@($"{item.Name} — {item.Folder.Name}")">@item.Name</div>
             <div class="da-tags">
@@ -294,7 +317,7 @@
                 else
                 {
                     <div class="da-offline">
-                        <MudIcon Icon="@Icons.Material.Filled.CloudDownload" Style="font-size:13px;" />
+                        <DaIcon Name="cloud-download" Size="13" />
                         Not downloaded
                     </div>
                 }
@@ -302,7 +325,7 @@
             @if (!SingleSelect)
             {
                 <span class="da-pickmark">
-                    <MudIcon Icon="@Icons.Material.Filled.Check" Style="font-size:17px;" />
+                    <DaIcon Name="check" Size="17" />
                 </span>
             }
             else
@@ -317,7 +340,7 @@
         @* The whole row opens the folder, padding included. *@
         <div class="da-row da-folder-row" @onclick="() => _currentFolderName = folder.Name">
             <button type="button" class="da-folder-tile" title="@folder.Name">
-                <MudIcon Icon="@Icons.Material.Filled.Folder" Style="font-size:19px;" />
+                <DaIcon Name="folder" Size="19" />
             </button>
             <span class="da-row-name" title="@folder.Name">@folder.Name</span>
             <span></span>
@@ -363,7 +386,7 @@
     {
         <article class="da-card da-folder">
             <div class="da-hero" title="@folder.Name" @onclick="() => _currentFolderName = folder.Name">
-                <MudIcon Icon="@Icons.Material.Filled.Folder" Style="font-size:38px;" />
+                <DaIcon Name="folder" Size="38" Stroke="1.4" />
             </div>
             <div class="da-body"><b>@folder.Name</b></div>
         </article>;
@@ -420,5 +443,17 @@
     }
 
     private string FilterChipClass(string tag) =>
-        _filterTags.Contains(tag) ? "sap-tag-sel" : "sap-tag";
+        _filterTags.Contains(tag) ? "da-tog da-on" : "da-tog";
+
+    /// <summary>
+    /// The house icon for an audio kind. AudioKindExtensions.Icon() still
+    /// answers with a Material name because the scene editor reads it, so the
+    /// mapping onto <see cref="DaIcon"/>'s set lives here.
+    /// </summary>
+    private static string KindIcon(AudioKind kind) => kind switch
+    {
+        AudioKind.Music => "music-note",
+        AudioKind.Ambiance => "forest",
+        _ => "volume-up",
+    };
 }

@@ -18,48 +18,58 @@
 <div style="position:fixed; top:0; left:0; width:100%; height:100%;
             background:rgba(0,0,0,0.82); z-index:3000; overflow-y:auto;"
      @onclick="Hide">
-    <div style="background:#232338; margin:4% auto; max-width:860px; border-radius:12px;
+    <div style="background:var(--s5); margin:4% auto; max-width:860px; border-radius:12px;
                 padding:20px 24px; position:relative;"
          @onclick:stopPropagation="true">
 
-        <MudText Typo="Typo.h6" Style="margin-bottom:4px;">Import audio from disk</MudText>
-        <MudText Typo="Typo.body2" Style="color:grey; margin-bottom:14px;">
+        <h2 class="da-h2" style="margin-bottom:4px;">Import audio from disk</h2>
+        <p class="da-sub" style="margin-bottom:14px;">
             Files are copied into the DiceAudio library — the originals are not touched.
-        </MudText>
+        </p>
 
         @* ── Source pickers ── *@
-        <MudStack Row="true" Style="gap:8px; flex-wrap:wrap; margin-bottom:12px;">
-            <MudButton Variant="Variant.Filled" Color="Color.Primary"
-                       StartIcon="@Icons.Material.Filled.AudioFile"
-                       Disabled="_importing" OnClick="AddFiles">Add files…</MudButton>
+        <div class="da-irow da-irow-wrap" style="gap:8px; margin-bottom:12px;">
+            <button type="button" class="da-btn da-btn-fill" disabled="@_importing" @onclick="AddFiles">
+                <DaIcon Name="audio-file" Size="18" />Add files…
+            </button>
             @if (DAImportHelper.CanPickFolder)
             {
-                <MudButton Variant="Variant.Filled" Color="Color.Primary"
-                           StartIcon="@Icons.Material.Filled.DriveFolderUpload"
-                           Disabled="_importing" OnClick="AddFolder">Add folder (with subfolders)…</MudButton>
+                <button type="button" class="da-btn da-btn-fill" disabled="@_importing" @onclick="AddFolder">
+                    <DaIcon Name="folder-upload" Size="18" />Add folder (with subfolders)…
+                </button>
             }
             @if (_entries.Count > 0)
             {
-                <MudButton Variant="Variant.Outlined" Color="Color.Default"
-                           StartIcon="@Icons.Material.Filled.Delete"
-                           Disabled="_importing" OnClick="() => _entries.Clear()">Clear list</MudButton>
+                <button type="button" class="da-btn da-btn-out" disabled="@_importing" @onclick="() => _entries.Clear()">
+                    <DaIcon Name="delete" Size="18" />Clear list
+                </button>
             }
-        </MudStack>
+        </div>
 
         @* ── Options ── *@
-        <div style="background:#1a1a2e; border-radius:8px; padding:10px 14px; margin-bottom:12px;">
-            <MudStack Row="true" AlignItems="AlignItems.Center" Style="gap:16px; flex-wrap:wrap;">
-                <MudCheckBox T="bool" @bind-Value="_importTags" Dense="true"
-                             Label="Import tags from file metadata (Genre)" />
-                <MudCheckBox T="bool" @bind-Value="_detectKind" Dense="true" Disabled="!_importTags"
-                             Label="Detect kind from tags (Music / Ambience / SFX)" />
-                <MudSelect T="AudioKind" @bind-Value="_kind" Label="Default kind" Variant="Variant.Outlined"
-                           Margin="Margin.Dense" Style="max-width:170px;">
-                    <MudSelectItem T="AudioKind" Value="AudioKind.Music">Music</MudSelectItem>
-                    <MudSelectItem T="AudioKind" Value="AudioKind.Ambiance">Ambiance</MudSelectItem>
-                    <MudSelectItem T="AudioKind" Value="AudioKind.SoundEffect">Sound effect</MudSelectItem>
-                </MudSelect>
-            </MudStack>
+        <div style="background:var(--s4); border-radius:8px; padding:10px 14px; margin-bottom:12px;">
+            <div class="da-irow da-irow-wrap" style="gap:16px;">
+                <label class="da-chk">
+                    <input type="checkbox" @bind="_importTags" />
+                    Import tags from file metadata (Genre)
+                </label>
+                @* The native box takes `disabled` itself; the row around it is
+                   left alone so the caption stays readable while it is off. *@
+                <label class="da-chk">
+                    <input type="checkbox" @bind="_detectKind" disabled="@(!_importTags)" />
+                    Detect kind from tags (Music / Ambience / SFX)
+                </label>
+                <div class="da-field" style="max-width:170px;">
+                    <span class="da-flabel">Default kind</span>
+                    @* @bind on a select carries the enum both ways, which is what
+                       MudSelect's two-way binding was doing. *@
+                    <select class="da-inp" @bind="_kind">
+                        <option value="@AudioKind.Music">Music</option>
+                        <option value="@AudioKind.Ambiance">Ambiance</option>
+                        <option value="@AudioKind.SoundEffect">Sound effect</option>
+                    </select>
+                </div>
+            </div>
             <div style="margin-top:10px;">
                 <FolderSelectField Label="Import into"
                                    Folder="@_targetFolder"
@@ -72,45 +82,54 @@
         @* ── Staged files ── *@
         @if (_entries.Count == 0)
         {
-            <p style="color:grey; padding:14px;">No files staged yet.</p>
+            <p style="color:var(--t3); padding:14px;">No files staged yet.</p>
         }
         else
         {
-            <div style="max-height:320px; overflow-y:auto; border:1px solid #2a2a4a; border-radius:8px;">
+            <div style="max-height:320px; overflow-y:auto; border:1px solid var(--b1); border-radius:8px;">
                 @foreach (var entry in _entries)
                 {
                     var e = entry;
                     <div style="display:flex; align-items:center; gap:10px; padding:6px 12px;
-                                border-bottom:1px solid #1e1e32; font-size:13px;">
-                        <MudIcon Icon="@Icons.Material.Filled.AudioFile" Style="font-size:16px; color:#23a6d5;" />
+                                border-bottom:1px solid var(--b1); font-size:13px;">
+                        <DaIcon Name="audio-file" Size="16" style="color:var(--a2);" />
                         <span style="flex:1; word-break:break-all;">@e.Name</span>
-                        <span style="color:grey; font-size:12px;">@EntryFolderLabel(e)</span>
-                        <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small"
-                                       Disabled="_importing" OnClick="() => _entries.Remove(e)" />
+                        <span style="color:var(--t3); font-size:12px;">@EntryFolderLabel(e)</span>
+                        <button type="button" class="da-ib" title="Remove from the list"
+                                aria-label="@($"Remove {e.Name} from the list")"
+                                disabled="@_importing" @onclick="() => _entries.Remove(e)">
+                            <DaIcon Name="close" Size="16" />
+                        </button>
                     </div>
                 }
             </div>
-            <MudText Typo="Typo.caption" Style="color:grey;">@_entries.Count file(s) staged</MudText>
+            <div class="da-meta">@_entries.Count file(s) staged</div>
         }
 
         @* ── Import ── *@
-        <MudStack Row="true" AlignItems="AlignItems.Center" Style="gap:12px; margin-top:14px; flex-wrap:wrap;">
-            <MudButton Variant="Variant.Filled" Color="Color.Success"
-                       StartIcon="@Icons.Material.Filled.Download"
-                       Disabled="_importing || _entries.Count == 0"
-                       OnClick="ImportAsync">Import @(_entries.Count > 0 ? $"{_entries.Count} file(s)" : "")</MudButton>
+        <div class="da-irow da-irow-wrap" style="gap:12px; margin-top:14px;">
+            <button type="button" class="da-btn da-btn-fill"
+                    disabled="@(_importing || _entries.Count == 0)" @onclick="ImportAsync">
+                <DaIcon Name="download" Size="18" />Import @(_entries.Count > 0 ? $"{_entries.Count} file(s)" : "")
+            </button>
             @if (_importing)
             {
-                <MudProgressLinear Value="@_progress" Max="@Math.Max(1, _progressTotal)" Style="flex:1; min-width:160px;" />
-                <MudText Typo="Typo.caption">@_progress / @_progressTotal</MudText>
+                @* The progress bar MudProgressLinear drew: a track and a fill,
+                   its width written culture-invariantly so a comma decimal
+                   separator cannot produce an invalid CSS length. *@
+                <div style="flex:1; min-width:160px; height:6px; border-radius:3px;
+                            background:var(--s2); overflow:hidden;">
+                    <div style="height:100%; width:@ImportPercent; background:var(--a1);"></div>
+                </div>
+                <div class="da-meta">@_progress / @_progressTotal</div>
             }
             @if (!string.IsNullOrEmpty(_resultMessage))
             {
-                <MudText Typo="Typo.body2" Style="color:#90caf9;">@_resultMessage</MudText>
+                <div style="color:var(--a2); font-size:13px;">@_resultMessage</div>
             }
             <div style="flex:1;"></div>
-            <MudButton Variant="Variant.Text" Disabled="_importing" OnClick="Hide">Close</MudButton>
-        </MudStack>
+            <button type="button" class="da-btn da-btn-text" disabled="@_importing" @onclick="Hide">Close</button>
+        </div>
     </div>
 </div>
 }
@@ -139,6 +158,11 @@
     private int _progress;
     private int _progressTotal;
     private string _resultMessage = "";
+
+    /// <summary>Progress-bar width, as a CSS length that never carries a comma.</summary>
+    private string ImportPercent =>
+        (_progressTotal <= 0 ? 0 : 100.0 * _progress / _progressTotal)
+            .ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) + "%";
 
     public void Show()
     {

@@ -8,7 +8,6 @@
 
 @page "/audioexplorer"
 @inject DiceAudioService DAService
-@inject IDialogService DialogService
 @inject PopupNotificationService Notifications
 
 <style>
@@ -17,20 +16,35 @@
 
   /*  breadcrumbs + nav buttons ------------------------------------ */
   .nav-bar     { display:flex; align-items:center; gap:8px; margin:14px 0; flex-wrap:wrap; }
-  .crumb-link  { cursor:pointer; color:#90caf9; }
+  .crumb-link  { cursor:pointer; color:var(--a2); }
   .crumb-link:hover { text-decoration:underline; }
-  .crumb-sep   { color:#888; }
+  .crumb-sep   { color:var(--t4); }
 
   /*  tag filter ---------------------------------------------------- */
+  /*  cat-expr on the bar supplies --cf, the Expression category's own tint,
+      which is the colour the expression line has always read in.             */
   .filter-bar  { display:flex; align-items:center; gap:8px; flex-wrap:wrap;
-                 background:#1b1b2b; border:1px solid #363660; border-radius:8px;
+                 background:var(--s2); border:1px solid var(--b2); border-radius:8px;
                  padding:6px 10px; margin-bottom:10px; }
-  .filter-expr { color:#e2b6ff; font-weight:600; }
+  .filter-expr { color:var(--cf); font-weight:600; }
   /*  multi-selection ---------------------------------------------- */
   .selection-bar { display:flex; align-items:center; gap:8px; flex-wrap:wrap;
-                   background:#12233a; border:1px solid #23a6d5; border-radius:8px;
+                   background:var(--s2); border:1px solid var(--a2); border-radius:8px;
                    padding:6px 10px; margin-bottom:10px; }
-  .selection-count { color:#8fd3ff; font-weight:600; }
+  .selection-count { color:var(--a2); font-weight:600; }
+
+
+  /*  The search box is the field, so the input inside it draws no second
+      frame — it holds the leading icon and the clear button too.             */
+  .axp-search { display:flex; align-items:center; gap:6px;
+                max-width:420px; height:32px; margin-bottom:10px;
+                padding:0 5px 0 9px;
+                background:var(--s2); border:1px solid var(--ctl);
+                border-radius:var(--r-btn); color:var(--t3); }
+  .axp-search:focus-within { border-color:var(--a2); }
+  .axp-search .da-inp { border:0; background:transparent; height:30px; padding:0; color:var(--t1); }
+  .axp-search .da-inp:focus-visible { outline:none; }
+  .axp-search .da-ib { width:24px; height:24px; }
 </style>
 
 <!-- ─────────────────────  MODALS  ───────────────────── -->
@@ -43,107 +57,135 @@
 <GenericModal TContent="MoveFolder"       @ref="MoveFolderModalRef"      OnClose="HandleMoveFolderModalClose"><MoveFolder Folder="_currentFolderForMove" /></GenericModal>
 <AudioImporter @ref="_audioImporterRef" OnImported="OnImportFinished" />
 
+@* Deleting an item takes the file off the disk with it, so the question is
+   asked destructively. *@
+<DaConfirm @ref="_confirm" Destructive="true" />
+
 <!-- ─────────────────────  TOOLBAR  ───────────────────── -->
 <h3>Explorer</h3>
-<MudStack Row="true" Style="gap:8px; flex-wrap:wrap; margin-bottom:10px;">
-    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Download"
-               OnClick="@(() => AudioDownloaderModalRef.Show())">Audio downloader</MudButton>
-    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.DriveFolderUpload"
-               OnClick="@(() => _audioImporterRef?.Show())">Import from disk</MudButton>
-    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Label"
-               OnClick="@(() => AudioTagsEditorModalRef.Show())">Add/Remove tags</MudButton>
-    <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.CreateNewFolder"
-               title="Create a subfolder of the folder you are in"
-               OnClick="StartNewFolder">New folder</MudButton>
-    <MudButton Variant="@(_filter.IsActive ? Variant.Filled : Variant.Outlined)"
-               Color="@(_filter.IsActive ? Color.Secondary : Color.Primary)"
-               StartIcon="@Icons.Material.Filled.FilterAlt"
-               OnClick="@(() => AudioFilterModalRef?.Show())">Filter by tags</MudButton>
-    <MudButton Variant="@(_selectionMode ? Variant.Filled : Variant.Outlined)"
-               Color="@(_selectionMode ? Color.Info : Color.Primary)"
-               StartIcon="@(_selectionMode ? Icons.Material.Filled.Close : Icons.Material.Filled.SelectAll)"
-               title="Show a checkbox on every card and start with all of them selected, so you only have to untick what should stay behind"
-               OnClick="ToggleSelectionMode">@(_selectionMode ? "Exit selection" : "Select multiple items")</MudButton>
-</MudStack>
+<div class="da-irow da-irow-wrap" style="gap:8px; margin-bottom:10px;">
+    <button type="button" class="da-btn da-btn-fill" @onclick="@(() => AudioDownloaderModalRef?.Show())">
+        <DaIcon Name="download" Size="18" />Audio downloader
+    </button>
+    <button type="button" class="da-btn da-btn-fill" @onclick="@(() => _audioImporterRef?.Show())">
+        <DaIcon Name="folder-upload" Size="18" />Import from disk
+    </button>
+    <button type="button" class="da-btn da-btn-fill" @onclick="@(() => AudioTagsEditorModalRef?.Show())">
+        <DaIcon Name="tag" Size="18" />Add/Remove tags
+    </button>
+    <button type="button" class="da-btn da-btn-out"
+            title="Create a subfolder of the folder you are in"
+            @onclick="StartNewFolder">
+        <DaIcon Name="folder-add" Size="18" />New folder
+    </button>
+    <button type="button" class="da-btn @(_filter.IsActive ? "da-btn-fill" : "da-btn-out")"
+            @onclick="@(() => AudioFilterModalRef?.Show())">
+        <DaIcon Name="filter" Size="18" />Filter by tags
+    </button>
+    <button type="button" class="da-btn @(_selectionMode ? "da-btn-fill" : "da-btn-out")"
+            title="Show a checkbox on every card and start with all of them selected, so you only have to untick what should stay behind"
+            @onclick="ToggleSelectionMode">
+        <DaIcon Name="@(_selectionMode ? "close" : "select-all")" Size="18" />@(_selectionMode ? "Exit selection" : "Select multiple items")
+    </button>
+</div>
 
 <!-- ─────────────────────  NEW FOLDER  ───────────────────── -->
 @if (_creatingFolder)
 {
-    <MudStack Row="true" AlignItems="AlignItems.Center" Style="gap:8px; flex-wrap:wrap; margin-bottom:10px;">
-        @* Immediate: Enter is handled here, and OnKeyUp fires before a
-           blur-bound value would have reached _newFolderName. *@
-        <MudTextField @bind-Value="_newFolderName" Variant="Variant.Filled" Margin="Margin.Dense"
-                      Label="@($"New folder in {(IsRoot ? "Root" : _currentFolder.Name)}")"
-                      Style="max-width:280px;" Immediate="true" OnKeyUp="OnNewFolderKeyUp" />
-        <MudButton Variant="Variant.Filled" Color="Color.Secondary"
-                   StartIcon="@Icons.Material.Filled.Add" OnClick="ConfirmNewFolder">Create</MudButton>
-        <MudButton Variant="Variant.Text" OnClick="CancelNewFolder">Cancel</MudButton>
+    <div class="da-irow da-irow-wrap" style="gap:8px; margin-bottom:10px;">
+        @* oninput, not a change binding: that is what Immediate="true" bought,
+           and the Enter key below reads _newFolderName as it is typed. *@
+        <div class="da-field" style="max-width:280px;">
+            <span class="da-flabel">@($"New folder in {(IsRoot ? "Root" : _currentFolder.Name)}")</span>
+            <input class="da-inp" type="text" value="@_newFolderName"
+                   @oninput="@(e => _newFolderName = e.Value?.ToString() ?? string.Empty)"
+                   @onkeyup="OnNewFolderKeyUp" />
+        </div>
+        <button type="button" class="da-btn da-btn-fill" @onclick="ConfirmNewFolder">
+            <DaIcon Name="add" Size="18" />Create
+        </button>
+        <button type="button" class="da-btn da-btn-text" @onclick="CancelNewFolder">Cancel</button>
         @if (_newFolderExists)
         {
-            <MudText Color="Color.Error" Typo="Typo.caption">A folder with that name already exists.</MudText>
+            <div class="da-meta" style="color:var(--danger);">A folder with that name already exists.</div>
         }
-    </MudStack>
+    </div>
 }
 
 <!-- ─────────────────────  SEARCH  ───────────────────── -->
-<MudTextField T="string" Value="_search" ValueChanged="OnSearchChanged"
-              Placeholder="Search all audio items by name…" Variant="Variant.Outlined" Margin="Margin.Dense"
-              Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
-              Immediate="true" DebounceInterval="300" Clearable="true" Style="max-width:420px; margin-bottom:10px;" />
+<div class="axp-search">
+    <DaIcon Name="search" Size="16" Class="da-i-muted" />
+    <input class="da-inp" type="text" spellcheck="false"
+           placeholder="Search all audio items by name…" aria-label="Search all audio items by name"
+           value="@_search" @oninput="OnSearchInput" />
+    @if (!string.IsNullOrEmpty(_search))
+    {
+        <button type="button" class="da-ib" title="Clear the search" aria-label="Clear the search"
+                @onclick="@(() => OnSearchChanged(string.Empty))">
+            <DaIcon Name="close" Size="14" />
+        </button>
+    }
+</div>
 
 <!-- ─────────────────────  KIND FILTER  ───────────────────── -->
-<MudStack Row="true" Style="gap:6px; margin-bottom:10px;">
-    <MudButton Variant="@(_kindFilter == null ? Variant.Filled : Variant.Outlined)"
-               Color="Color.Default" Size="Size.Small"
-               OnClick="() => _kindFilter = null">All</MudButton>
+<div class="da-irow da-irow-wrap" style="gap:6px; margin-bottom:10px;">
+    <button type="button" class="da-btn @(_kindFilter == null ? "da-btn-fill" : "da-btn-out") da-btn-sm"
+            @onclick="() => _kindFilter = null">All</button>
     @foreach (var kind in new[] { AudioKind.Music, AudioKind.Ambiance, AudioKind.SoundEffect })
     {
         var k = kind;
-        <MudButton Variant="@(_kindFilter == k ? Variant.Filled : Variant.Outlined)"
-                   Color="@k.Color()" Size="Size.Small"
-                   StartIcon="@k.Icon()"
-                   OnClick="() => _kindFilter = k">@k.Label()</MudButton>
+        var active = _kindFilter == k;
+        @* The kind tint the MudButton's Color carried, taken from the --kc the
+           kind class defines rather than named again here. *@
+        <button type="button" class="da-btn @(active ? "da-btn-fill" : "da-btn-out") da-btn-sm @k.KindClass()"
+                style="@(active ? "" : "color:var(--kc); border-color:var(--kc-edge);")"
+                @onclick="() => _kindFilter = k">
+            <DaIcon Name="@KindIcon(k)" Size="16" />@k.Label()
+        </button>
     }
-</MudStack>
+</div>
 
 <!-- ─────────────────────  SELECTION  ───────────────────── -->
 @{ var shownItems = GetFilteredItems().ToList(); }
 @if (_selectionMode)
 {
     <div class="selection-bar">
-        <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Style="color:#23a6d5;" />
+        <DaIcon Name="check-circle" Size="18" Class="da-i-info" />
         <span class="selection-count">@_selectedIds.Count selected</span>
         @{ var offScreen = _selectedIds.Count - shownItems.Count(i => _selectedIds.Contains(i.Id)); }
         @if (offScreen > 0)
         {
-            <span style="color:grey; font-size:13px;">(@offScreen not shown here)</span>
+            <span style="color:var(--t3); font-size:13px;">(@offScreen not shown here)</span>
         }
-        <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary"
-                   StartIcon="@Icons.Material.Filled.DriveFileMove"
-                   Disabled="@(_selectedIds.Count == 0)"
-                   OnClick="OpenBulkMove">Move to folder…</MudButton>
-        <MudButton Size="Size.Small" Variant="Variant.Text"
-                   StartIcon="@Icons.Material.Filled.Deselect"
-                   OnClick="ClearSelection">Clear selection</MudButton>
+        <button type="button" class="da-btn da-btn-fill da-btn-sm"
+                disabled="@(_selectedIds.Count == 0)"
+                @onclick="OpenBulkMove">
+            <DaIcon Name="folder-move" Size="16" />Move to folder…
+        </button>
+        <button type="button" class="da-btn da-btn-text da-btn-sm" @onclick="ClearSelection">
+            <DaIcon Name="deselect" Size="16" />Clear selection
+        </button>
     </div>
 }
 
 <!-- ─────────────────────  ACTIVE TAG FILTER  ───────────────────── -->
 @if (_filter.IsActive)
 {
-    <div class="filter-bar">
-        <MudIcon Icon="@Icons.Material.Filled.FilterAlt" Style="color:#e2b6ff;" />
-        <span style="color:grey;">Showing items matching</span>
+    <div class="filter-bar cat-expr">
+        <DaIcon Name="filter" Size="18" style="color:var(--cf);" />
+        <span style="color:var(--t3);">Showing items matching</span>
         <span class="filter-expr">@_filter.Describe()</span>
-        <span style="color:grey;">
+        <span style="color:var(--t3);">
             @(!string.IsNullOrWhiteSpace(_search)
                 ? "across all folders (search is on)"
                 : _filter.IncludeSubfolders ? "in this folder and its subfolders" : "in this folder only")
         </span>
-        <MudButton Size="Size.Small" Variant="Variant.Text" StartIcon="@Icons.Material.Filled.Edit"
-                   OnClick="@(() => AudioFilterModalRef?.Show())">Edit</MudButton>
-        <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Error"
-                   StartIcon="@Icons.Material.Filled.Close" OnClick="ClearFilter">Clear</MudButton>
+        <button type="button" class="da-btn da-btn-text da-btn-sm" @onclick="@(() => AudioFilterModalRef?.Show())">
+            <DaIcon Name="edit" Size="16" />Edit
+        </button>
+        <button type="button" class="da-btn da-btn-text da-btn-sm" style="color:var(--danger);" @onclick="ClearFilter">
+            <DaIcon Name="close" Size="16" />Clear
+        </button>
     </div>
 }
 
@@ -152,19 +194,19 @@
 <div class="nav-bar">
 @if (!string.IsNullOrWhiteSpace(_search))
 {
-        <MudIcon Icon="@Icons.Material.Filled.Search" Style="color:#90caf9;" />
-        <span style="color:#90caf9;">Search results for "<b>@_search</b>" across all folders</span>
+        <DaIcon Name="search" Size="18" style="color:var(--a2);" />
+        <span style="color:var(--a2);">Search results for "<b>@_search</b>" across all folders</span>
 }
 else if (_breadcrumb.Any())
 {
-        <MudIconButton Icon="@Icons.Material.Filled.ArrowBack"
-                        Color="Color.Primary"
-                        Disabled="!CanGoBack"
-                        OnClick="GoBack" Size="Size.Medium" />
-        <MudIconButton Icon="@Icons.Material.Filled.ArrowForward"
-                        Color="Color.Primary"
-                        Disabled="!CanGoForward"
-                        OnClick="GoForward" Size="Size.Medium" />
+        <button type="button" class="da-ib" title="Back" aria-label="Back"
+                disabled="@(!CanGoBack)" @onclick="GoBack">
+            <DaIcon Name="arrow-back" Size="18" />
+        </button>
+        <button type="button" class="da-ib" title="Forward" aria-label="Forward"
+                disabled="@(!CanGoForward)" @onclick="GoForward">
+            <DaIcon Name="arrow-right" Size="18" />
+        </button>
 
         @for (var i = 0; i < _breadcrumb.Count; i++)
         {
@@ -216,12 +258,14 @@ else if (_breadcrumb.Any())
 
 @if (matches.Count > shown.Count)
 {
-    <MudText Typo="Typo.body2" Style="color:#f0a03c; margin:8px 2px;">
+    <div class="da-meta" style="color:var(--warn); margin:8px 2px;">
         Showing the first @shown.Count of @matches.Count items — narrow down with the search box, the kind filter or the tag filter to see the rest.
-    </MudText>
+    </div>
 }
 
 @code {
+    private DaConfirm? _confirm;
+
     // modal refs
     private GenericModal<AudioDownloader>? AudioDownloaderModalRef;
     private GenericModal<AudioTagsPicker>?  AudioTagsPickerModalRef;
@@ -244,6 +288,22 @@ else if (_breadcrumb.Any())
 
     private bool CanGoBack    => _historyIndex > 0;
     private bool CanGoForward => _historyIndex < _history.Count - 1;
+
+    /// Lets the home page open one of this page's modals directly, the way
+    /// DiceCombats routes to /combatmanager/new: "download" raises the
+    /// downloader, "import" the disk importer.
+    [SupplyParameterFromQuery(Name = "open")] public string? OpenPanel { get; set; }
+
+    private bool _openPanelHandled;
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (!firstRender || _openPanelHandled || string.IsNullOrEmpty(OpenPanel)) return;
+        _openPanelHandled = true;
+        if (OpenPanel == "download") AudioDownloaderModalRef?.Show();
+        else if (OpenPanel == "import") _audioImporterRef?.Show();
+        StateHasChanged();
+    }
 
     protected override void OnInitialized()
     {
@@ -363,7 +423,7 @@ else if (_breadcrumb.Any())
                 <button type="button" class="da-kind"
                         title="@($"{item.Kind.Label()} — click to change kind")"
                         @onclick="@(() => ToggleKind(item))" @onclick:stopPropagation="true">
-                    <MudIcon Icon="@item.Kind.Icon()" Style="font-size:15px;" />
+                    <DaIcon Name="@KindIcon(item.Kind)" Size="15" />
                     <span class="da-kind-label">@item.Kind.Label()</span>
                 </button>
                 @* The folder is a tooltip only — the breadcrumb already shows it. *@
@@ -384,22 +444,22 @@ else if (_breadcrumb.Any())
                 else
                 {
                     <div class="da-offline">
-                        <MudIcon Icon="@Icons.Material.Filled.CloudDownload" Style="font-size:13px;" />
+                        <DaIcon Name="cloud-download" Size="13" />
                         Not downloaded yet
                     </div>
                 }
                 <div class="da-acts">
                     <button type="button" class="da-ib" title="Edit tags" aria-label="Edit tags"
                             @onclick="@(() => OpenAudioTagsPicker(item))">
-                        <MudIcon Icon="@Icons.Material.Filled.Tag" Style="font-size:18px;" />
+                        <DaIcon Name="tag" Size="18" />
                     </button>
                     <button type="button" class="da-ib" title="Move to folder" aria-label="Move to folder"
                             @onclick="@(() => OpenMoveToFolderPicker(item))">
-                        <MudIcon Icon="@Icons.Material.Filled.DriveFileMove" Style="font-size:18px;" />
+                        <DaIcon Name="folder-move" Size="18" />
                     </button>
-                    <button type="button" class="da-ib danger" title="Delete" aria-label="Delete"
+                    <button type="button" class="da-ib da-danger" title="Delete" aria-label="Delete"
                             @onclick="@(() => DeleteAudioItem(item))">
-                        <MudIcon Icon="@Icons.Material.Filled.Delete" Style="font-size:18px;" />
+                        <DaIcon Name="delete" Size="18" />
                     </button>
                 </div>
             </div>
@@ -424,7 +484,7 @@ else if (_breadcrumb.Any())
             <button type="button" class="da-row-kind"
                     title="@($"{item.Kind.Label()} — click to change kind")"
                     @onclick="@(() => ToggleKind(item))" @onclick:stopPropagation="true">
-                <MudIcon Icon="@item.Kind.Icon()" Style="font-size:18px;" />
+                <DaIcon Name="@KindIcon(item.Kind)" Size="18" />
             </button>
             <div class="da-row-name" title="@($"{item.Name} — {item.Folder.Name}")">@item.Name</div>
             <div class="da-tags">
@@ -442,7 +502,7 @@ else if (_breadcrumb.Any())
                 else
                 {
                     <div class="da-offline">
-                        <MudIcon Icon="@Icons.Material.Filled.CloudDownload" Style="font-size:13px;" />
+                        <DaIcon Name="cloud-download" Size="13" />
                         Not downloaded yet
                     </div>
                 }
@@ -450,15 +510,15 @@ else if (_breadcrumb.Any())
             <div class="da-acts" @onclick="@(() => { })" @onclick:stopPropagation="true">
                 <button type="button" class="da-ib" title="Edit tags" aria-label="Edit tags"
                         @onclick="@(() => OpenAudioTagsPicker(item))">
-                    <MudIcon Icon="@Icons.Material.Filled.Tag" Style="font-size:18px;" />
+                    <DaIcon Name="tag" Size="18" />
                 </button>
                 <button type="button" class="da-ib" title="Move to folder" aria-label="Move to folder"
                         @onclick="@(() => OpenMoveToFolderPicker(item))">
-                    <MudIcon Icon="@Icons.Material.Filled.DriveFileMove" Style="font-size:18px;" />
+                    <DaIcon Name="folder-move" Size="18" />
                 </button>
-                <button type="button" class="da-ib danger" title="Delete" aria-label="Delete"
+                <button type="button" class="da-ib da-danger" title="Delete" aria-label="Delete"
                         @onclick="@(() => DeleteAudioItem(item))">
-                    <MudIcon Icon="@Icons.Material.Filled.Delete" Style="font-size:18px;" />
+                    <DaIcon Name="delete" Size="18" />
                 </button>
             </div>
         </div>;
@@ -471,20 +531,24 @@ else if (_breadcrumb.Any())
         <div class="da-row da-folder-row"
              @onclick="@(() => { if (_renamingFolder != folder) NavigateToFolder(folder); })">
             <button type="button" class="da-folder-tile" title="@folder.Name">
-                <MudIcon Icon="@Icons.Material.Filled.Folder" Style="font-size:19px;" />
+                <DaIcon Name="folder" Size="19" />
             </button>
             @if (_renamingFolder == folder)
             {
-                <MudTextField Value="@_renameValue"
-                              ValueChanged="@((string v) => _renameValue = v)"
-                              Variant="Variant.Filled"
-                              Margin="Margin.Dense"
-                              Style="flex:1;" />
+                @* The rename field keeps MudTextField's per-keystroke binding,
+                   which is what ConfirmRename reads. *@
+                <input class="da-inp" type="text" style="flex:1;" value="@_renameValue"
+                       aria-label="Folder name"
+                       @oninput="@(e => _renameValue = e.Value?.ToString() ?? string.Empty)" />
                 <div class="da-acts" @onclick="@(() => { })" @onclick:stopPropagation="true">
-                    <MudIconButton Icon="@Icons.Material.Filled.Check" Color="Color.Success"
-                                   Size="Size.Small" OnClick="ConfirmRename" />
-                    <MudIconButton Icon="@Icons.Material.Filled.Close" Color="Color.Error"
-                                   Size="Size.Small" OnClick="CancelRename" />
+                    <button type="button" class="da-ib" title="Rename" aria-label="Rename"
+                            @onclick="ConfirmRename">
+                        <DaIcon Name="check" Size="18" style="color:var(--ok);" />
+                    </button>
+                    <button type="button" class="da-ib" title="Cancel" aria-label="Cancel"
+                            @onclick="CancelRename">
+                        <DaIcon Name="close" Size="18" style="color:var(--danger);" />
+                    </button>
                 </div>
             }
             else
@@ -493,11 +557,11 @@ else if (_breadcrumb.Any())
                 <div class="da-acts" @onclick="@(() => { })" @onclick:stopPropagation="true">
                     <button type="button" class="da-ib" title="Move folder" aria-label="Move folder"
                             @onclick="@(() => OpenMoveFolder(folder))">
-                        <MudIcon Icon="@Icons.Material.Filled.DriveFileMove" Style="font-size:18px;" />
+                        <DaIcon Name="folder-move" Size="18" />
                     </button>
                     <button type="button" class="da-ib" title="Rename folder" aria-label="Rename folder"
                             @onclick="@(() => StartRename(folder))">
-                        <MudIcon Icon="@Icons.Material.Filled.Edit" Style="font-size:18px;" />
+                        <DaIcon Name="edit" Size="18" />
                     </button>
                 </div>
             }
@@ -508,42 +572,42 @@ else if (_breadcrumb.Any())
     {
         <article class="da-card da-folder">
             <div class="da-hero" title="@folder.Name" @onclick="@(() => NavigateToFolder(folder))">
-                <div style="font-size:60px; text-align:center;">
-                    <MudIcon Icon="@Icons.Material.Filled.Folder" />
+                @* A 60px stroked folder: the hero mark, so its line thins out
+                   rather than scaling the 2px stroke of a 18px icon. *@
+                <div style="text-align:center;">
+                    <DaIcon Name="folder" Size="60" Stroke="1.2" />
                 </div>
             </div>
             <div class="da-body">
                 @if (_renamingFolder == folder)
                 {
-                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
-                        <MudTextField Value="@_renameValue"
-                                      ValueChanged="@((string v) => _renameValue = v)"
-                                      Variant="Variant.Filled"
-                                      Margin="Margin.Dense"
-                                      Style="flex:1;" />
-                        <MudIconButton Icon="@Icons.Material.Filled.Check"
-                                       Color="Color.Success"
-                                       Size="Size.Small"
-                                       OnClick="ConfirmRename" />
-                        <MudIconButton Icon="@Icons.Material.Filled.Close"
-                                       Color="Color.Error"
-                                       Size="Size.Small"
-                                       OnClick="CancelRename" />
-                    </MudStack>
+                    <div class="da-irow" style="gap:4px;">
+                        <input class="da-inp" type="text" style="flex:1;" value="@_renameValue"
+                               aria-label="Folder name"
+                               @oninput="@(e => _renameValue = e.Value?.ToString() ?? string.Empty)" />
+                        <button type="button" class="da-ib" title="Rename" aria-label="Rename"
+                                @onclick="ConfirmRename">
+                            <DaIcon Name="check" Size="18" style="color:var(--ok);" />
+                        </button>
+                        <button type="button" class="da-ib" title="Cancel" aria-label="Cancel"
+                                @onclick="CancelRename">
+                            <DaIcon Name="close" Size="18" style="color:var(--danger);" />
+                        </button>
+                    </div>
                 }
                 else
                 {
-                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                    <div class="da-irow" style="gap:4px;">
                         <b style="flex:1; cursor:pointer;" @onclick="@(() => NavigateToFolder(folder))">@folder.Name</b>
-                        <MudIconButton Icon="@Icons.Material.Filled.DriveFileMove"
-                                       Size="Size.Small"
-                                       Title="Move folder"
-                                       OnClick="@(() => OpenMoveFolder(folder))" />
-                        <MudIconButton Icon="@Icons.Material.Filled.Edit"
-                                       Size="Size.Small"
-                                       Title="Rename folder"
-                                       OnClick="@(() => StartRename(folder))" />
-                    </MudStack>
+                        <button type="button" class="da-ib" title="Move folder" aria-label="Move folder"
+                                @onclick="@(() => OpenMoveFolder(folder))">
+                            <DaIcon Name="folder-move" Size="18" />
+                        </button>
+                        <button type="button" class="da-ib" title="Rename folder" aria-label="Rename folder"
+                                @onclick="@(() => StartRename(folder))">
+                            <DaIcon Name="edit" Size="18" />
+                        </button>
+                    </div>
                 }
             </div>
         </article>;
@@ -681,6 +745,45 @@ else if (_breadcrumb.Any())
         _search = value ?? "";
         StateHasChanged();
     }
+
+    // MudTextField's DebounceInterval="300" by hand: re-filtering (and
+    // re-mounting up to 200 players) on every keystroke is what the delay was
+    // there to prevent. Each keystroke cancels the pending one.
+    private CancellationTokenSource? _searchDebounce;
+
+    async Task OnSearchInput(ChangeEventArgs e)
+    {
+        var value = e.Value?.ToString() ?? string.Empty;
+
+        var previous = _searchDebounce;
+        var cts = new CancellationTokenSource();
+        _searchDebounce = cts;
+        previous?.Cancel();
+        previous?.Dispose();
+
+        try { await Task.Delay(300, cts.Token); }
+        catch (OperationCanceledException) { return; }
+
+        // Only the latest keystroke owns the field; anything else has been
+        // superseded and must not dispose the source the new one is waiting on.
+        if (!ReferenceEquals(_searchDebounce, cts)) return;
+        _searchDebounce = null;
+        cts.Dispose();
+
+        OnSearchChanged(value);
+    }
+
+    /// <summary>
+    /// The house icon for an audio kind. AudioKindExtensions.Icon() still
+    /// answers with a Material name because the scene editor reads it, so the
+    /// mapping onto <see cref="DaIcon"/>'s set lives here.
+    /// </summary>
+    static string KindIcon(AudioKind kind) => kind switch
+    {
+        AudioKind.Music => "music-note",
+        AudioKind.Ambiance => "forest",
+        _ => "volume-up",
+    };
 
     // ── multi-selection ─────────────────────────────────────────────
     // Selection is kept by id and survives navigation and filtering on purpose:
@@ -857,11 +960,12 @@ else if (_breadcrumb.Any())
 
     async Task DeleteAudioItem(DAAudioItem item)
     {
-        bool? confirm = await DialogService.ShowMessageBox(
+        if (_confirm == null) return;
+        bool confirm = await _confirm.AskAsync(
             "Delete audio item",
             $"Delete \"{item.Name}\" from the library? The downloaded file is also removed from disk.",
-            yesText: "Delete", cancelText: "Cancel");
-        if (confirm != true) return;
+            "Delete", "Cancel");
+        if (!confirm) return;
 
         DAService.AudioItems.Remove(item);
         _selectedIds.Remove(item.Id);

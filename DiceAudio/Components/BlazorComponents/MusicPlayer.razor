@@ -16,8 +16,7 @@
 @if (!string.IsNullOrEmpty(_errorMessage))
 {
     <div class="da-err" title="@_errorMessage">
-        <MudIcon Icon="@Icons.Material.Filled.Warning"
-                 Style="font-size:13px; vertical-align:-2px; margin-right:3px;" />@_errorMessage
+        <DaIcon Name="warning" Size="13" style="margin-right:3px;" />@_errorMessage
     </div>
 }
 
@@ -26,17 +25,19 @@
         @if (_isPlaying)
         {
             <button type="button" class="da-cmd-btn-sm da-pp" title="Pause" @onclick="PauseAudio">
-                <MudIcon Icon="@Icons.Material.Filled.Pause" Class="da-pause" Style="font-size:21px;" />
+                @* The da-* class carries the transport colour; the glyph size is a
+                   parameter now that it is an svg rather than a font. *@
+                <DaIcon Name="pause" Size="21" Class="da-pause" />
             </button>
         }
         else
         {
             <button type="button" class="da-cmd-btn-sm da-pp" title="Play" @onclick="PlayAudio">
-                <MudIcon Icon="@Icons.Material.Filled.PlayArrow" Class="da-play" Style="font-size:21px;" />
+                <DaIcon Name="play" Size="21" Class="da-play" Filled="true" />
             </button>
         }
         <button type="button" class="da-cmd-btn-sm" title="Stop" @onclick="StopAudio">
-            <MudIcon Icon="@Icons.Material.Filled.Stop" Class="da-stop" Style="font-size:19px;" />
+            <DaIcon Name="stop" Size="19" Class="da-stop" Filled="true" />
         </button>
     </div>
 
@@ -45,7 +46,7 @@
            under the thumb while dragging. *@
         <div class="da-track" style="--pp:@ProgressPercent">
             <input type="range" class="da-range" min="0" max="@MaxPosition" step="1"
-                   value="@_position" title="Drag to seek" aria-label="Seek"
+                   value="@Inv(_position)" title="Drag to seek" aria-label="Seek"
                    @oninput="OnSeekInput" @onchange="OnSeekCommit" />
             <span class="da-bubble">@Format(_position)</span>
         </div>
@@ -54,6 +55,14 @@
 </div>
 
 @code {
+    /// A double as the HTML a range input will actually accept. Razor renders
+    /// a double in the CURRENT culture, so on a French locale value="0,37" is
+    /// rejected and the thumb snaps elsewhere - while --pp, written invariantly,
+    /// stays put. That disagreement is what made the thumb jitter and the fill
+    /// stop matching it.
+    static string Inv(double value) =>
+        value.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture);
+
     [Parameter] public DAAudioItem AudioItem { get; set; } = default!;
 
     /// <summary>

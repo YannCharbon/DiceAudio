@@ -1,9 +1,12 @@
-.page {
+﻿.page {
     position: relative;
     display: flex;
     flex-direction: column;
-    background-color: #202020;
-    color: white;
+    /* The ground used to be #202020, a grey left over from the Blazor
+       template, which left every navy card sitting on something lighter and
+       warmer than itself. --s0 is the bottom of the app's own ramp. */
+    background-color: var(--s0);
+    color: var(--t1);
 }
 
 main {

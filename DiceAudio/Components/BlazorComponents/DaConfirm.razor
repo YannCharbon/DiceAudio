@@ -1,0 +1,89 @@
+﻿@*
+ * DiceAudio - Copyright (C) 2025 Yann Charbon
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ *
+ * This file is part of DiceAudio, released under the GNU GPL v3.
+ * See the LICENSE file in the repository root for details.
+*@
+
+@*
+    A yes/no question, drawn in the app's own vocabulary.
+
+    It replaces IDialogService.ShowMessageBoxAsync, which was the last thing
+    putting a MudBlazor-looking panel on screen: every other surface had been
+    converted, so the one moment the app asked "are you sure?" was the one
+    moment it looked like a different program.
+
+    Usage mirrors the old call closely, so a call site changes by one line:
+
+        <DcConfirm @ref="_confirm" />
+        ...
+        if (await _confirm.AskAsync(title, message, yesText, cancelText)) { ... }
+
+    AskAsync completes when the user answers, so the caller keeps reading as a
+    straight line rather than a callback.
+*@
+
+@if (_open)
+{
+    <div class="da-confirm-scrim" @onclick="() => Answer(false)">
+        <div class="da-confirm" role="alertdialog" aria-modal="true"
+             aria-labelledby="@($"{_id}-t")" @onclick:stopPropagation="true">
+            <h3 id="@($"{_id}-t")" class="da-confirm-title">@_title</h3>
+
+            @if (!string.IsNullOrWhiteSpace(_message))
+            {
+                <p class="da-confirm-msg">@_message</p>
+            }
+
+            <div class="da-confirm-foot">
+                <button type="button" class="da-btn" @onclick="() => Answer(false)">@_cancelText</button>
+                <button type="button" class="da-btn @(Destructive ? "da-btn-danger" : "da-btn-fill")"
+                        @onclick="() => Answer(true)">
+                    <DaIcon Name="@(Destructive ? "delete" : "check")" />
+                    @_yesText
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    /// Paints the confirming button as destructive. Deleting a session and
+    /// deleting a content entry both want it; starting a combat does not.
+    [Parameter] public bool Destructive { get; set; } = false;
+
+    private readonly string _id = "daconf-" + Guid.NewGuid().ToString("N")[..8];
+
+    private bool _open;
+    private string _title = string.Empty;
+    private string _message = string.Empty;
+    private string _yesText = "OK";
+    private string _cancelText = "Cancel";
+    private TaskCompletionSource<bool>? _pending;
+
+    public Task<bool> AskAsync(string title, string message, string yesText, string cancelText)
+    {
+        // A second question while one is open would orphan the first caller's
+        // await, so settle it as a decline before taking the new one.
+        _pending?.TrySetResult(false);
+
+        _title = title;
+        _message = message;
+        _yesText = yesText;
+        _cancelText = cancelText;
+        _pending = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _open = true;
+        StateHasChanged();
+        return _pending.Task;
+    }
+
+    private void Answer(bool result)
+    {
+        _open = false;
+        var pending = _pending;
+        _pending = null;
+        StateHasChanged();
+        pending?.TrySetResult(result);
+    }
+}

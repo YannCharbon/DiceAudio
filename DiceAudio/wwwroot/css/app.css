@@ -1,20 +1,133 @@
-﻿html, body {
-    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+﻿/* ═══════════════════════════════════════════════════════════════════════════
+   DiceAudio — shared visual layer.
+
+   Structurally identical to DiceCombats' app.css: same component vocabulary,
+   same surface ramp shape, same radii, same motion. The only app-specific
+   part is the :root token block below, which is what makes the two apps read
+   as one suite that differs by colour.
+
+   The tokens are not new colours. They are the values DiceAudio was already
+   using, written down once: #12121F was the card, #2A2A4A its border, #E73C7E
+   the primary, #23A6D5 the info blue, #23A6AB the secondary teal. What the
+   reskin changes is that every control now takes its colour from here instead
+   of repeating a hex, so the pages agree with each other.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+    --da-safe-area-top: env(safe-area-inset-top, 0px);
+    /* viewport-fit=cover lets the page run under the Android navigation bar,
+       so anything anchored to the bottom has to keep this much clear. */
+    --da-safe-area-bottom: env(safe-area-inset-bottom, 0px);
+
+    /* ── the brand gradient: 4 stops, -45deg, animated at 400% 400% ──────────
+       Unchanged — this is the bar gradient the app has always worn, and the
+       one the playing-card hero animates. */
+    --g1: rgba(238, 119, 82, 0.20); /* #EE7752 orange */
+    --g2: rgba(231, 60, 126, 0.60); /* #E73C7E pink   */
+    --g3: rgba(35, 166, 213, 0.90); /* #23A6D5 blue   */
+    --g4: rgba(35, 166, 171, 1.00); /* #23A6AB teal   */
+    --brand: linear-gradient(-45deg, var(--g1), var(--g2), var(--g3), var(--g4));
+    /* The same four stops at lower strength: what a 52px tile wears so the
+       icon on it stays legible. Scenes already used exactly this; it is a
+       token now so scenario groups and the home page wear the same one. */
+    --brand-tile: linear-gradient(-45deg, rgba(238,119,82,.35), rgba(231,60,126,.45), rgba(35,166,213,.55), rgba(35,166,171,.65));
+
+    /* ── three accents, every one a gradient stop ────────────────────────── */
+    --a1: #E73C7E;  /* Primary           ↔ DiceCombats #32C87E */
+    --a2: #23A6D5;  /* Info / selection  ↔ DiceCombats #00AAAA */
+    --a3: #23A6AB;  /* Secondary / heads ↔ DiceCombats #23AA80 */
+    --ink: #140610; /* dark text for use ON an accent fill: white on #E73C7E
+                       is 3.9:1 and fails for anything but large text. */
+
+    /* ── surface ramp — navy, stepped so each boundary is visible ──────────
+       These are the app's own card and button colours, ordered. The ground
+       used to be #202020, a grey left over from the Blazor template, which
+       left every navy card sitting on something lighter and warmer than
+       itself; it is the one colour the reskin moves. */
+    --s0: #09090F; /* page ground                                  */
+    --s1: #0D0D1A; /* card hero base, deepest inset                */
+    --s2: #0F0F1B; /* input well                                   */
+    --s3: #12121F; /* card, panel                                  */
+    --s4: #1A1A30; /* a surface ON a panel; card and row hover     */
+    --s5: #23233F; /* inset bar, assistance box                    */
+    --s6: #2E2E58; /* icon-button hover                            */
+    --s7: #1E1E38; /* round transport button                       */
+    --s8: #323260; /* round transport button, large                */
+    --b1: #2A2A4A; /* border, default                     */
+    --b2: #363660; /* border, mid                         */
+    --b3: #444470; /* border, hover                       */
+    --b4: #5555AA; /* border, strong                      */
+
+    /* 3.4:1 on --s3 — the boundary of anything operable (WCAG 1.4.11). The
+       --b* ramp tops out at 2.4:1 on a card, which is fine for a decorative
+       edge and not fine for the edge of a control you have to find. */
+    --ctl: #67678F;
+    /* 6.5:1 — hover, focus, active */
+    --ctlhi: #9494BE;
+
+    /* ── text ramp — replaces `color: grey`, which is 4.3:1 on a card ─────── */
+    --t1: #ffffff;
+    --t2: rgba(255, 255, 255, 0.88);
+    --t3: rgba(255, 255, 255, 0.60); /* meta  — 7.1:1 on a card, 5.1:1 on --s5 */
+    --t4: rgba(255, 255, 255, 0.52); /* faint — 5.9:1 on a card, 4.5:1 on --s5 */
+
+    --danger: #FF6B6B;
+    /* "it worked". Green confirmations used to be #4caf50, which belongs to
+       no part of this palette; the secondary teal was standing in for it in
+       five places and reads as an ordinary accent rather than as success. */
+    --ok: #4ED6A4;
+    --warn: #F0A03C;
+    /* the pink is 3.2:1 as ink on a card — fine for a fill or a 2px edge,
+       short of 4.5:1 for small text, so accent *text* uses this tint (5.3:1)
+       and the identity colour stays exactly where it reads. */
+    --a1t: #FF7FA8;
+    --glow: 231, 60, 126;
+
+    /* ── radii, identical to DiceCombats ──────────────────────────────────── */
+    --r-card: 12px;
+    --r-panel: 10px;
+    --r-tile: 9px;
+    --r-bar: 8px;
+    --r-btn: 7px;
+    --r-chip: 5px;
+    --r-pill: 999px;
+
+    --fx: 160ms;
 }
 
-a, .btn-link {
-    color: #006bb7;
+/* Kind tint — set on a card/row root, inherited by everything inside it.
+   --kc-e is the name the shared tile uses, --kc-edge the one DiceAudio's own
+   card markup already passes; both are declared so neither has to change. */
+.da-k-music { --kc:#E73C7E; --kc-a:rgba(231,60,126,.62); --kc-b:rgba(231,60,126,.18); --kc-e:rgba(231,60,126,.60); --kc-edge:rgba(231,60,126,.60); }
+.da-k-amb   { --kc:#23A6D5; --kc-a:rgba(35,166,213,.62); --kc-b:rgba(35,166,213,.18); --kc-e:rgba(35,166,213,.60); --kc-edge:rgba(35,166,213,.60); }
+.da-k-sfx   { --kc:#23A6AB; --kc-a:rgba(35,166,171,.62); --kc-b:rgba(35,166,171,.18); --kc-e:rgba(35,166,171,.60); --kc-edge:rgba(35,166,171,.60); }
+
+@keyframes da-gradient-shift {
+    0%   { background-position: 0% 50%; }
+    50%  { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
 }
 
-.btn-primary {
-    color: #fff;
-    background-color: #1b6ec2;
-    border-color: #1861ac;
+@keyframes da-blink {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: .25; }
 }
 
-.btn:focus, .btn:active:focus, .btn-link.nav-link:focus, .form-control:focus, .form-check-input:focus {
-    box-shadow: 0 0 0 0.1rem white, 0 0 0 0.25rem #258cfb;
+@media (prefers-reduced-motion: reduce) {
+    .da-anim { animation: none !important; }
 }
+
+/* ═══ page shell ═══════════════════════════════════════════════════════════ */
+
+html, body {
+    font-family: 'Helvetica Neue', Helvetica, system-ui, sans-serif;
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+}
+
 
 .content {
     padding-top: 1.1rem;
@@ -24,16 +137,484 @@ h1:focus {
     outline: none;
 }
 
+a, .btn-link {
+    color: var(--a2);
+}
+
+a:hover, .btn-link:hover {
+    color: #5FC8EC;
+}
+
+.btn:focus, .btn:active:focus, .btn-link.nav-link:focus, .form-control:focus, .form-check-input:focus {
+    box-shadow: 0 0 0 0.1rem var(--s2), 0 0 0 0.25rem var(--a2);
+}
+
+/* ═══ typography — two formal heading levels ═══════════════════════════════
+   Retires the pattern of overriding a 15px class with an inline 28px. */
+
+.da-h1 {
+    margin: 0;
+    font-size: 26px;
+    font-weight: 700;
+    color: var(--t1);
+    letter-spacing: -.01em;
+}
+
+.da-sub {
+    margin: 4px 0 0;
+    font-size: 13px;
+    color: var(--t3);
+}
+
+.da-h2 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--a3);
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    padding: 0 2px 6px;
+    border-bottom: 1px solid var(--b1);
+}
+
+/* Alphabetical divider inside a section — quieter than a section heading. */
+.da-alpha {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .14em;
+    color: var(--t4);
+    padding: 14px 2px 8px;
+}
+
+.da-empty {
+    color: var(--t3);
+    padding: 20px 2px;
+}
+
+/* Stacks a page's sections without drawing a surface of its own. Sections
+   that need one carry it themselves. */
+.da-stack {
+    display: flex;
+    flex-direction: column;
+}
+
+/* The home page is a column of generously spaced sections, centred. */
+.da-home {
+    max-width: 1060px;
+    margin: 0 auto;
+    padding: 34px 8px 20px 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 44px;
+}
+
+/* ═══ the gradient pill — replaces `background-color: darkcyan` ════════════ */
+
+.da-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 18px 6px 8px;
+    border-radius: var(--r-pill);
+    background-image: var(--brand);
+    color: var(--t1);
+    font-size: 15px;
+    font-weight: 700;
+}
+
+.da-pill h3, .da-pill h4 {
+    margin: 0;
+    font-size: 17px;
+    font-weight: 700;
+}
+
+/* ═══ panels ═══════════════════════════════════════════════════════════════
+   Replaces .settings-group (#505050) and the white-glow boxes: a 1px border
+   on a tinted surface, which is how DiceAudio draws every panel. */
+
+.da-panel {
+    background: var(--s3);
+    border: 1px solid var(--b1);
+    border-radius: var(--r-panel);
+    padding: 16px;
+    margin: 10px 0;
+}
+
+
+/* ═══ grids ════════════════════════════════════════════════════════════════ */
+
+/* The explorers' grid: 3 across on a desktop window, fewer as it narrows. */
+.da-grid-3 {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 12px;
+    margin: 10px 2px 6px 2px;
+}
+
+
+/* ═══ strip ("List" view) ══════════════════════════════════════════════════
+   Not a full-width row: one horizontal strip per object, laid out by
+   .da-grid-3, which is how both explorers already read. */
+
+.da-strip {
+    display: flex;
+    align-items: center;
+    gap: 13px;
+    background: var(--s3);
+    border: 1px solid var(--b1);
+    border-radius: var(--r-card);
+    padding: 12px 14px;
+    transition: border-color var(--fx), background var(--fx);
+}
+
+.da-strip:hover { border-color: var(--b3); background: var(--s4); }
+
+.da-clickable { cursor: pointer; }
+
+.da-strip-body { flex: 1; min-width: 0; }
+
+.da-strip-name {
+    font-weight: 700;
+    font-size: 14.5px;
+    color: var(--t1);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* ═══ tiles ════════════════════════════════════════════════════════════════ */
+
+/* 52px leading tile of a strip: the brand gradient at tile strength. */
+.da-icon {
+    width: 52px;
+    height: 52px;
+    border-radius: var(--r-panel);
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--t1);
+    background-image: var(--brand-tile);
+}
+
+/* Kind-tinted tile, for an object that carries a kind (creature, combat). */
+.da-tile {
+    width: 52px;
+    height: 52px;
+    border-radius: var(--r-panel);
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--t1);
+    border: 1px solid var(--kc-e, var(--b2));
+    background-color: var(--s2);
+    background-image: linear-gradient(145deg, var(--kc-a), var(--kc-b) 72%, transparent);
+}
+
+/* ═══ chips ════════════════════════════════════════════════════════════════ */
+
+.da-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 8px;
+    border-radius: var(--r-chip);
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1;
+    white-space: nowrap;
+    color: var(--cf);
+    background: var(--cb);
+    border: 1px solid var(--cl);
+}
+
+.da-chip .da-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--cd); flex: none; }
+
+/* ═══ buttons ══════════════════════════════════════════════════════════════ */
+
+.da-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    min-height: 36px;
+    padding: 0 14px;
+    border-radius: var(--r-btn);
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    white-space: nowrap;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: background var(--fx), border-color var(--fx), color var(--fx);
+}
+
+/* Dark ink on the accent fill: white on #E73C7E is 3.9:1 and fails. */
+.da-btn-fill { background: var(--a1); color: var(--ink); }
+.da-btn-fill:hover { background: #F05A93; }
+.da-btn-out { background: transparent; border-color: var(--b2); color: var(--a1t); }
+.da-btn-out:hover { background: var(--s6); border-color: var(--b3); }
+.da-btn-text { background: transparent; color: var(--t3); }
+.da-btn-text:hover { background: var(--s6); color: var(--t1); }
+.da-btn-danger { background: transparent; border-color: #5A2A2A; color: var(--danger); }
+.da-btn-danger:hover { background: #2A1414; }
+
+.da-btn:focus-visible,
+.da-ib:focus-visible,
+.da-ub:focus-visible {
+    outline: 2px solid var(--a2);
+    outline-offset: 2px;
+}
+
+/* The action group on a card or a row. It was lost when the old .da-ib
+   block it sat in was replaced by the shared one. */
+.da-acts { display: flex; align-items: center; gap: 3px; }
+
+.da-ib {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: var(--r-btn);
+    flex: none;
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--t3);
+    cursor: pointer;
+    padding: 0;
+    transition: background var(--fx), color var(--fx), border-color var(--fx);
+}
+
+.da-ib:hover { background: var(--s6); border-color: var(--b3); color: var(--t1); }
+.da-ib.da-danger:hover { color: var(--danger); border-color: #5A2A2A; }
+
+
+/* ═══ misc ═════════════════════════════════════════════════════════════════ */
+
+.kbd {
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: var(--s5);
+    border: 1px solid var(--b2);
+    font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+    font-size: 90%;
+    color: var(--t2);
+}
+
+.da-num { font-variant-numeric: tabular-nums; }
+
+.da-crumb { color: var(--a2); text-decoration: none; font-size: 13px; cursor: pointer; }
+.da-crumb:hover { text-decoration: underline; }
+
+/* Assistance blocks — promoted out of the pages that each declared their own. */
+.assist-box {
+    background: var(--s5);
+    border: 1px solid var(--b1);
+    border-radius: var(--r-panel);
+    padding: 14px;
+    margin: 10px 0;
+}
+
+.assist-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 12px;
+}
+
+.assist-example {
+    background: var(--s2);
+    border: 1px solid var(--b1);
+    border-radius: var(--r-bar);
+    padding: 10px 12px;
+    font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+    font-size: 90%;
+    color: var(--t2);
+    white-space: pre-wrap;
+}
+
+.placeholder-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 8px;
+}
+
+.placeholder-table th,
+.placeholder-table td {
+    border-top: 1px solid var(--b1);
+    padding: 7px;
+    vertical-align: top;
+}
+
+.placeholder-table th {
+    text-align: left;
+    color: var(--t1);
+}
+
+/* ═══ the top bar ══════════════════════════════════════════════════════════
+   Shared suite chrome: a gradient bar with two glass capsules flanking the
+   gem, and a utility slot on the right. Only the gem geometry and the
+   Windows title strip live with the component (DCNavMenu.razor). */
+
+.da-bar {
+    display: flex;
+    align-items: center;
+    gap: 22px;
+    height: calc(50px + var(--da-safe-area-top));
+    padding-top: var(--da-safe-area-top);
+    /* Symmetric side padding keeps the bar's own centre on the page centre;
+       the right slot doubles as clearance for the utilities. */
+    padding-left: 60px;
+    padding-right: 60px;
+    background-image: var(--brand);
+    position: fixed;
+    top: 0;
+    width: 100%;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, .45);
+    border-bottom: 1px solid rgba(255, 255, 255, .14);
+    z-index: 10;
+}
+
+/* The two capsules are not the same width, so centring the flex group as a
+   whole would push the gem off-centre by half that difference. Each side
+   takes an equal share of the leftover space instead, and the gem lands on
+   the bar's exact centre whatever the labels say. */
+.da-side {
+    flex: 1 1 0;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+}
+
+.da-side-left { justify-content: flex-end; }
+.da-side-right { justify-content: flex-start; }
+
+.da-seg {
+    flex: 0 0 auto; /* never squash the labels to fit the slot */
+    display: inline-flex;
+    align-items: center;
+    border-radius: var(--r-pill);
+    overflow: hidden;
+    /* .55, not .34: white 14px labels over the #23A6D5 stretch of the
+       gradient were 2.9:1. */
+    background: rgba(9, 9, 20, .55);
+    border: 1px solid rgba(255, 255, 255, .20);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    z-index: 1; /* below the gem if they overlap */
+}
+
+.da-navlink {
+    text-decoration: none;
+    color: var(--t1);
+    font-size: 14px;
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 9px 16px;
+    transition: background var(--fx), color var(--fx);
+}
+
+.da-navlink + .da-navlink {
+    box-shadow: -1px 0 0 rgba(255, 255, 255, .16); /* hairline divider */
+}
+
+.da-navlink:hover { background: rgba(255, 255, 255, .14); color: var(--t1); }
+.da-navlink.active { background: rgba(231, 60, 126, .42); }
+
+.da-util {
+    position: absolute;
+    right: 20px;
+    top: calc(50% + var(--da-safe-area-top) / 2);
+    transform: translateY(-50%);
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    z-index: 6;
+}
+
+/* Round glass utility button in the bar's right slot. */
+.da-ub {
+    width: 32px;
+    height: 32px;
+    border-radius: var(--r-pill);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(9, 9, 20, .55);
+    border: 1px solid rgba(255, 255, 255, .20);
+    color: var(--t1);
+    text-decoration: none;
+    cursor: pointer;
+    transition: background var(--fx), border-color var(--fx);
+}
+
+.da-ub:hover { background: rgba(9, 9, 20, .75); border-color: rgba(255, 255, 255, .5); color: var(--t1); }
+
+/* Live-state chip — the counterpart of DiceAudio's now-playing chip. */
+.da-live {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: 32px;
+    padding: 0 12px 0 10px;
+    border-radius: var(--r-pill);
+    background: rgba(9, 9, 20, .62);
+    border: 1px solid rgba(255, 255, 255, .20);
+    color: var(--t1);
+    font-size: 12px;
+    font-weight: 700;
+    text-decoration: none;
+    cursor: pointer;
+    max-width: 220px;
+}
+
+.da-live:hover { background: rgba(9, 9, 20, .8); border-color: rgba(255, 255, 255, .5); color: var(--t1); }
+
+.da-live-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.da-pulse {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--a1);
+    flex: none;
+    animation: da-blink 1.8s ease-in-out infinite;
+}
+
+/* ═══ MudBlazor overlaps ═══════════════════════════════════════════════════ */
+
+/* MudBlazor has a single Surface colour, so an expansion panel nested in
+   another one disappears into its parent. The inner one takes the next step
+   up the ramp instead. */
+.mud-expand-panel .mud-expansion-panels .mud-expand-panel {
+    background-color: var(--s5);
+}
+
+/* MudBlazor popovers must render above the app's custom modal overlays
+   (which use z-index 2000–5000). Without this, selects and menus opened from
+   inside a modal appear behind it and cannot be interacted with. The theme's
+   own ZIndex block (MainLayout.razor) covers the rest. */
+.mud-popover { z-index: 6000 !important; }
+.mud-dialog-container { z-index: 6000 !important; }
+
+/* ═══ Blazor plumbing ══════════════════════════════════════════════════════ */
+
 .valid.modified:not([type=checkbox]) {
-    outline: 1px solid #26b050;
+    outline: 1px solid var(--a1);
 }
 
 .invalid {
-    outline: 1px solid #e50000;
+    outline: 1px solid var(--danger);
 }
 
 .validation-message {
-    color: #e50000;
+    color: var(--danger);
 }
 
 #blazor-error-ui {
@@ -75,7 +656,7 @@ h1:focus {
         position: sticky;
         top: 0;
         height: env(safe-area-inset-top);
-        background-color: #f7f7f7;
+        background-color: var(--s2);
         width: 100%;
         z-index: 1;
     }
@@ -84,6 +665,401 @@ h1:focus {
         padding-left: env(safe-area-inset-left);
     }
 }
+
+/* ═══ startup loader ═══════════════════════════════════════════════════════
+   The ring was DiceAudio's navy (#303060) on a light grey track, which read
+   as the wrong app's colour under the DiceAudio logo. */
+
+.loading-page-circle-loader {
+    text-align: center;
+    font-size: x-large;
+    border: 16px solid var(--s5);
+    border-top: 16px solid var(--a1);
+    border-radius: 50%;
+    width: 120px;
+    height: 120px;
+    animation: spin-loader 2s linear infinite;
+}
+
+@keyframes spin-loader {
+    0% {
+        transform: rotate(0deg);
+    }
+
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+/* ═══ controls the page draws itself ═══════════════════════════════════════
+   No OS spinner, no OS tick box: a native control arrives with a borrowed
+   look that nothing else on the page shares. */
+
+.da-inp {
+    height: 32px;
+    padding: 0 9px;
+    border-radius: var(--r-btn);
+    background: var(--s2);
+    border: 1px solid var(--ctl);
+    color: var(--t1);
+    font-family: inherit;
+    font-size: 13px;
+    line-height: 1;
+    width: 100%;
+    box-sizing: border-box;
+    transition: border-color var(--fx);
+}
+
+.da-inp:hover { border-color: var(--ctlhi); }
+.da-inp:focus-visible { outline: 2px solid var(--a2); outline-offset: 1px; border-color: var(--a2); }
+.da-inp::placeholder { color: var(--t4); }
+.da-inp:disabled { opacity: .45; cursor: default; }
+select.da-inp { cursor: pointer; }
+textarea.da-inp { height: auto; min-height: 56px; padding: 8px 9px; line-height: 1.5; resize: vertical; }
+.da-num { font-variant-numeric: tabular-nums; }
+
+input[type="number"].da-inp,
+.da-step input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
+input[type="number"].da-inp::-webkit-outer-spin-button,
+input[type="number"].da-inp::-webkit-inner-spin-button,
+.da-step input[type="number"]::-webkit-outer-spin-button,
+.da-step input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+/* the stepper, drawn here rather than left to MudNumericField's spin buttons */
+/* The number box.
+
+   The markup is still  <button>minus</button> <input> <button>plus</button>,
+   unchanged at every call site, but grid re-places those three into the
+   stacked spinner MudBlazor used: the value takes the full height and the two
+   steppers sit one above the other in an 18px gutter beside it. Side by side
+   the control ran about 106px and ate a third of a combat strip; this is
+   about 64px. The - and + captions are replaced by drawn chevrons.
+
+   plus is the LAST child and belongs on top, minus is the FIRST child and
+   belongs underneath, which is why the row assignments read inverted. */
+.da-step {
+    display: inline-grid;
+    grid-template-columns: auto 18px;
+    grid-template-rows: 1fr 1fr;
+    height: 32px;
+    border: 1px solid var(--ctl);
+    border-radius: var(--r-btn);
+    overflow: hidden;
+    background: var(--s2);
+    transition: border-color var(--fx);
+    vertical-align: middle;
+}
+
+.da-step:hover { border-color: var(--ctlhi); }
+
+.da-step input {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+    width: 44px;
+    height: 100%;
+    border: 0;
+    background: transparent;
+    color: var(--t1);
+    text-align: center;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    padding: 0 2px;
+    min-width: 0;
+}
+
+.da-step input:focus-visible { outline: 2px solid var(--a2); outline-offset: -2px; }
+
+.da-step button {
+    grid-column: 2;
+    width: auto;
+    min-width: 0;
+    border: 0;
+    border-left: 1px solid var(--b1);
+    background: transparent;
+    color: var(--t2);
+    cursor: pointer;
+    padding: 0;
+    position: relative;
+    font-size: 0;
+    line-height: 0;
+    transition: background var(--fx), color var(--fx);
+}
+
+.da-step button:last-child { grid-row: 1; }
+.da-step button:first-child { grid-row: 2; border-top: 1px solid var(--b1); }
+
+.da-step button::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 5px;
+    height: 5px;
+    border: solid currentColor;
+    border-width: 0 1.5px 1.5px 0;
+}
+
+.da-step button:last-child::after { transform: translate(-50%, -25%) rotate(-135deg); }
+.da-step button:first-child::after { transform: translate(-50%, -75%) rotate(45deg); }
+
+.da-step button:hover { background: var(--s5); color: var(--t1); }
+.da-step button:active { background: var(--s6); }
+.da-step button:disabled { opacity: .35; cursor: default; background: transparent; }
+
+/* a wider value box where the number runs long (hit points, factors) */
+.da-step-wide input { width: 58px; }
+
+/* the tick box */
+.da-chk {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 13px;
+    color: var(--t1);
+    cursor: pointer;
+}
+
+.da-chk input {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
+    margin: 0;
+    flex: none;
+    position: relative;
+    cursor: pointer;
+    border-radius: 3px;
+    background: var(--s2);
+    border: 1px solid var(--ctl);
+    transition: background var(--fx), border-color var(--fx);
+}
+
+.da-chk input:hover { border-color: var(--ctlhi); }
+.da-chk input:checked { background: var(--a3); border-color: var(--a3); }
+
+.da-chk input:checked::after {
+    content: "";
+    position: absolute;
+    left: 4px;
+    top: 1px;
+    width: 4px;
+    height: 8px;
+    border: solid var(--ink);
+    border-width: 0 2px 2px 0;
+    transform: rotate(42deg);
+}
+
+.da-chk input:focus-visible { outline: 2px solid var(--a2); outline-offset: 2px; }
+.da-chk input:disabled { opacity: .45; cursor: default; }
+
+/* An option cell that lights up while it is ticked. Optional per field
+   (DCCreatureCheckboxField.HighlightWhenChecked): the whole cell lights, the
+   option's name and its text box included, not just the box. */
+.da-ohl {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    min-width: 0;
+    padding: 3px 8px;
+    border-radius: var(--r-btn);
+    border: 1px solid transparent;
+    transition: background var(--fx), border-color var(--fx);
+}
+
+.da-ohl-name {
+    font-size: 11.5px;
+    font-weight: 700;
+    letter-spacing: .02em;
+    color: var(--t3);
+    white-space: nowrap;
+}
+
+.da-ohl.da-on { background: rgba(0,170,170,.20); border-color: var(--a2); }
+.da-ohl.da-on .da-ohl-name { color: var(--t1); }
+
+/* a toggle chip — a condition that is set reads gold */
+.da-tog {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    height: 25px;
+    padding: 0 9px;
+    border-radius: var(--r-pill);
+    background: transparent;
+    border: 1px solid var(--ctl);
+    color: var(--t2);
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background var(--fx), border-color var(--fx), color var(--fx);
+}
+
+.da-tog:hover { border-color: var(--ctlhi); color: var(--t1); }
+.da-tog.da-on { background: rgba(217,180,73,.20); border-color: #D9B449; color: #F3E3AE; }
+
+/* a read-only label chip */
+.da-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    height: 22px;
+    padding: 0 8px;
+    border-radius: var(--r-chip);
+    background: var(--s4);
+    border: 1px solid var(--b1);
+    color: var(--t2);
+    font-size: 11.5px;
+    font-weight: 600;
+    line-height: 1;
+    white-space: nowrap;
+}
+
+.da-sw2 { width: 10px; height: 10px; border-radius: 2px; flex: none; display: inline-block; border: 1px solid rgba(255,255,255,.22); }
+
+/* a colour swatch that opens a palette */
+.da-swbtn {
+    width: 28px;
+    height: 24px;
+    border-radius: var(--r-chip);
+    border: 1px solid var(--ctl);
+    cursor: pointer;
+    padding: 0;
+    flex: none;
+    transition: border-color var(--fx);
+}
+
+.da-swbtn:hover { border-color: var(--ctlhi); }
+.da-swbtn.da-none { background: repeating-conic-gradient(var(--s4) 0% 25%, var(--s2) 0% 50%) 50% / 7px 7px; }
+
+/* ═══ a popover anchored to a control ══════════════════════════════════════ */
+
+.da-pop {
+    position: absolute;
+    z-index: 60;
+    top: calc(100% + 6px);
+    left: 0;
+    width: max-content;
+    max-width: min(340px, 84vw);
+    background: var(--s4);
+    border: 1px solid var(--ctlhi);
+    border-radius: var(--r-panel);
+    padding: 10px;
+    box-shadow: 0 14px 34px rgba(0,0,0,.65);
+}
+
+.da-pop h5 {
+    margin: 0 0 7px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--t3);
+}
+
+.da-palette { display: grid; grid-template-columns: repeat(6, 28px); gap: 6px; }
+.da-palette button { width: 28px; height: 28px; border-radius: var(--r-chip); border: 1px solid var(--ctl); cursor: pointer; padding: 0; }
+.da-palette button:hover { border-color: #fff; }
+
+.da-note {
+    background: var(--s4);
+    border: 1px solid var(--b1);
+    border-left: 3px solid var(--a2);
+    border-radius: var(--r-btn);
+    padding: 10px 12px;
+    font-size: 13px;
+    line-height: 1.55;
+    color: var(--t2);
+}
+
+.da-note b { color: var(--t1); }
+
+/* ═══ sections inside a modal ══════════════════════════════════════════════ */
+
+.da-msec { background: var(--s4); border: 1px solid var(--b1); border-radius: var(--r-btn); padding: 12px; }
+.da-msec-head { display: flex; align-items: center; gap: 11px; flex-wrap: wrap; margin-bottom: 8px; }
+
+.da-msec-title {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 24px;
+    padding: 0 10px;
+    border-radius: var(--r-pill);
+    font-size: 11.5px;
+    font-weight: 700;
+    letter-spacing: .07em;
+    text-transform: uppercase;
+    color: var(--ink);
+    background: var(--a3);
+    white-space: nowrap;
+}
+
+.da-msec-help { margin: 0 0 10px; font-size: 12.5px; color: var(--t3); line-height: 1.5; }
+.da-mgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(430px, 1fr)); gap: 12px; align-items: start; }
+.da-mgrid3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; align-items: start; }
+.da-mgrid3 .da-msec-head { flex-direction: column; align-items: flex-start; gap: 9px; }
+
+.da-mrow {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 6px 7px;
+    background: var(--s3);
+    border: 1px solid var(--b1);
+    border-radius: var(--r-btn);
+    margin-bottom: 5px;
+}
+
+.da-mrow .da-inp { height: 28px; font-size: 12.5px; }
+.da-mrow .da-step { height: 28px; }
+.da-mrow .da-step input { width: 46px; font-size: 12.5px; }
+.da-mrow .da-step button::after { width: 4px; height: 4px; }
+.da-mscroll { max-height: 270px; overflow-y: auto; padding-right: 4px; }
+
+/* An icon is a stroked line at the text colour, so it sits with the label
+   rather than shouting over it. DaIcon.razor draws them. */
+.da-i { flex: none; display: inline-block; vertical-align: -0.15em; }
+
+/* MudBlazor still owns a few widgets with no cheap replacement (menus,
+   expansion panels, the colour wheel). Where one survives, it is dragged onto
+   the Verdant surfaces so it stops looking like a different app. */
+.mud-menu-list, .mud-list, .mud-paper.mud-popover {
+    background-color: var(--s4) !important;
+    border: 1px solid var(--ctl);
+    border-radius: var(--r-panel);
+}
+
+.mud-list-item:hover, .mud-menu-item:hover { background-color: var(--s6) !important; }
+
+.dpf-help .mud-expand-panel,
+.da-assist .mud-expand-panel,
+.da-fbody .mud-expand-panel,
+.da-panel .mud-expand-panel { background-color: var(--s4); }
+
+/* An assistance panel is a sibling of the field wall, not part of it. */
+.da-assist { margin-bottom: 18px; }
+.da-assist + .da-fgrid, .da-assist + * > .da-fgrid { margin-top: 18px; }
+
+/* A transport control reads as a round key rather than a square one. */
+.da-ib-round {
+    border-radius: var(--r-pill);
+    border-color: var(--ctl);
+    color: var(--a1);
+}
+
+.da-ib-round:hover { border-color: var(--a1); background: var(--s6); }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   DiceAudio's own vocabulary: the audio card, its hero and transport,
+   the explorer rows and the pickers. Kept as it was - the reskin only
+   re-points its colours at the tokens above so it agrees with the
+   shared controls it now sits beside.
+   ═══════════════════════════════════════════════════════════════════════════ */
 
 /* ─── MudBlazor popovers must render above the app's custom modal overlays
        (which use z-index 2000–4000). Without this, selects/menus opened from
@@ -102,13 +1078,6 @@ h1:focus {
        2000), so the prompt renders behind them. Lift it above. ───── */
 .mud-dialog-container {
     z-index: 6000 !important;
-}
-
-/* ─── Shared animated player gradient ───────────────────────── */
-@keyframes da-gradient-shift {
-    0%   { background-position: 0%   50%; }
-    50%  { background-position: 100% 50%; }
-    100% { background-position: 0%   50%; }
 }
 
 .da-playing-banner {
@@ -135,14 +1104,14 @@ h1:focus {
 .da-cmd-btn {
     display: inline-flex; align-items: center; justify-content: center;
     width: 44px; height: 44px; border-radius: 50%;
-    background: #1e1e38; border: 2px solid #363660;
+    background: var(--s7); border: 2px solid var(--b2);
     cursor: pointer; user-select: none; margin: 2px;
     transition: background 0.15s, border-color 0.15s;
 }
-.da-cmd-btn:hover { background: #2e2e58; border-color: #5555aa; }
+.da-cmd-btn:hover { background: var(--s6); border-color: var(--b4); }
 .da-play  { color: #4caf50; font-size: 22px; }
 .da-pause { color: #ff9800; font-size: 22px; }
-.da-stop  { color: #f44336; font-size: 20px; }
+.da-stop  { color: var(--danger); font-size: 20px; }
 .da-skip  { color: #90caf9; font-size: 20px; }
 
 /* Large version for scenario-level controls */
@@ -153,39 +1122,11 @@ h1:focus {
     cursor: pointer; user-select: none; margin: 2px;
     transition: background 0.15s, border-color 0.15s;
 }
-.da-cmd-btn-lg:hover { background: #323260; border-color: #5050aa; }
+.da-cmd-btn-lg:hover { background: var(--s8); border-color: var(--b4); }
 .da-play-lg  { color: #4caf50; font-size: 28px; }
 .da-pause-lg { color: #ff9800; font-size: 28px; }
-.da-stop-lg  { color: #f44336; font-size: 26px; }
+.da-stop-lg  { color: var(--danger); font-size: 26px; }
 .da-skip-lg  { color: #90caf9; font-size: 26px; }
-
-.loading-page-circle-loader {
-    text-align:center;
-    font-size:x-large;
-    border: 16px solid #f3f3f3; /* Light grey */
-    border-top: 16px solid #303060; /* Blue */
-    border-radius: 50%;
-    width: 120px;
-    height: 120px;
-    animation: spin-loader 2s linear infinite;
-}
-
-@keyframes spin-loader {
-    0% {
-        transform: rotate(0deg);
-    }
-
-    100% {
-        transform: rotate(360deg);
-    }
-}
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   Shared audio-item card ("hero card") — AudioExplorer and AudioPicker.
-   Replaces the old .audio-item-* and .sap-item-* rules. color-mix() is
-   deliberately avoided: Android System WebView may predate it, and a dropped
-   background declaration would leave a transparent card.
-   ═══════════════════════════════════════════════════════════════════════════ */
 
 .da-grid {
     display: grid;
@@ -194,14 +1135,10 @@ h1:focus {
     margin-bottom: 10px;
 }
 
-/* Kind tint — set on the card root, inherited by everything inside it. */
-.da-k-music { --kc:#e73c7e; --kc-a:rgba(231,60,126,.62); --kc-b:rgba(231,60,126,.18); --kc-edge:rgba(231,60,126,.60); }
-.da-k-amb   { --kc:#23a6d5; --kc-a:rgba(35,166,213,.62); --kc-b:rgba(35,166,213,.18); --kc-edge:rgba(35,166,213,.60); }
-.da-k-sfx   { --kc:#23a6ab; --kc-a:rgba(35,166,171,.62); --kc-b:rgba(35,166,171,.18); --kc-edge:rgba(35,166,171,.60); }
 
 .da-card {
-    background: #12121f;
-    border: 1px solid #2a2a4a;
+    background: var(--s3);
+    border: 1px solid var(--b1);
     border-radius: 12px;
     overflow: hidden;
     position: relative;
@@ -210,8 +1147,8 @@ h1:focus {
     flex-direction: column;
     transition: border-color .2s;
 }
-.da-card:hover { border-color: #444470; }
-.da-card.playing { border-color: var(--kc-edge, #444470); }
+.da-card:hover { border-color: var(--b3); }
+.da-card.playing { border-color: var(--kc-edge, var(--b3)); }
 
 /* Selection rings are overlay elements, never `box-shadow: inset` — an inset
    shadow paints beneath child backgrounds, so the hero would hide its top
@@ -229,7 +1166,7 @@ h1:focus {
     z-index: 10;
 }
 .da-card.marked::after,
-.da-row.marked::after { border-color: #23a6d5; }
+.da-row.marked::after { border-color: var(--a2); }
 .da-card.added::after,
 .da-row.added::after   { border-color: #4caf50; }
 
@@ -240,7 +1177,7 @@ h1:focus {
     padding: 9px 11px;
     display: flex;
     align-items: flex-end;
-    background-color: #0d0d1a;
+    background-color: var(--s1);
     background-image: linear-gradient(145deg, var(--kc-a), var(--kc-b) 72%, transparent);
 }
 /* Only the app's own three colours — kind tint, primary pink, info blue,
@@ -322,27 +1259,16 @@ h1:focus {
     align-content: flex-start;
     gap: 5px;
 }
-.da-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 4px 7px;
-    border-radius: 5px;
-    font-size: 11px;
-    line-height: 1;
-    white-space: nowrap;
-    color: var(--tcf);
-    background: var(--tcb);
-    border: 1px solid var(--tcl);
-}
-.da-chip .da-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--tc); flex: none; }
-.cat-type    { --tc:#23a6ab; --tcf:#8ddfe2; --tcb:rgba(35,166,171,.15);  --tcl:rgba(35,166,171,.38); }
-.cat-loc     { --tc:#7a8cf0; --tcf:#c2cbff; --tcb:rgba(122,140,240,.15); --tcl:rgba(122,140,240,.38); }
-.cat-expr    { --tc:#c86ee8; --tcf:#e9c2f5; --tcb:rgba(200,110,232,.15); --tcl:rgba(200,110,232,.38); }
-.cat-unknown { --tc:#8b8ba6; --tcf:#cfcfdd; --tcb:rgba(139,139,166,.15); --tcl:rgba(139,139,166,.38); }
 
-.da-offline { font-size: 11px; color: #f0a03c; display: flex; align-items: center; gap: 4px; }
-.da-err { font-size: 11px; color: #ff6b6b; line-height: 1.35; overflow-wrap: anywhere; }
+/* The tag categories keep their own colours; they just speak the shared
+   chip's token names now. */
+.cat-type    { --cd:var(--a3); --cf:#8ddfe2; --cb:rgba(35,166,171,.15);  --cl:rgba(35,166,171,.38); }
+.cat-loc     { --cd:#7a8cf0; --cf:#c2cbff; --cb:rgba(122,140,240,.15); --cl:rgba(122,140,240,.38); }
+.cat-expr    { --cd:#c86ee8; --cf:#e9c2f5; --cb:rgba(200,110,232,.15); --cl:rgba(200,110,232,.38); }
+.cat-unknown { --cd:#8b8ba6; --cf:#cfcfdd; --cb:rgba(139,139,166,.15); --cl:rgba(139,139,166,.38); }
+
+.da-offline { font-size: 11px; color: var(--warn); display: flex; align-items: center; gap: 4px; }
+.da-err { font-size: 11px; color: var(--danger); line-height: 1.35; overflow-wrap: anywhere; }
 
 /* ── transport ──────────────────────────────────────────────────────────── */
 /* Transport: the command buttons sit centred above the progress bar. */
@@ -353,14 +1279,14 @@ h1:focus {
 .da-cmd-btn-sm {
     display: inline-flex; align-items: center; justify-content: center;
     width: 38px; height: 38px; border-radius: 50%; flex: none;
-    background: #1e1e38; border: 2px solid #363660;
+    background: var(--s7); border: 2px solid var(--b2);
     cursor: pointer; user-select: none; padding: 0;
     transition: background .15s, border-color .15s;
 }
-.da-cmd-btn-sm:hover { background: #2e2e58; border-color: #5555aa; }
-.da-cmd-btn-sm:focus-visible { outline: 2px solid #23a6d5; outline-offset: 2px; }
+.da-cmd-btn-sm:hover { background: var(--s6); border-color: var(--b4); }
+.da-cmd-btn-sm:focus-visible { outline: 2px solid var(--a2); outline-offset: 2px; }
 .da-cmd-btn-sm:disabled { opacity: .35; cursor: not-allowed; }
-.da-cmd-btn-sm:disabled:hover { background: #1e1e38; border-color: #363660; }
+.da-cmd-btn-sm:disabled:hover { background: var(--s7); border-color: var(--b2); }
 .da-card.playing .da-cmd-btn-sm.da-pp { border-color: rgba(240,160,60,.5); }
 
 /* Seek track: a native range input, so dragging, touch and keys come free. */
@@ -373,23 +1299,31 @@ h1:focus {
 .da-range:focus { outline: none; }
 .da-range::-webkit-slider-runnable-track {
     height: 4px; border-radius: 3px;
-    background: linear-gradient(90deg, var(--kc, #e73c7e), #23a6d5) 0 / var(--pp, 0%) no-repeat, #2a2a44;
+    /* Two layers. The value gradient underneath spans the WHOLE track, so the
+       colour under the thumb is the colour of the value it is on; the mask on
+       top paints everything past the thumb in the track colour. Sizing the
+       gradient to --pp instead squeezed the entire ramp into the filled part,
+       which made every value read as 100% at the thumb - and it ran warm to
+       cool, so silence was the loud colour. Quiet is the cool end now. */
+    background-image:
+        linear-gradient(90deg, transparent 0 var(--pp, 0%), var(--b1) var(--pp, 0%) 100%),
+        linear-gradient(90deg, var(--a2), var(--kc, var(--a1)));
 }
 .da-range::-webkit-slider-thumb {
     -webkit-appearance: none; appearance: none;
     width: 12px; height: 12px; margin-top: -4px;
     border-radius: 50%; background: #fff;
-    border: 2px solid var(--kc, #e73c7e);
+    border: 2px solid var(--kc, var(--a1));
     box-shadow: 0 1px 5px rgba(0,0,0,.7);
     transition: transform .12s;
 }
 .da-range:hover::-webkit-slider-thumb, .da-range:active::-webkit-slider-thumb { transform: scale(1.25); }
 .da-range:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px rgba(35,166,213,.55); }
-.da-range::-moz-range-track { height: 4px; border-radius: 3px; background: #2a2a44; }
-.da-range::-moz-range-progress { height: 4px; border-radius: 3px; background: var(--kc, #e73c7e); }
+.da-range::-moz-range-track { height: 4px; border-radius: 3px; background: var(--b1); }
+.da-range::-moz-range-progress { height: 4px; border-radius: 3px; background: var(--kc, var(--a1)); }
 .da-range::-moz-range-thumb {
     width: 12px; height: 12px; border-radius: 50%;
-    background: #fff; border: 2px solid var(--kc, #e73c7e);
+    background: #fff; border: 2px solid var(--kc, var(--a1));
 }
 
 /* Timestamp bubble — follows the thumb while you scrub. */
@@ -402,7 +1336,7 @@ h1:focus {
     border-radius: 5px;
     background: #07070f;
     color: #fff;
-    border: 1px solid #444470;
+    border: 1px solid var(--b3);
     font-size: 10.5px;
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
@@ -413,22 +1347,10 @@ h1:focus {
 .da-track:hover .da-bubble,
 .da-track:focus-within .da-bubble { opacity: 1; }
 
-.da-time { flex: none; font-size: 11px; color: rgba(255,255,255,.54); font-variant-numeric: tabular-nums; }
-.da-time b { color: rgba(255,255,255,.88); }
+.da-time { flex: none; font-size: 11px; color: var(--t3); font-variant-numeric: tabular-nums; }
+.da-time b { color: var(--t2); }
 
 /* ── row actions ────────────────────────────────────────────────────────── */
-.da-acts { display: flex; align-items: center; gap: 3px; }
-.da-ib {
-    display: inline-flex; align-items: center; justify-content: center;
-    width: 29px; height: 29px; border-radius: 7px; flex: none;
-    background: transparent; border: 1px solid transparent;
-    color: rgba(255,255,255,.54);
-    cursor: pointer; padding: 0;
-    transition: background .15s, color .15s, border-color .15s;
-}
-.da-ib:hover { background: #1e1e34; border-color: #444470; color: rgba(255,255,255,.88); }
-.da-ib.danger:hover { color: #f44336; border-color: #5a2a2a; }
-.da-ib:focus-visible { outline: 2px solid #23a6d5; outline-offset: 1px; }
 
 /* ── selection A: explorer batch — blue, square checkbox, top-left ──────── */
 .da-selbox {
@@ -444,7 +1366,7 @@ h1:focus {
     border: 2px solid #fff; border-radius: 3px;
     background: transparent; cursor: pointer;
 }
-.da-selbox input:checked { background: #23a6d5; border-color: #23a6d5; }
+.da-selbox input:checked { background: var(--a2); border-color: var(--a2); }
 .da-selbox input:checked::after {
     content: "";
     position: absolute; left: 3px; top: 0px;
@@ -547,14 +1469,14 @@ h1:focus {
     align-items: center;
     gap: 12px;
     grid-template-columns: 36px minmax(140px, 1.1fr) minmax(0, 1fr) 290px auto;
-    background: #12121f;
-    border: 1px solid #2a2a4a;
+    background: var(--s3);
+    border: 1px solid var(--b1);
     border-radius: 10px;
     padding: 8px 12px;
     transition: border-color .2s, background .2s;
 }
-.da-row:hover { border-color: #444470; background: #15152a; }
-.da-row.playing { border-color: var(--kc-edge, #444470); }
+.da-row:hover { border-color: var(--b3); background: var(--s4); }
+.da-row.playing { border-color: var(--kc-edge, var(--b3)); }
 .da-selectable .da-row { cursor: pointer; }
 .da-selectable .da-row { grid-template-columns: 26px 36px minmax(140px, 1.1fr) minmax(0, 1fr) 290px auto; }
 
@@ -568,13 +1490,13 @@ h1:focus {
     width: 36px; height: 36px; border-radius: 9px; padding: 0;
     display: flex; align-items: center; justify-content: center;
     color: #fff; cursor: pointer;
-    background-color: #0d0d1a;
+    background-color: var(--s1);
     background-image: linear-gradient(145deg, var(--kc-a), var(--kc-b) 72%, transparent);
     border: 1px solid var(--kc-edge);
     transition: border-color .15s;
 }
 .da-row-kind:hover { border-color: #fff; }
-.da-row-kind:focus-visible { outline: 2px solid #23a6d5; outline-offset: 1px; }
+.da-row-kind:focus-visible { outline: 2px solid var(--a2); outline-offset: 1px; }
 .da-row.playing .da-row-kind {
     background-image: linear-gradient(-45deg,
         var(--kc-a), rgba(231,60,126,.75), rgba(35,166,213,.85), rgba(35,166,171,.9));
@@ -590,12 +1512,12 @@ h1:focus {
     background-image: linear-gradient(-45deg, rgba(238,119,82,.2), rgba(231,60,126,.6),
                       rgba(35,166,213,.9), rgba(35,166,171,1));
 }
-.da-folder-tile:focus-visible { outline: 2px solid #23a6d5; outline-offset: 1px; }
+.da-folder-tile:focus-visible { outline: 2px solid var(--a2); outline-offset: 1px; }
 
 .da-row-name {
     font-weight: bold;
     font-size: 13.5px;
-    color: rgba(255,255,255,.88);
+    color: var(--t2);
     line-height: 1.3;
     overflow-wrap: anywhere;
 }
@@ -630,7 +1552,7 @@ h1:focus {
     height: 28px; padding: 0 9px;
     border-radius: 7px;
     background: transparent;
-    border: 1px solid #2a2a4a;
+    border: 1px solid var(--b1);
     color: rgba(255,255,255,.5);
     font-family: inherit;
     font-size: 11.5px;
@@ -639,8 +1561,8 @@ h1:focus {
     cursor: pointer;
     transition: background .15s, color .15s, border-color .15s;
 }
-.da-viewbtn:hover { background: #1e1e34; border-color: #444470; color: rgba(255,255,255,.88); }
-.da-viewbtn:focus-visible { outline: 2px solid #23a6d5; outline-offset: 1px; }
+.da-viewbtn:hover { background: var(--s4); border-color: var(--b3); color: var(--t2); }
+.da-viewbtn:focus-visible { outline: 2px solid var(--a2); outline-offset: 1px; }
 
 /* ── picker rows: the whole row is the selection target ─────────────────── */
 .da-picker .da-row { cursor: pointer; }
@@ -659,3 +1581,99 @@ h1:focus {
         grid-template-columns: 36px minmax(0, 1fr) 28px;
     }
 }
+
+/* ═══ the rest of the shared control vocabulary ════════════════════════════
+   Field labels, inline rows, icon tints, the confirm dialog: the pieces
+   that live further down DiceCombats' sheet and are just as generic.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.da-fgrp > .da-flabel { flex: none; }
+.da-fgrp-hp { flex: 1 1 auto; }
+.da-fgrp-col { flex-direction: column; align-items: flex-start; gap: 6px; }
+
+.da-flabel {
+    font-size: 11.5px;
+    font-weight: 700;
+    letter-spacing: .02em;
+    color: var(--t3);
+    white-space: nowrap;
+}
+
+
+.da-irow { display: flex; align-items: center; gap: 7px; }
+.da-irow-wrap { flex-wrap: wrap; }
+
+.da-field { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+
+/* Tinting an icon. DaIcon draws in currentColor, so these are just colours;
+   they exist so a caller does not have to wrap the svg in a coloured span. */
+.da-i-accent { color: var(--a1t); }
+.da-i-info   { color: var(--a2); }
+.da-i-danger { color: var(--danger); }
+.da-i-warn   { color: var(--warn); }
+.da-i-muted  { color: var(--t3); }
+
+/* MudColorPicker is kept for the Colour field because it is a real spectrum
+   picker and nothing here replaces it. Dragged onto the Verdant surfaces so it
+   stops reading as a panel borrowed from another app. */
+.mud-picker, .mud-picker-container, .mud-picker-content {
+    background-color: var(--s4) !important;
+    color: var(--t1);
+}
+
+.mud-picker-container { border: 1px solid var(--ctl); border-radius: var(--r-panel); }
+.mud-picker-toolbar, .mud-picker-colorpicker-view { background-color: var(--s4) !important; }
+
+/* ═══ a yes/no question ════════════════════════════════════════════════════
+   DaConfirm.razor. Above GenericModal (z 2000/2010) on purpose: a confirmation
+   is always raised from inside a modal, so it has to sit over the thing that
+
+
+.da-confirm-scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 3000;
+    background: rgba(4, 8, 7, .74);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+}
+
+.da-confirm {
+    width: min(460px, 100%);
+    background: var(--s3);
+    border: 1px solid var(--ctl);
+    border-radius: var(--r-card);
+    box-shadow: 0 30px 80px rgba(0, 0, 0, .7);
+    padding: 18px 20px 16px;
+}
+
+.da-confirm-title { margin: 0 0 8px; font-size: 16px; font-weight: 700; color: var(--t1); }
+.da-confirm-msg { margin: 0 0 18px; font-size: 13.5px; line-height: 1.55; color: var(--t2); }
+.da-confirm-foot { display: flex; justify-content: flex-end; gap: 9px; flex-wrap: wrap; }
+
+
+/* Secondary line under a strip or tile name. Used in six places across the
+   explorers and the home page and never actually defined, so it was
+   inheriting body size and reading as primary text. */
+.da-meta { font-size: 12.5px; color: var(--t3); }
+
+.da-btn:disabled { opacity: .45; cursor: default; }
+.da-btn:disabled:hover { background: transparent; border-color: var(--ctl); }
+
+/* An edition body is a form, and a form reads as rows. Without an explicit
+   row-gap the wrapped lines sat flush against each other while the unwrapped
+   ones had the flex gap, which is where the ragged look came from. */
+.da-fbody { row-gap: 11px; align-items: flex-end; }
+.da-fbody > .da-field { min-width: 0; }
+.da-fbody-col { align-items: flex-start; }
+
+/* The delete button lives in the field head now, pushed to the far right
+   past the library toggle. */
+.da-fhead-sep { margin-left: auto; }
+
+/* The small button. DiceCombats has had one since its reskin; this sheet
+   was missing it, so every caller that wanted a compact button was
+   repeating the same three inline declarations. */
+.da-btn-sm { min-height: 32px; padding: 0 12px; font-size: 12.5px; }

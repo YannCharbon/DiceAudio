@@ -17,9 +17,17 @@ namespace DiceAudio
         {
             InitializeComponent();
 
-            MainPage = new MainPage();
-
             Current.On<Microsoft.Maui.Controls.PlatformConfiguration.Android>().UseWindowSoftInputModeAdjust(WindowSoftInputModeAdjust.Resize);
+        }
+
+        // Replaces the deprecated MainPage assignment: MAUI builds the root page
+        // through the window now. The caption is hidden because the web page draws
+        // the title bar, but Windows still reads the window Title for the taskbar
+        // tooltip, Alt+Tab and the window list - without it the app showed its
+        // icon there with no name beside it.
+        protected override Microsoft.Maui.Controls.Window CreateWindow(IActivationState? activationState)
+        {
+            return new Microsoft.Maui.Controls.Window(new MainPage()) { Title = "DiceAudio" };
         }
     }
 }

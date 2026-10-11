@@ -10,66 +10,20 @@
 @inject NavigationManager Nav
 @inject DAPlaybackCoordinator Coordinator
 
+@* The bar used to carry its own 200-line <style> block. The capsules, the
+   links, the utility slot and the live chip now live in app.css under the same
+   class names as DiceCombats', so the two apps' title bars are one piece of
+   CSS wearing two gradients. What stays here is only what is genuinely this
+   app's: where its gem sits, and the equaliser. *@
+
 <style>
-    /* ── Bar (gradient / height / shadow kept exactly as before) ── */
-    .da-bar {
-        display: flex;
-        height: 50px;
-        align-items: center;
-        justify-content: center;
-        gap: 22px; /* space between each capsule and the central gem notch */
-        background-image: linear-gradient(-45deg, rgba(238, 119, 82, 0.2), rgba(231, 60, 126, 0.6), rgba(35, 166, 213, 0.9), rgba(35, 166, 171, 1.0));
-        position: fixed;
-        top: 0;
-        width: 100%;
-        box-shadow: 0 2px 10px rgba(255, 255, 255, 0.1);
-        border-bottom: 1px solid #505050;
-        z-index: 10; /* Ensures nav stays above other elements */
-    }
-
-    /* ── Segmented glass capsule (one per pair) ── */
-    .da-seg {
-        display: inline-flex;
-        align-items: center;
-        border-radius: 999px;
-        overflow: hidden;
-        background: rgba(9, 9, 20, 0.34);
-        border: 1px solid rgba(255, 255, 255, 0.18);
-        backdrop-filter: blur(8px);
-        -webkit-backdrop-filter: blur(8px);
-        z-index: 1; /* below the logo if they overlap */
-    }
-
-    .da-navlink {
-        text-decoration: none;
-        color: #ffffff;
-        font-size: 14px;
-        font-weight: 600;
-        white-space: nowrap;
-        cursor: pointer;
-        display: inline-flex;
-        align-items: center;
-        gap: 7px;
-        padding: 8px 16px;
-        transition: background .16s ease, color .16s ease;
-    }
-
-        .da-navlink + .da-navlink {
-            box-shadow: -1px 0 0 rgba(255, 255, 255, 0.14); /* hairline divider */
-        }
-
-        .da-navlink:hover {
-            background: rgba(255, 255, 255, 0.12);
-        }
-
-        .da-navlink.active {
-            background: rgba(231, 60, 126, 0.32); /* app pink accent */
-        }
-
-    /* ── App icon / central gem ── */
+    /* ── the gem ──
+       Sized and positioned against this logo's own artwork, which is why it
+       cannot live in the shared sheet: the hexagon's edge has to equal the bar
+       height, and that ratio belongs to the file. */
     .nav-logo {
         position: relative;
-        z-index: 5; /* Ensures the logo is above the nav links */
+        z-index: 5;
         width: 104px; /* reserve the notch the gem occupies */
         display: flex;
         align-items: center;
@@ -78,22 +32,21 @@
     }
 
         .nav-logo img {
-            width: 100px; /* Increase the width to make it more prominent */
-            transform: translateY(0px); /* Moves the logo upwards to overflow the navbar */
+            width: 100px;
+            transform: translateY(0px);
         }
 
     /* ── Windows: the web page is the title bar ──
        The WebView2 extends to the window's top edge (see WebTitleBar). A 32px
        strip above the bar acts as the draggable title bar; the bar sits below
-       it and the gem crowns over both, exactly like the old native overlay:
-       hexagon edge == bar height (50px), flat-top corners on the bar's top. */
+       it and the gem crowns over both. */
     .da-titlestrip {
         position: fixed;
         top: 0;
         left: 0;
         width: 100%;
         height: 32px;
-        background: #202020;
+        background: var(--s0);
         z-index: 9; /* under the bar and the gem */
         app-region: drag;
         -webkit-app-region: drag;
@@ -117,46 +70,9 @@
                 -webkit-app-region: no-drag;
             }
 
-    /* ── Right-hand utilities: live now-playing chip + settings ── */
-    .da-util {
-        position: absolute;
-        right: 20px;
-        top: 50%;
-        transform: translateY(-50%);
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        z-index: 6;
-    }
-
-    .da-nowplaying {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        height: 32px;
-        padding: 0 12px 0 10px;
-        border-radius: 999px;
-        background: rgba(9, 9, 20, 0.4);
-        border: 1px solid rgba(255, 255, 255, 0.18);
-        color: #eef0fb;
-        font-size: 12px;
-        font-weight: 600;
-        max-width: 200px;
-        cursor: pointer;
-        transition: background .16s, border-color .16s;
-    }
-
-        .da-nowplaying:hover {
-            background: rgba(9, 9, 20, 0.6);
-            border-color: rgba(255, 255, 255, 0.5);
-        }
-
-    .da-np-name {
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-    }
-
+    /* ── the equaliser ──
+       DiceCombats' live chip carries a single pulsing dot. This app's live
+       state is sound, so it gets three bars that move like a level meter. */
     .da-eq {
         display: inline-flex;
         align-items: flex-end;
@@ -167,7 +83,7 @@
 
         .da-eq span {
             width: 3px;
-            background: #23a6ab;
+            background: var(--a3);
             border-radius: 2px;
             animation: da-eq 1s ease-in-out infinite;
         }
@@ -180,25 +96,6 @@
         0%, 100% { transform: scaleY(0.45); }
         50% { transform: scaleY(1); }
     }
-
-    .da-gear {
-        width: 32px;
-        height: 32px;
-        border-radius: 999px;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        background: rgba(9, 9, 20, 0.4);
-        border: 1px solid rgba(255, 255, 255, 0.18);
-        color: #fff;
-        cursor: pointer;
-        transition: background .16s, border-color .16s;
-    }
-
-        .da-gear:hover {
-            background: rgba(9, 9, 20, 0.6);
-            border-color: rgba(255, 255, 255, 0.5);
-        }
 
     @@media (prefers-reduced-motion: reduce) {
         .da-eq span { animation: none; }
@@ -213,41 +110,49 @@
 }
 
 <nav class="da-bar @(OperatingSystem.IsWindows() ? "da-bar-win" : "")">
-    <div class="da-seg">
-        <a class="da-navlink @(IsActive("audioexplorer") ? "active" : "")" href="audioexplorer">
-            <MudIcon Icon="@Icons.Material.Filled.LibraryMusic" Color="Color.Inherit" Style="font-size:18px;" />
-            <span>Explorer</span>
-        </a>
-        <a class="da-navlink @(IsActive("scenes") ? "active" : "")" href="scenes">
-            <MudIcon Icon="@Icons.Material.Filled.Movie" Color="Color.Inherit" Style="font-size:18px;" />
-            <span>Scenes</span>
-        </a>
+    @* The two capsules are not the same width, so each takes an equal share of
+       the leftover space and the gem lands on the window's true centre. *@
+    <div class="da-side da-side-left">
+        <div class="da-seg">
+            <a class="da-navlink @(IsActive("audioexplorer") ? "active" : "")" href="audioexplorer">
+                <DaIcon Name="library-music" Size="18" />
+                <span>Explorer</span>
+            </a>
+            <a class="da-navlink @(IsActive("scenes") ? "active" : "")" href="scenes">
+                <DaIcon Name="movie" Size="18" />
+                <span>Scenes</span>
+            </a>
+        </div>
     </div>
 
     <div class="nav-logo" @onclick="GoHome"><img src="diceaudio_logo.svg" /></div>
 
-    <div class="da-seg">
-        <a class="da-navlink @(IsActive("scenarios") ? "active" : "")" href="scenarios">
-            <MudIcon Icon="@Icons.Material.Filled.AutoStories" Color="Color.Inherit" Style="font-size:18px;" />
-            <span>Scenarios</span>
-        </a>
-        <a class="da-navlink @(IsActive("presets") ? "active" : "")" href="presets">
-            <MudIcon Icon="@Icons.Material.Filled.Bookmarks" Color="Color.Inherit" Style="font-size:18px;" />
-            <span>Presets</span>
-        </a>
+    <div class="da-side da-side-right">
+        <div class="da-seg">
+            <a class="da-navlink @(IsActive("scenarios") ? "active" : "")" href="scenarios">
+                <DaIcon Name="auto-stories" Size="18" />
+                <span>Scenarios</span>
+            </a>
+            <a class="da-navlink @(IsActive("presets") ? "active" : "")" href="presets">
+                <DaIcon Name="bookmarks" Size="18" />
+                <span>Presets</span>
+            </a>
+        </div>
     </div>
 
     <div class="da-util">
         @if (_nowPlaying is not null)
         {
-            <div class="da-nowplaying" title="@_nowPlaying" @onclick="GoToScenarios">
+            @* The equaliser is three bars rather than the shared single pulse:
+               this app's live state is sound, and the bars say so at a glance. *@
+            <div class="da-live" title="@_nowPlaying" @onclick="GoToScenarios">
                 <span class="da-eq"><span></span><span></span><span></span></span>
-                <span class="da-np-name">@_nowPlaying</span>
+                <span class="da-live-name">@_nowPlaying</span>
             </div>
         }
-        <div class="da-gear" title="Settings" @onclick="GoToSettings">
-            <MudIcon Icon="@Icons.Material.Filled.Settings" Color="Color.Inherit" Style="font-size:18px;" />
-        </div>
+        <button type="button" class="da-ub" title="Settings" aria-label="Settings" @onclick="GoToSettings">
+            <DaIcon Name="settings" Size="18" />
+        </button>
     </div>
 </nav>
 

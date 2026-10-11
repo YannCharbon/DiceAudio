@@ -35,24 +35,54 @@
 
         @* The release check is a statement about the app, so it reads as a note
            (--s4 on the panel's --s3) rather than as two stray headings. *@
+        @* Three outcomes, not two. The page used to render "up to date" whenever
+           the check came back empty, so a refused request - which is what GitHub
+           sends once the hourly limit for the IP is used up - looked exactly like
+           good news, and an update spotted a minute earlier disappeared. *@
         <div class="da-note" style="margin-top:14px;">
-            @if (_updateAvailable)
+            @if (_update is { State: DAUpdateCheckState.UpdateAvailable, Release: not null })
             {
                 <div class="da-irow" style="gap:9px;">
                     <DaIcon Name="download" Size="18" Class="da-i-info" />
-                    <span>DiceAudio <b>@_updateInfos?.tag_name</b> is available.</span>
+                    <span>DiceAudio <b>@_update.Release.tag_name</b> is available.</span>
                 </div>
                 <div class="da-meta" style="margin-top:7px;">
-                    Visit <a href="@_updateInfos?.html_url">@_updateInfos?.html_url</a> to download the update.
+                    Visit <a href="@_update.Release.html_url">@_update.Release.html_url</a> to download the update.
                 </div>
             }
-            else
+            else if (_update?.State == DAUpdateCheckState.UpToDate)
             {
                 <div class="da-irow" style="gap:9px;">
                     <DaIcon Name="check-circle" Size="18" Class="da-i-accent" />
                     <span>DiceAudio is up to date.</span>
                 </div>
             }
+            else if (_update?.State == DAUpdateCheckState.CheckFailed)
+            {
+                <div class="da-irow" style="gap:9px;">
+                    <DaIcon Name="error" Size="18" Class="da-i-warn" />
+                    <span>Could not reach GitHub to check for updates.</span>
+                </div>
+            }
+            else
+            {
+                <div class="da-irow" style="gap:9px;">
+                    <DaIcon Name="access-time" Size="18" Class="da-i-muted" />
+                    <span>Checking for updates…</span>
+                </div>
+            }
+
+            <div class="da-irow da-irow-wrap" style="gap:12px;margin-top:10px;">
+                <button type="button" class="da-btn da-btn-out da-btn-sm"
+                        disabled="@_updateChecking" @onclick="CheckUpdateNow">
+                    <DaIcon Name="sync" Size="16" />
+                    @(_updateChecking ? "Checking…" : "Check now")
+                </button>
+                @if (_update?.CheckedUtc is DateTime updateCheckedAt)
+                {
+                    <span class="da-meta">Last checked @updateCheckedAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm")</span>
+                }
+            </div>
         </div>
     </div>
 
@@ -295,8 +325,19 @@
         if (_serverEnabled) ControlServer.Start(port);   // restart on the new port
     }
 
-    private bool _updateAvailable = false;
-    private GitHubRelease? _updateInfos = null;
+    private DAUpdateStatus? _update;
+    private bool _updateChecking;
+
+    /// An explicit request always goes to the network, the way the yt-dlp button
+    /// beside it does. The automatic check honours the service's interval.
+    async Task CheckUpdateNow()
+    {
+        if (_updateChecking) return;
+        _updateChecking = true;
+        StateHasChanged();
+        try { _update = await AudioService.CheckUpdateAsync(force: true); }
+        finally { _updateChecking = false; }
+    }
 
     // Everything here runs once per visit. It used to run on every render, and
     // because it ends in StateHasChanged that render triggered another one: an
@@ -306,11 +347,7 @@
     {
         if (!firstRender) return;
 
-        _updateInfos = await AudioService.CheckUpdate();
-        if (_updateInfos != null)
-        {
-            _updateAvailable = (AudioService.GetVersion() != _updateInfos?.tag_name);
-        }
+        _update = await AudioService.CheckUpdateAsync();
 
         // Spawns yt-dlp, so it happens after the first render rather than
         // holding the page back.

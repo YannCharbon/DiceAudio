@@ -272,14 +272,16 @@
         {
             string lastKnownVersion = Preferences.Get("LastKnownVersion", "-1");
 
-            // Fetch update information
-            _updateInfos = await AudioService.CheckUpdate();
-            if (_updateInfos != null)
+            // The service decides whether to go to the network; this only reads
+            // the conclusion. A failed check leaves the last known release in
+            // place rather than reporting nothing.
+            var status = await AudioService.CheckUpdateAsync();
+            _updateInfos = status.Release;
+
+            if (status.State == DAUpdateCheckState.UpdateAvailable && _updateInfos != null)
             {
-                if (Preferences.Get("LastShowedNewVersion", "-1") != _updateInfos?.tag_name && Preferences.Get("LastShowedNewVersion", "-1") != "-1")
-                {
-                    _updateAvailable = (AudioService.GetVersion() != _updateInfos?.tag_name);
-                }
+                string lastShown = Preferences.Get("LastShowedNewVersion", "-1");
+                _updateAvailable = lastShown != _updateInfos.tag_name && lastShown != "-1";
             }
 
             if (lastKnownVersion != AudioService.GetVersion())

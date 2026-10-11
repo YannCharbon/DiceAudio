@@ -578,79 +578,175 @@ namespace DiceAudio
 
         // Generic management
 
+        /// <summary>
+        /// The version this build reports. The release workflow rewrites
+        /// &lt;AssemblyVersion&gt; in the csproj from the tag it is building, so this is
+        /// the tag for a published build and the csproj's own value for a local one
+        /// - which is why that value is kept in step with the last release rather
+        /// than left at 0.0.0, as it was.
+        /// </summary>
         public string GetVersion()
         {
-            var assembly = Assembly.GetExecutingAssembly();
-            var version = assembly.GetName().Version;
-            if (version != null)
-            {
-                return version.ToString().Substring(0, version.ToString().LastIndexOf("."));
-            }
-
-            return "0.0.0";
+            var version = Assembly.GetExecutingAssembly().GetName().Version;
+            // Major.Minor.Build spelled out: the old code cut everything after the
+            // last dot of ToString(), which turns a three-part version into "0.0".
+            return version == null ? "0.0.0" : $"{version.Major}.{version.Minor}.{version.Build}";
         }
 
-        public async Task<GitHubRelease?> CheckUpdate()
+        // ── checking for a newer release ───────────────────────────────────────
+        // One client for the process. A fresh HttpClient per call leaks a socket
+        // per call, and this used to run on every visit to the home page and to
+        // the settings page.
+        private static readonly HttpClient UpdateHttpClient = CreateUpdateHttpClient();
+
+        private static HttpClient CreateUpdateHttpClient()
         {
-            HttpClient _httpClient = new HttpClient();
+            var client = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
+            // The GitHub API rejects a request with no User-Agent.
+            client.DefaultRequestHeaders.UserAgent.TryParseAdd("DiceAudio");
+            return client;
+        }
 
-            string owner = "YannCharbon";
-            string repo = "DiceAudio";
+        /// How long a successful answer is trusted before the network is asked
+        /// again. GitHub allows 60 unauthenticated requests an hour per IP and the
+        /// app used to spend one on every page visit, so a few minutes of browsing
+        /// exhausted the quota - after which every reply is 403.
+        private static readonly TimeSpan UpdateCheckInterval = TimeSpan.FromHours(6);
 
-            string? token = null;
+        private const string PrefUpdateCheckedUtc = "UpdateLastCheckUtc";
+        private const string PrefUpdateLatestTag = "UpdateLatestTag";
+        private const string PrefUpdateLatestUrl = "UpdateLatestUrl";
 
-            string currentVersion = GetVersion();
+        private DAUpdateStatus? _updateStatus;
 
+        /// <summary>
+        /// What the last check concluded, without touching the network. Null only
+        /// before <see cref="CheckUpdateAsync"/> has run once in this process.
+        /// </summary>
+        public DAUpdateStatus? LastUpdateStatus => _updateStatus;
+
+        /// <summary>
+        /// Asks GitHub for the latest release, at most once every
+        /// <see cref="UpdateCheckInterval"/> unless <paramref name="force"/> says
+        /// otherwise, and never downgrades what is already known: a check that
+        /// fails reports <see cref="DAUpdateCheckState.CheckFailed"/> while keeping
+        /// the release it last saw. Reporting a failure as "up to date" is what
+        /// made a detected update vanish from the settings minutes after it
+        /// appeared.
+        /// </summary>
+        public async Task<DAUpdateStatus> CheckUpdateAsync(bool force = false)
+        {
+            var known = _updateStatus ?? LoadPersistedUpdateStatus();
+
+            if (!force
+                && known.State != DAUpdateCheckState.CheckFailed
+                && known.CheckedUtc is DateTime last
+                && DateTime.UtcNow - last < UpdateCheckInterval)
+            {
+                _updateStatus = known;
+                return known;
+            }
+
+            GitHubRelease? release = null;
             try
             {
-                // Set GitHub API base URL
-                string url = $"https://api.github.com/repos/{owner}/{repo}/releases/latest";
+                var response = await UpdateHttpClient.GetAsync(
+                    $"https://api.github.com/repos/YannCharbon/DiceAudio/releases/latest");
 
-                // Set User-Agent header (required by GitHub API)
-                _httpClient.DefaultRequestHeaders.UserAgent.TryParseAdd("DiceAudio/1.0");
-
-                // Add token for authentication if provided
-                if (!string.IsNullOrEmpty(token))
+                if (response.IsSuccessStatusCode)
                 {
-                    _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+                    release = JsonSerializer.Deserialize<GitHubRelease>(
+                        await response.Content.ReadAsStringAsync(),
+                        new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
                 }
-
-                // Make a GET request to fetch the latest release
-                var response = await _httpClient.GetAsync(url);
-                if (!response.IsSuccessStatusCode)
+                else
                 {
-                    Console.WriteLine($"Error fetching release: {response.StatusCode}");
-                    return null;
-                }
-
-                var content = await response.Content.ReadAsStringAsync();
-                var release = JsonSerializer.Deserialize<GitHubRelease>(content, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-
-                if (release != null)
-                {
-                    // Parse the current and remote version strings
-                    if (Version.TryParse(currentVersion, out var localVersion) && Version.TryParse(release.tag_name.TrimStart('v'), out var remoteVersion))
-                    {
-                        if (remoteVersion > localVersion)
-                        {
-                            Debug.WriteLine($"More recent release available: {release.tag_name}");
-                            return release;
-                        }
-                    }
-                    else
-                    {
-                        Console.WriteLine("Failed to parse version strings.");
-                    }
+                    Debug.WriteLine($"Update check refused: {(int)response.StatusCode} {response.StatusCode}");
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error: {ex.Message}");
+                Debug.WriteLine($"Update check failed: {ex.Message}");
             }
 
-            return null; // No new release or error occurred
+            if (release == null || string.IsNullOrWhiteSpace(release.tag_name))
+            {
+                _updateStatus = known with { State = DAUpdateCheckState.CheckFailed };
+                return _updateStatus;
+            }
+
+            Preferences.Set(PrefUpdateLatestTag, release.tag_name);
+            Preferences.Set(PrefUpdateLatestUrl, release.html_url ?? string.Empty);
+            Preferences.Set(PrefUpdateCheckedUtc, DateTime.UtcNow.Ticks);
+
+            _updateStatus = new DAUpdateStatus(
+                IsNewerThanInstalled(release.tag_name)
+                    ? DAUpdateCheckState.UpdateAvailable
+                    : DAUpdateCheckState.UpToDate,
+                release,
+                DateTime.UtcNow);
+
+            return _updateStatus;
+        }
+
+        /// The answer from a previous run, so a cold start with no network still
+        /// shows what was last true instead of claiming the app is up to date.
+        private DAUpdateStatus LoadPersistedUpdateStatus()
+        {
+            string tag = Preferences.Get(PrefUpdateLatestTag, string.Empty);
+            long ticks = Preferences.Get(PrefUpdateCheckedUtc, 0L);
+
+            if (string.IsNullOrWhiteSpace(tag) || ticks == 0)
+            {
+                return new DAUpdateStatus(DAUpdateCheckState.NotChecked, null, null);
+            }
+
+            var release = new GitHubRelease
+            {
+                tag_name = tag,
+                html_url = Preferences.Get(PrefUpdateLatestUrl, string.Empty),
+            };
+
+            return new DAUpdateStatus(
+                IsNewerThanInstalled(tag)
+                    ? DAUpdateCheckState.UpdateAvailable
+                    : DAUpdateCheckState.UpToDate,
+                release,
+                new DateTime(ticks, DateTimeKind.Utc));
+        }
+
+        /// Compares the tag against this build. A tag that will not parse is
+        /// treated as newer only when it differs from the installed version, so a
+        /// release named something unexpected is surfaced rather than swallowed.
+        private bool IsNewerThanInstalled(string tag)
+        {
+            string remote = tag.TrimStart('v', 'V');
+            string installed = GetVersion();
+
+            if (Version.TryParse(remote, out var remoteVersion)
+                && Version.TryParse(installed, out var installedVersion))
+            {
+                return remoteVersion > installedVersion;
+            }
+
+            return !string.Equals(remote, installed, StringComparison.OrdinalIgnoreCase);
         }
     }
+
+    /// <summary>How a check for a newer release turned out.</summary>
+    public enum DAUpdateCheckState
+    {
+        /// Nothing has been asked yet, in this run or any previous one.
+        NotChecked,
+        UpToDate,
+        UpdateAvailable,
+        /// The network or the GitHub API refused. Deliberately distinct from
+        /// UpToDate so a rate-limited reply cannot erase a real answer.
+        CheckFailed,
+    }
+
+    /// <summary>The conclusion, the release it is about, and when it was reached.</summary>
+    public sealed record DAUpdateStatus(DAUpdateCheckState State, GitHubRelease? Release, DateTime? CheckedUtc);
 
     public class GitHubRelease
     {

@@ -27,7 +27,12 @@
         <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.19041.0</SupportedOSPlatformVersion>
         <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'tizen'">6.5</SupportedOSPlatformVersion>
 
-        <AssemblyVersion>0.0.0.0</AssemblyVersion>
+        <!-- The release workflow rewrites the AssemblyVersion line from the tag
+             it is building. Kept in step with the last release so a build made
+             outside CI reports a real version instead of 0.0.0 - which is what
+             the settings page shows and what the update check compares. -->
+        <AssemblyVersion>0.2.0.0</AssemblyVersion>
+        <FileVersion>$(AssemblyVersion)</FileVersion>
     </PropertyGroup>
 
     <PropertyGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows' and '$(RuntimeIdentifierOverride)' != ''">

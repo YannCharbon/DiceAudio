@@ -1,4 +1,4 @@
-/*
+﻿/*
  * DiceAudio - Copyright (C) 2025 Yann Charbon
  * SPDX-License-Identifier: GPL-3.0-or-later
  *
@@ -27,6 +27,14 @@ namespace DiceAudio
         public List<DAScene> Scenes { get; set; } = new List<DAScene>();
         public List<DAScenarioGroup> ScenarioGroups { get; set; } = new List<DAScenarioGroup>();
         public List<DAPreset> Presets { get; set; } = new List<DAPreset>();
+
+        /// <summary>
+        /// The scenario groups the user pinned, newest pin last. Ids rather than
+        /// groups so the list survives a group being renamed or re-filed, and so a
+        /// group deleted elsewhere simply stops resolving instead of leaving a
+        /// dangling reference; <see cref="GetPinnedScenarioGroups"/> prunes those.
+        /// </summary>
+        private List<Guid> _pinnedScenarioGroups = new List<Guid>();
 
         readonly IAudioManager audioManager;
 
@@ -77,6 +85,7 @@ namespace DiceAudio
                 await LoadScenarioGroupsAsync();
                 await LoadScenesAsync();
                 await LoadPresetsAsync();
+                await LoadPinnedScenarioGroupsAsync();
             }
             catch (Exception ex)
             {
@@ -471,6 +480,49 @@ namespace DiceAudio
             foreach (var group in GetGroupsOfCollection(oldName))
                 group.Collection = trimmed;
             await SaveScenarioGroupsAsync();
+        }
+
+        private static string pinnedScenarioGroupsFilePath = Path.Combine(FileSystem.AppDataDirectory, "pinnedScenarioGroups.json");
+
+        /// <summary>Whether this group is pinned to the home page.</summary>
+        public bool IsScenarioGroupPinned(DAScenarioGroup group) => _pinnedScenarioGroups.Contains(group.Id);
+
+        /// <summary>
+        /// Pins a group, or unpins it if it already was. One call rather than two
+        /// because every caller is a single control that shows the state it toggles.
+        /// </summary>
+        public async Task ToggleScenarioGroupPinnedAsync(DAScenarioGroup group)
+        {
+            if (!_pinnedScenarioGroups.Remove(group.Id))
+                _pinnedScenarioGroups.Add(group.Id);
+            await SavePinnedScenarioGroupsAsync();
+        }
+
+        /// <summary>
+        /// The pinned groups, in the order they were pinned, skipping any whose
+        /// group has since been deleted. Pruning happens here rather than at delete
+        /// time so nothing has to remember to call it.
+        /// </summary>
+        public List<DAScenarioGroup> GetPinnedScenarioGroups()
+        {
+            var groups = new List<DAScenarioGroup>();
+            foreach (var id in _pinnedScenarioGroups)
+            {
+                var group = ScenarioGroups.FirstOrDefault(g => g.Id == id);
+                if (group != null) groups.Add(group);
+            }
+            return groups;
+        }
+
+        public async Task SavePinnedScenarioGroupsAsync()
+        {
+            await _loaded;
+            await SaveListAsync(_pinnedScenarioGroups, pinnedScenarioGroupsFilePath);
+        }
+
+        public async Task LoadPinnedScenarioGroupsAsync()
+        {
+            _pinnedScenarioGroups = await LoadListAsync<Guid>(pinnedScenarioGroupsFilePath) ?? _pinnedScenarioGroups;
         }
 
         private static string scenesFilePath = Path.Combine(FileSystem.AppDataDirectory, "scenes.json");

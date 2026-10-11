@@ -14,178 +14,198 @@
 @inject DAControlServer ControlServer
 @inject YtDlpUpdateService YtDlpUpdates
 
-<style>
-    .settings-group-name {
-        border-radius: 60px;
-        padding: 0px 20px 0px 0px;
-        margin:10px;
-        background-image: linear-gradient(-45deg, rgba(238, 119, 82, 0.2), rgba(231, 60, 126, 0.6), rgba(35, 166, 213, 0.9), rgba(35, 166, 171, 1.0));
-        display: flex;
-        align-items: center;
-    }
+@* Laid out like DiceCombats' settings page, so the two apps' settings read as
+   one screen in two colours: a da-h1 title over a da-sub, each section
+   introduced by a da-pill, its content on a da-panel with notes a step up the
+   surface ramp. What this page carried instead was .settings-group - a flat
+   #505050 box with a white glow - and bare bootstrap h3/h5/h6 headings. *@
 
-    .settings-group {
-        margin:10px;
-        padding:10px;
-        border-radius:10px;
-        background-color:#505050;
-        box-shadow: 0 2px 10px rgba(255, 255, 255, 0.2);
-    }
-</style>
+<h1 class="da-h1">Settings</h1>
+<p class="da-sub" style="margin-bottom:18px;">How DiceAudio updates itself, downloads audio and talks to your notes.</p>
 
+<div class="da-stack">
 
-<div class="settings-group">
-    <div style="display:flex;">
-        <div class="settings-group-name">
-            <MudIcon Icon="@Icons.Material.Filled.Settings" Size="@Size.Large" style="color:white;margin:10px;" Title="Settings" />
-            <h3>About</h3>
+    <div class="da-panel">
+        <div style="display:flex;">
+            <div class="da-pill">
+                <DaIcon Name="sync" Size="26" />
+                <h3>Updates</h3>
+            </div>
+        </div>
+
+        @* The release check is a statement about the app, so it reads as a note
+           (--s4 on the panel's --s3) rather than as two stray headings. *@
+        <div class="da-note" style="margin-top:14px;">
+            @if (_updateAvailable)
+            {
+                <div class="da-irow" style="gap:9px;">
+                    <DaIcon Name="download" Size="18" Class="da-i-info" />
+                    <span>DiceAudio <b>@_updateInfos?.tag_name</b> is available.</span>
+                </div>
+                <div class="da-meta" style="margin-top:7px;">
+                    Visit <a href="@_updateInfos?.html_url">@_updateInfos?.html_url</a> to download the update.
+                </div>
+            }
+            else
+            {
+                <div class="da-irow" style="gap:9px;">
+                    <DaIcon Name="check-circle" Size="18" Class="da-i-accent" />
+                    <span>DiceAudio is up to date.</span>
+                </div>
+            }
         </div>
     </div>
-    
-    <div>
-        <MudStack Row="true" AlignItems="AlignItems.Center">
-            <MudItem>
-                <h5>Current software: DiceAudio @AudioService.GetVersion()</h5>
-            </MudItem>
-            <MudItem>
-                <h6>&copy; Copyright Yann Charbon</h6>
-            </MudItem>
-        </MudStack>
+
+    <div class="da-panel">
+        <div style="display:flex;">
+            <div class="da-pill">
+                <DaIcon Name="cloud-download" Size="26" />
+                <h3>YouTube downloader (yt-dlp)</h3>
+            </div>
+        </div>
+
+        @if (!YtDlpUpdateService.IsSupported)
+        {
+            <p class="da-meta" style="margin-top:14px;">yt-dlp is only available on Windows.</p>
+        }
+        else
+        {
+            <div class="da-irow da-irow-wrap" style="gap:14px;margin-top:14px;">
+                @if (!_ytDlpVersionRead)
+                {
+                    <span class="da-tag">Reading version...</span>
+                }
+                else if (_ytDlpVersion != null)
+                {
+                    <span class="da-tag" style="color:var(--a2);border-color:var(--a2);">yt-dlp @_ytDlpVersion</span>
+                }
+                else
+                {
+                    <span class="da-tag" style="color:var(--danger);border-color:var(--danger);">yt-dlp could not be run</span>
+                }
+
+                <label class="da-chk">
+                    <input type="checkbox" checked="@_ytDlpAutoUpdate"
+                           @onchange="@(e => OnYtDlpAutoUpdateToggled(e.Value is bool b && b))" />
+                    <span>Update yt-dlp automatically</span>
+                </label>
+
+                @* Works regardless of the switch: an explicit request is an explicit
+                   request, and it reports here rather than on the loading screen. *@
+                <button type="button" class="da-btn da-btn-out" disabled="@_ytDlpChecking" @onclick="CheckYtDlpNow">
+                    <DaIcon Name="sync" />
+                    @(_ytDlpChecking ? "Checking..." : "Check now")
+                </button>
+            </div>
+
+            @if (_ytDlpCheckMessage != null)
+            {
+                <p style="margin:8px 0 0 0;font-size:13px;color:var(--t2);">@_ytDlpCheckMessage</p>
+                @if (_ytDlpCheckPercent is int percent)
+                {
+                    @* A plain two-div bar: MudProgressLinear was the last Mud
+                       control on the page and all it gave was a fill. *@
+                    <div style="max-width:320px;margin-top:6px;height:6px;border-radius:var(--r-pill);background:var(--s2);overflow:hidden;"
+                         role="progressbar" aria-valuenow="@percent" aria-valuemin="0" aria-valuemax="100">
+                        <div style="height:100%;width:@(percent)%;background:var(--a1);transition:width var(--fx);"></div>
+                    </div>
+                }
+            }
+
+            <p class="da-meta" style="margin-top:10px;line-height:1.55;">
+                yt-dlp is the tool that downloads audio from YouTube. YouTube breaks it every few
+                weeks, so DiceAudio checks for a newer one at startup, at most twice a day, and shows
+                the progress on the loading screen. Turn this off to keep the version you have.
+                <br />
+                @(YtDlpUpdateService.IsUsingDownloadedBinary
+                    ? "In use: a downloaded update."
+                    : "In use: the version that shipped with DiceAudio.")
+                @if (YtDlpUpdates.LastCheckUtc is DateTime checkedAt)
+                {
+                    @($" Last checked {checkedAt.ToLocalTime():dd.MM.yyyy HH:mm}.")
+                }
+                else
+                {
+                    @(" Not checked yet.")
+                }
+            </p>
+        }
+    </div>
+
+    <div class="da-panel">
+        <div style="display:flex;">
+            <div class="da-pill">
+                <DaIcon Name="public" Size="26" />
+                <h3>Remote control (Trilium)</h3>
+            </div>
+        </div>
+
+        @if (!DAControlServer.IsSupported)
+        {
+            <p class="da-meta" style="margin-top:14px;">Remote control is only available on Windows.</p>
+        }
+        else
+        {
+            <div class="da-irow da-irow-wrap" style="gap:14px;margin-top:14px;align-items:flex-end;">
+                <label class="da-chk" style="margin-bottom:7px;">
+                    <input type="checkbox" checked="@_serverEnabled"
+                           @onchange="@(e => OnServerToggled(e.Value is bool b && b))" />
+                    <span>Enable HTTP control server</span>
+                </label>
+
+                <div class="da-field" style="max-width:130px;">
+                    <label class="da-flabel" for="control-port">Port</label>
+                    <input class="da-inp" id="control-port" type="number" min="1024" max="65535"
+                           value="@_serverPort"
+                           @onchange="@(e => OnPortChanged(int.TryParse(e.Value?.ToString(), out var v) ? v : _serverPort))" />
+                </div>
+
+                @if (ControlServer.IsRunning)
+                {
+                    <span class="da-tag" style="color:var(--a3);border-color:var(--a3);margin-bottom:7px;">
+                        Running on http://localhost:@ControlServer.Port/
+                    </span>
+                }
+                else if (!string.IsNullOrEmpty(ControlServer.LastError))
+                {
+                    <span class="da-tag" style="color:var(--danger);border-color:var(--danger);margin-bottom:7px;">@ControlServer.LastError</span>
+                }
+            </div>
+
+            <p class="da-meta" style="margin-top:10px;line-height:1.55;">
+                Lets the Trilium Notes widget (see <code>TriliumPlugin/</code> in the repository) play, stop
+                and advance scenario items and scenes from inside your campaign notes.
+                The server only listens on localhost.
+            </p>
+        }
+    </div>
+
+    <div class="da-panel" style="margin-bottom:20px;">
+        <div style="display:flex;">
+            <div class="da-pill">
+                <DaIcon Name="text-snippet" Size="26" />
+                <h3>About</h3>
+            </div>
+        </div>
+
+        <div class="da-irow da-irow-wrap" style="gap:13px;margin-top:14px;">
+            @* The app's own mark, for the same reason as in DiceCombats: this
+               line names the software and its version, so the identifying image
+               is the logo, and it carries no tile because the logo has its own
+               colours and shape. *@
+            <img src="diceaudio_logo.svg" width="46" height="46" alt="" />
+            <div class="da-strip-body">
+                <div class="da-strip-name">Current software: DiceAudio @AudioService.GetVersion()</div>
+                <div class="da-meta">&copy; Copyright Yann Charbon</div>
+            </div>
+        </div>
+
         <WelcomeMessage SettingsView="true" NewVersion="true" />
     </div>
-</div>
 
-<div class="settings-group">
-    <div style="display:flex;">
-        <div class="settings-group-name">
-            <MudIcon Icon="@Icons.Material.Filled.Settings" Size="@Size.Large" style="color:white;margin:10px;" Title="Settings" />
-            <h3>Updates</h3>
-        </div>
-    </div>
-
-    @if (_updateAvailable)
-    {
-        <h5>DiceAudio <b>@_updateInfos?.tag_name</b> is available.</h5>
-        <br />
-        <h5>Visit <a style="color:darkcyan;" href="@_updateInfos?.html_url">@_updateInfos?.html_url</a> to download the update.</h5>
-    } else
-    {
-        <h5>DiceAudio is up to date.</h5>
-    }
-</div>
-
-<div class="settings-group">
-    <div style="display:flex;">
-        <div class="settings-group-name">
-            <MudIcon Icon="@Icons.Material.Filled.CloudDownload" Size="@Size.Large" style="color:white;margin:10px;" Title="YouTube downloader" />
-            <h3>YouTube downloader (yt-dlp)</h3>
-        </div>
-    </div>
-
-    @if (!YtDlpUpdateService.IsSupported)
-    {
-        <h5 style="color:grey;">yt-dlp is only available on Windows.</h5>
-    }
-    else
-    {
-        <MudStack Row="true" AlignItems="AlignItems.Center" Style="gap:14px; flex-wrap:wrap;">
-            @if (!_ytDlpVersionRead)
-            {
-                <MudChip T="string" Size="Size.Small">Reading version…</MudChip>
-            }
-            else if (_ytDlpVersion != null)
-            {
-                <MudChip T="string" Color="Color.Info" Size="Size.Small">yt-dlp @_ytDlpVersion</MudChip>
-            }
-            else
-            {
-                <MudChip T="string" Color="Color.Error" Size="Size.Small">yt-dlp could not be run</MudChip>
-            }
-
-            <MudSwitch T="bool" Value="_ytDlpAutoUpdate" ValueChanged="OnYtDlpAutoUpdateToggled"
-                       Color="Color.Secondary" Label="Update yt-dlp automatically" />
-
-            @* Works regardless of the switch: an explicit request is an explicit
-               request, and it reports here rather than on the loading screen. *@
-            <MudButton Variant="Variant.Outlined" Color="Color.Secondary" Size="Size.Small"
-                       StartIcon="@Icons.Material.Filled.Refresh"
-                       Disabled="_ytDlpChecking" OnClick="CheckYtDlpNow">
-                @(_ytDlpChecking ? "Checking…" : "Check now")
-            </MudButton>
-        </MudStack>
-
-        @if (_ytDlpCheckMessage != null)
-        {
-            <MudText Typo="Typo.body2" Style="margin-top:8px;">@_ytDlpCheckMessage</MudText>
-            @if (_ytDlpCheckPercent is int percent)
-            {
-                <MudProgressLinear Color="Color.Secondary" Value="@((double)percent)"
-                                   Style="max-width:320px; margin-top:4px;" />
-            }
-        }
-
-        <MudText Typo="Typo.body2" Style="color:grey; margin-top:6px;">
-            yt-dlp is the tool that downloads audio from YouTube. YouTube breaks it every few
-            weeks, so DiceAudio checks for a newer one at startup, at most twice a day, and shows
-            the progress on the loading screen. Turn this off to keep the version you have.
-            <br />
-            @(YtDlpUpdateService.IsUsingDownloadedBinary
-                ? "In use: a downloaded update."
-                : "In use: the version that shipped with DiceAudio.")
-            @if (YtDlpUpdates.LastCheckUtc is DateTime checkedAt)
-            {
-                @($" Last checked {checkedAt.ToLocalTime():dd.MM.yyyy HH:mm}.")
-            }
-            else
-            {
-                @(" Not checked yet.")
-            }
-        </MudText>
-    }
-</div>
-
-<div class="settings-group">
-    <div style="display:flex;">
-        <div class="settings-group-name">
-            <MudIcon Icon="@Icons.Material.Filled.SettingsRemote" Size="@Size.Large" style="color:white;margin:10px;" Title="Remote control" />
-            <h3>Remote control (Trilium)</h3>
-        </div>
-    </div>
-
-    @if (!DAControlServer.IsSupported)
-    {
-        <h5 style="color:grey;">Remote control is only available on Windows.</h5>
-    }
-    else
-    {
-        <MudStack Row="true" AlignItems="AlignItems.Center" Style="gap:14px; flex-wrap:wrap;">
-            <MudSwitch T="bool" Value="_serverEnabled" ValueChanged="OnServerToggled"
-                       Color="Color.Secondary" Label="Enable HTTP control server" />
-            <MudNumericField T="int" Value="_serverPort" ValueChanged="OnPortChanged"
-                             Label="Port" Variant="Variant.Outlined" Margin="Margin.Dense"
-                             Min="1024" Max="65535" Style="max-width:130px;" />
-            @if (ControlServer.IsRunning)
-            {
-                <MudChip T="string" Color="Color.Success" Size="Size.Small">
-                    Running on http://localhost:@ControlServer.Port/
-                </MudChip>
-            }
-            else if (!string.IsNullOrEmpty(ControlServer.LastError))
-            {
-                <MudChip T="string" Color="Color.Error" Size="Size.Small">@ControlServer.LastError</MudChip>
-            }
-        </MudStack>
-        <MudText Typo="Typo.body2" Style="color:grey; margin-top:6px;">
-            Lets the Trilium Notes widget (see <code>TriliumPlugin/</code> in the repository) play, stop
-            and advance scenario items and scenes from inside your campaign notes.
-            The server only listens on localhost.
-        </MudText>
-    }
 </div>
 
 @code {
-    private GenericModal<WelcomeMessage>? WelcomeMessageModalRef;
-
     private bool _serverEnabled;
     private int _serverPort = DAControlServer.DefaultPort;
 

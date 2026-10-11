@@ -1,4 +1,4 @@
-﻿@*
+@*
  * DiceAudio - Copyright (C) 2025 Yann Charbon
  * SPDX-License-Identifier: GPL-3.0-or-later
  *
@@ -8,35 +8,149 @@
 
 @page "/"
 
+@implements IDisposable
 @inject NavigationManager Navigation
 @inject DiceAudioService AudioService
+@inject DAPlaybackCoordinator Coordinator
 
-<style>
-    .favorite-container {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    }
-</style>
+@* The home page used to be a title, a heading over nothing, and two icons
+   that duplicated the title bar. It now answers the two questions you open
+   the app with: what is playing right now, and which scenario group do I
+   want. Both are one click from here. *@
 
 <GenericModal TContent="WelcomeMessage" OnClose="HandleWelcomeMessageModalClose" @ref="WelcomeMessageModalRef">
     <WelcomeMessage NewVersion="_newVersion" UpdateAvailable="_updateAvailable" UpdateInfos="_updateInfos" />
 </GenericModal>
 
-<div style="justify-content:center;text-align:center;padding-top:50px">
-    <h3>Welcome to DiceAudio !</h3>
+<div class="da-home">
 
-    <p>This TTRPG tool to help you managing advanced audio scenarios.</p>
-</div>
+    <div style="text-align:center;">
+        <h1 class="da-h1" style="font-size:34px;">Welcome to DiceAudio!</h1>
+        <p class="da-sub" style="font-size:15px;max-width:560px;margin:8px auto 0 auto;">
+            A TTRPG tool to help you build and run advanced audio scenarios.
+        </p>
+    </div>
 
-<div style="justify-content:center;text-align:center;padding-top:50px">
-    <h3>Your favorite scenarios</h3>
+    @* Now playing comes first and only exists while something is: an empty
+       state here would be a permanent reminder of silence. *@
+    @if (_playing.Count > 0)
+    {
+        <section>
+            <div class="da-irow" style="justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:16px;">
+                <h2 class="da-h2" style="border:0;padding-bottom:0;">Now playing</h2>
+                <a class="da-crumb" @onclick="@(() => Navigation.NavigateTo("/scenarios"))">All scenarios &rarr;</a>
+            </div>
 
-    <MudDivider Style="margin-top:50px;margin-bottom:30px;"></MudDivider>
+            <div class="da-grid-3">
+                @foreach (var entry in _playing)
+                {
+                    var e = entry;
+                    <div class="da-strip da-clickable" @onclick="@(() => OpenGroup(e.Group))">
+                        @* The tile animates while audio is actually running, so
+                           the page itself shows the state rather than naming it. *@
+                        <div class="da-icon da-playing-banner" style="border-radius:var(--r-panel);">
+                            <DaIcon Name="graphic-eq" Size="24" />
+                        </div>
+                        <div class="da-strip-body">
+                            <div class="da-strip-name">@(e.Group?.Name ?? e.Scenario.Name)</div>
+                            <div class="da-meta">@e.Detail</div>
+                        </div>
+                        <button type="button" class="da-ib da-danger" title="Stop" aria-label="Stop"
+                                @onclick="@(() => StopScenarioAsync(e.Player))" @onclick:stopPropagation="true">
+                            <DaIcon Name="stop" />
+                        </button>
+                    </div>
+                }
+            </div>
+        </section>
+    }
 
-    <a href="https://github.com/YannCharbon/DiceAudio" target="_blank" style="color:white;margin:10px;"><MudIcon Icon="@Icons.Custom.Brands.GitHub" Size="@Size.Large" Title="GitHub" /></a>
-    <MudIcon Icon="@Icons.Material.Filled.Settings" Size="@Size.Large" style="color:white;margin:10px;cursor:pointer;" Title="Settings" @onclick="@(() => Navigation.NavigateTo("/settings"))" />
+    <section>
+        <div class="da-irow" style="justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:16px;">
+            <h2 class="da-h2" style="border:0;padding-bottom:0;">Pinned scenario groups</h2>
+            @if (_pinned.Count > 0)
+            {
+                <a class="da-crumb" @onclick="@(() => Navigation.NavigateTo("/scenarios"))">All scenarios &rarr;</a>
+            }
+        </div>
 
+        @if (AudioService.AudioItems.Count == 0)
+        {
+            @RenderEmptyState("You have no audio yet.", "Import some audio", "/audioexplorer", "upload")
+        }
+        else if (AudioService.ScenarioGroups.Count == 0)
+        {
+            @RenderEmptyState("You have no scenario group yet.", "Create one", "/scenarios", "add")
+        }
+        else if (_pinned.Count == 0)
+        {
+            @RenderEmptyState("You don't have any pinned scenario group yet.", "Pin some groups", "/scenarios", "pin")
+        }
+        else
+        {
+            <div class="da-grid-3">
+                @foreach (var group in _pinned)
+                {
+                    var g = group;
+                    <div class="da-strip da-clickable" @onclick="@(() => OpenGroup(g))">
+                        <div class="da-icon">
+                            <DaIcon Name="auto-stories" Size="24" />
+                        </div>
+                        <div class="da-strip-body">
+                            <div class="da-strip-name">@g.Name</div>
+                            <div class="da-meta">@MetaOf(g)</div>
+                        </div>
+                        @* Unpinning from the page that lists the pins: the only
+                           place where a pin is obviously wrong is where you can
+                           see it. *@
+                        <button type="button" class="da-ib" title="Unpin" aria-label="Unpin"
+                                @onclick="@(() => TogglePinAsync(g))" @onclick:stopPropagation="true">
+                            <DaIcon Name="pin" Filled="true" Class="da-i-accent" />
+                        </button>
+                    </div>
+                }
+            </div>
+        }
+    </section>
+
+    <section>
+        @* These start something. They used to be four buttons that went to the
+           four pages the title bar already goes to, which is a second menu
+           rather than an action. *@
+        <h2 class="da-h2" style="border:0;padding-bottom:0;">Quick actions</h2>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;">
+            <button type="button" class="da-btn da-btn-fill" @onclick="NewScenarioGroupAsync">
+                <DaIcon Name="add" />
+                New scenario group
+            </button>
+            <button type="button" class="da-btn da-btn-out"
+                    @onclick="@(() => Navigation.NavigateTo("/scenes?new=true"))">
+                <DaIcon Name="add" />
+                New scene
+            </button>
+            <button type="button" class="da-btn da-btn-out"
+                    @onclick="@(() => Navigation.NavigateTo("/audioexplorer?open=download"))">
+                <DaIcon Name="cloud-download" />
+                Download audio
+            </button>
+            <button type="button" class="da-btn da-btn-out"
+                    @onclick="@(() => Navigation.NavigateTo("/audioexplorer?open=import"))">
+                <DaIcon Name="folder-upload" />
+                Import from disk
+            </button>
+            @if (_playing.Count > 0)
+            {
+                <button type="button" class="da-btn da-btn-danger" @onclick="StopAllAsync">
+                    <DaIcon Name="stop" />
+                    Stop everything
+                </button>
+            }
+        </div>
+    </section>
+
+    <div style="border-top:1px solid var(--b1);padding-top:22px;text-align:center;">
+        <span class="da-meta">DiceAudio @AudioService.GetVersion() &middot; &copy; Yann Charbon &middot; GPL-3.0-or-later</span>
+    </div>
 
 </div>
 
@@ -46,6 +160,111 @@
     private bool _newVersion = false;
     private bool _updateAvailable = false;
     private GitHubRelease? _updateInfos = null;
+
+    /// One line of the "now playing" list: the player, the group it belongs to
+    /// (null while a scenario is detached) and the line of detail under the name.
+    private record PlayingEntry(DAScenarioPlayer Player, DAScenario Scenario, DAScenarioGroup? Group, string Detail);
+
+    private List<PlayingEntry> _playing = new();
+    private List<DAScenarioGroup> _pinned = new();
+
+    protected override void OnInitialized()
+    {
+        // The page shows live state, so it follows the coordinator rather than
+        // taking a snapshot at navigation time.
+        Coordinator.StateChanged += OnPlaybackStateChanged;
+        Recompute();
+    }
+
+    private void Recompute()
+    {
+        _pinned = AudioService.GetPinnedScenarioGroups();
+
+        _playing = Coordinator.ActiveScenarioPlayers
+            .Select(p =>
+            {
+                var group = AudioService.FindGroupOfScenario(p.Scenario);
+                // The scenario names the group's current thread; the item names
+                // the actual sound. Both matter, so the line carries both.
+                var detail = p.CurrentItem is DAScenarioItem item
+                    ? $"{p.Scenario.Name} · {item.Name}"
+                    : p.Scenario.Name;
+                return new PlayingEntry(p, p.Scenario, group, detail);
+            })
+            .ToList();
+    }
+
+    private void OnPlaybackStateChanged()
+    {
+        // StateChanged may fire off the UI thread (audio callbacks).
+        InvokeAsync(() =>
+        {
+            Recompute();
+            StateHasChanged();
+        });
+    }
+
+    private void OpenGroup(DAScenarioGroup? group)
+    {
+        if (group != null) Navigation.NavigateTo($"/scenarios/{group.Id}");
+        else Navigation.NavigateTo("/scenarios");
+    }
+
+    /// Creates the group here rather than sending the user to the explorer to
+    /// press its button: the same two lines the explorer runs, then straight
+    /// into the new group.
+    private async Task NewScenarioGroupAsync()
+    {
+        var group = new DAScenarioGroup();
+        AudioService.ScenarioGroups.Add(group);
+        await AudioService.SaveScenarioGroupsAsync();
+        Navigation.NavigateTo($"/scenarios/{group.Id}");
+    }
+
+    private async Task TogglePinAsync(DAScenarioGroup group)
+    {
+        await AudioService.ToggleScenarioGroupPinnedAsync(group);
+        Recompute();
+    }
+
+    private async Task StopScenarioAsync(DAScenarioPlayer player)
+    {
+        await player.StopAsync();
+        Recompute();
+    }
+
+    private async Task StopAllAsync()
+    {
+        await Coordinator.StopAllAsync();
+        Recompute();
+    }
+
+    private string MetaOf(DAScenarioGroup group)
+    {
+        var parts = new List<string> { $"{group.Scenarios.Count} scenario(s)" };
+
+        int items = group.Scenarios.Sum(s => s.Items.Count);
+        if (items > 0) parts.Add($"{items} item(s)");
+
+        if (!string.IsNullOrWhiteSpace(group.Collection)) parts.Add(group.Collection);
+
+        return string.Join(" · ", parts);
+    }
+
+    /// The three "nothing here yet" states share one shape.
+    private RenderFragment RenderEmptyState(string text, string actionLabel, string route, string icon) => __builder =>
+    {
+        <div class="da-panel" style="text-align:center;padding:28px 16px;">
+            <p class="da-meta" style="margin:0 0 16px 0;">@text</p>
+            @* The one call to action on an otherwise empty section, so it is
+               drawn larger than an ordinary button. *@
+            <button type="button" class="da-btn da-btn-fill" style="min-height:42px;padding:0 20px;font-size:14px;"
+                    @onclick="@(() => Navigation.NavigateTo(route))">
+                <DaIcon Name="@icon" Size="18" />
+                @actionLabel
+            </button>
+        </div>
+    };
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -74,6 +293,7 @@
                 WelcomeMessageModalRef?.Show();
             }
 
+            Recompute();
             StateHasChanged();
         }
 
@@ -87,5 +307,10 @@
         {
             Preferences.Set("LastShowedNewVersion", _updateInfos.tag_name);
         }
+    }
+
+    public void Dispose()
+    {
+        Coordinator.StateChanged -= OnPlaybackStateChanged;
     }
 }

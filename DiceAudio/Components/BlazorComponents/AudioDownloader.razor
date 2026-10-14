@@ -11,6 +11,8 @@
 
 @inject YtDlpService YtDlpService
 @inject DiceAudioService DAService
+@inject DADownloadQueue Queue
+@implements IDisposable
 
 <style>
     /* The in-button spinner MudProgressCircular drew. It borrows the shared
@@ -61,22 +63,23 @@
     <div class="da-msec" style="margin-bottom:10px;">
         <h2 class="da-h2">Audio Downloader</h2>
         <p class="da-sub">Download audio from YouTube, SoundCloud, and thousands of other sites.</p>
+        <p class="da-sub">Downloads carry on in the background when you close this window, and each track joins your library as soon as it is downloaded.</p>
         <div class="da-irow da-irow-wrap" style="gap:6px; margin-top:10px;">
             <button type="button" class="da-btn da-btn-fill"
-                    disabled="@(isDownloading || stagedAudios.Count == 0)"
+                    disabled="@(staged.Count == 0)"
                     @onclick="StartDownload">
                 <DaIcon Name="download" Size="18" />
                 Start Download &nbsp;
                 <div class="progress-spinner" style="@GetGlobalSpinnerStyle()"></div>
             </button>
             <button type="button" class="da-btn da-btn-out"
-                    disabled="@(!isDownloading)"
+                    disabled="@(!Queue.IsBusy)"
                     @onclick="AbortDownload">
                 <DaIcon Name="stop" Size="18" />Abort
             </button>
             <button type="button" class="da-btn da-btn-out"
-                    disabled="@isDownloading"
-                    @onclick="() => stagedAudios.Clear()">
+                    disabled="@(staged.Count == 0)"
+                    @onclick="Queue.ClearStaged">
                 <DaIcon Name="delete" Size="18" />Clear staged
             </button>
         </div>
@@ -111,8 +114,8 @@
                            OnFolderCreated="OnFolderCreated" />
     </div>
 
-    @* ── Staged items ── *@
-    @foreach (var item in stagedAudios)
+    @* ── Staged items: checked links, not yet sent to the download list ── *@
+    @foreach (var item in staged)
     {
         <div class="da-msec" style="margin-bottom:10px;">
             <div class="da-irow da-irow-wrap">
@@ -120,26 +123,54 @@
                     <span class="da-flabel">Name</span>
                     <input class="da-inp" type="text" @bind="item.Name" />
                 </div>
-                <div class="progress-spinner" style="@GetSpinnerStyle(item)"></div>
-                @if (item.IsLocallyAvailable)
-                {
-                    @* The file name was the icon's tooltip; an <svg> cannot carry
-                       one through a title attribute, so the wrapper does. *@
-                    <span title="@item.LocalFileName">
-                        <DaIcon Name="check-circle" Size="24" style="color:var(--ok);" />
-                    </span>
-                }
                 <button type="button" class="da-btn da-btn-out"
-                        disabled="@isDownloading"
-                        @onclick="() => Unstage(item)">
+                        @onclick="() => Queue.Unstage(item)">
                     <DaIcon Name="remove" Size="18" />Unstage
                 </button>
             </div>
-            <div class="dl-track">
-                <div class="dl-fill" style="width:@(Math.Clamp(item.SourceDownloadProgress, 0, 100))%;"></div>
-            </div>
-            <div style="font-size:12px; color:var(--t3);">@item.SourceDownloadStatusMessage</div>
         </div>
+    }
+
+    @* ── The download list. The queue keeps it, so it is still there when
+         this window is opened again. ── *@
+    @if (jobs.Count > 0)
+    {
+        <div class="da-msec" style="margin-bottom:10px;">
+            <div class="da-irow da-irow-wrap" style="justify-content:space-between;">
+                <span class="da-flabel">Download list</span>
+                <button type="button" class="da-btn da-btn-text"
+                        disabled="@(!jobs.Any(j => j.IsFinished))"
+                        @onclick="Queue.ClearFinished">
+                    <DaIcon Name="delete" Size="18" />Clear finished
+                </button>
+            </div>
+        </div>
+
+        @foreach (var job in jobs)
+        {
+            var item = job.Item;
+            <div class="da-msec" style="margin-bottom:10px;">
+                <div class="da-irow da-irow-wrap">
+                    <div style="flex:1; min-width:0;">
+                        <div style="font-weight:600;">@item.Name</div>
+                        <div class="da-meta">@StateLabel(job) · @DAService.FolderDisplayPath(job.TargetFolder)</div>
+                    </div>
+                    <div class="progress-spinner" style="@GetSpinnerStyle(job)"></div>
+                    @if (item.IsLocallyAvailable && job.IsFinished)
+                    {
+                        @* The file name was the icon's tooltip; an <svg> cannot carry
+                           one through a title attribute, so the wrapper does. *@
+                        <span title="@item.LocalFileName">
+                            <DaIcon Name="check-circle" Size="24" style="color:var(--ok);" />
+                        </span>
+                    }
+                </div>
+                <div class="dl-track">
+                    <div class="dl-fill" style="width:@(Math.Clamp(item.SourceDownloadProgress, 0, 100))%;"></div>
+                </div>
+                <div style="font-size:12px; color:var(--t3);">@item.SourceDownloadStatusMessage</div>
+            </div>
+        }
     }
 </div>
 
@@ -152,7 +183,7 @@
             click Scan to repair them. Also imports unclaimed MP3 files as new library items.
         </p>
         <button type="button" class="da-btn da-btn-fill"
-                disabled="@isDownloading"
+                disabled="@Queue.IsBusy"
                 @onclick="ScanLocalFiles">
             <DaIcon Name="search" Size="18" />Scan audio folder
         </button>
@@ -164,10 +195,6 @@
 </div>
 
 @code {
-    private string statusMessage = string.Empty;
-    private bool isDownloading = false;
-    private int progress = 0;
-
     private string urlToStage = "";
     private string stageErrorMessage = "";
     private bool isStaging = false;
@@ -176,14 +203,23 @@
     private DAVirtualAudioFolder? _targetFolder;
     private string _scanResultMessage = "";
 
-    private List<DAAudioItem> stagedAudios = new();
+    // What the queue holds, read again at each render: the queue outlives
+    // this component, so it is the only place these lists live.
+    private IReadOnlyList<DAAudioItem> staged => Queue.Staged;
+    private IReadOnlyList<DADownloadJob> jobs => Queue.Jobs;
 
     protected override async Task OnInitializedAsync()
     {
+        Queue.Changed += OnQueueChanged;
+
         // Keep filing downloads under "Untriaged" when that folder exists.
         await DAService.WhenLoaded;
         _targetFolder = DAService.FindFolderByName("Untriaged");
     }
+
+    private void OnQueueChanged() => _ = InvokeAsync(StateHasChanged);
+
+    public void Dispose() => Queue.Changed -= OnQueueChanged;
 
     private async Task OnTargetFolderChanged(DAVirtualAudioFolder? folder)
     {
@@ -205,7 +241,7 @@
         isStaging = true;
         stageErrorMessage = "";
 
-        if (stagedAudios.Find(x => x.SourceURL == urlToStage) == null)
+        if (!Queue.IsStaged(urlToStage))
         {
             if (urlToStage.Contains("list="))
             {
@@ -227,8 +263,7 @@
                     var (titles, urls) = await YtDlpService.GetPlaylistVideoTitlesAndUrlsAsync(urlToStage);
                     for (int i = 0; i < titles.Count; i++)
                     {
-                        var item = new DAAudioItem(titles[i]) { SourceURL = urls[i] };
-                        stagedAudios.Add(item);
+                        Queue.Stage(new DAAudioItem(titles[i]) { SourceURL = urls[i] });
                     }
                     urlToStage = "";
                 }
@@ -254,7 +289,7 @@
         item.Name = await YtDlpService.GetVideoTitleAsync(url);
         if (!item.Name.Contains("YtDLP Error"))
         {
-            stagedAudios.Add(item);
+            Queue.Stage(item);
             urlToStage = "";
         }
         else
@@ -267,26 +302,8 @@
     // (watch?v=… or youtu.be/…), else null (e.g. a playlist-only URL).
     private static string? TryGetSingleVideoUrl(string url)
     {
-        try
-        {
-            var uri = new Uri(url);
-
-            if (uri.Host.Contains("youtu.be", StringComparison.OrdinalIgnoreCase))
-            {
-                var id = uri.AbsolutePath.Trim('/');
-                if (!string.IsNullOrEmpty(id))
-                    return $"https://www.youtube.com/watch?v={id}";
-            }
-
-            foreach (var pair in uri.Query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries))
-            {
-                var kv = pair.Split('=', 2);
-                if (kv.Length == 2 && kv[0] == "v" && !string.IsNullOrEmpty(kv[1]))
-                    return $"https://www.youtube.com/watch?v={Uri.UnescapeDataString(kv[1])}";
-            }
-        }
-        catch { /* not a parseable URL — treat as no single video */ }
-        return null;
+        var id = DAAudioFileNames.VideoIdFromUrl(url);
+        return id == null ? null : $"https://www.youtube.com/watch?v={id}";
     }
 
     // ── The playlist question ─────────────────────────────────────────
@@ -311,111 +328,21 @@
         pending?.TrySetResult(answer);
     }
 
-    private void Unstage(DAAudioItem item) => stagedAudios.Remove(item);
+    // ── Download: handed to the queue, which runs it in the background ──
 
-    // ── Download (3 scenarios) ────────────────────────────────
+    private void StartDownload() => Queue.StartStaged(_targetFolder);
 
-    private async Task StartDownload()
+    private void AbortDownload() => Queue.CancelAll();
+
+    private static string StateLabel(DADownloadJob job) => job.State switch
     {
-        isDownloading = true;
-        progress = 0;
-
-        foreach (var item in stagedAudios)
-        {
-            if (!isDownloading) break;   // aborted
-
-            // Scenario 2: file already known and on disk — just add to library
-            if (item.IsLocallyAvailable && !string.IsNullOrEmpty(item.LocalFileName))
-            {
-                AddToLibraryIfNew(item);
-                continue;
-            }
-
-            // Scenario 2b: check if an existing MP3 matches this item before downloading
-            var existingFileName = FindExistingFile(item);
-            if (existingFileName != null)
-            {
-                item.LocalFileName = existingFileName;
-                item.IsLocallyAvailable = true;
-                item.SourceDownloadStatusMessage = "Found existing file — not re-downloaded";
-                AddToLibraryIfNew(item);
-                await InvokeAsync(StateHasChanged);
-                continue;
-            }
-
-            // Scenario 1: download
-            await YtDlpService.RunYtDlpAsync(item, UpdateStatus);
-
-            if (item.IsLocallyAvailable)
-            {
-                // Scenario 1 success
-                item.SourceDownloadProgress = 100;
-                AddToLibraryIfNew(item);
-            }
-            // Scenario 3: download failed — item not added (IsLocallyAvailable stays false)
-        }
-
-        progress = 100;
-        isDownloading = false;
-
-        // Persist newly added items (and any folder created for them) right away.
-        // Downloads previously relied on the save-on-close handler, which is a
-        // non-awaited fire-and-forget: the process could exit before the write
-        // flushed, losing the item (and a subsequent move) on restart.
-        await DAService.SaveAudioItemListAsync();
-        await DAService.SaveAudioVirtualFoldersAsync();
-    }
-
-    private void AddToLibraryIfNew(DAAudioItem item)
-    {
-        // Don't add duplicates (same URL or same LocalFileName already in library)
-        bool alreadyInLibrary = DAService.AudioItems.Any(a =>
-            (!string.IsNullOrEmpty(a.SourceURL) && a.SourceURL == item.SourceURL) ||
-            (!string.IsNullOrEmpty(a.LocalFileName) && a.LocalFileName == item.LocalFileName));
-
-        if (!alreadyInLibrary)
-        {
-            item.Folder = _targetFolder ?? DiceAudioService.NewRootFolderMarker();
-            DAService.AddAudioItem(item);
-        }
-    }
-
-    // Checks if an MP3 matching the item already exists on disk and isn't claimed by another item.
-    private string? FindExistingFile(DAAudioItem item)
-    {
-        // Already in library with a known file?
-        var fromLibrary = DAService.AudioItems.FirstOrDefault(a =>
-            !string.IsNullOrEmpty(a.SourceURL) && a.SourceURL == item.SourceURL &&
-            !string.IsNullOrEmpty(a.LocalFileName));
-        if (fromLibrary != null) return fromLibrary.LocalFileName;
-
-        var audioDir = DAService.AudioDir;
-        if (!Directory.Exists(audioDir)) return null;
-
-        var claimed = new HashSet<string>(
-            DAService.AudioItems.Where(a => !string.IsNullOrEmpty(a.LocalFileName)).Select(a => a.LocalFileName),
-            StringComparer.OrdinalIgnoreCase);
-
-        // Match by item name == MP3 base name (yt-dlp uses the video title as filename)
-        foreach (var file in Directory.GetFiles(audioDir, "*.mp3"))
-        {
-            var fileName = Path.GetFileName(file);
-            if (claimed.Contains(fileName)) continue;
-
-            var baseName = Path.GetFileNameWithoutExtension(file);
-            if (string.Equals(baseName, item.Name, StringComparison.OrdinalIgnoreCase))
-                return fileName;
-        }
-
-        return null;
-    }
-
-    private void AbortDownload()
-    {
-        YtDlpService.AbortDownload(UpdateStatus);
-        isDownloading = false;
-        progress = 0;
-    }
+        DADownloadState.Waiting      => "Waiting",
+        DADownloadState.Downloading  => "Downloading",
+        DADownloadState.Done         => "Downloaded",
+        DADownloadState.AlreadyThere => "Already on this computer",
+        DADownloadState.Failed       => "Failed",
+        _                            => "Cancelled",
+    };
 
     // ── Library scan / repair ─────────────────────────────────
 
@@ -430,8 +357,8 @@
         int imported = 0;
         foreach (var fileName in unclaimed)
         {
-            var baseName = Path.GetFileNameWithoutExtension(fileName);
-            var newItem = new DAAudioItem(baseName)
+            // "Title [id].mp3" from a current download gives the item "Title".
+            var newItem = new DAAudioItem(DAAudioFileNames.ItemNameFor(fileName))
             {
                 LocalFileName = fileName,
                 IsLocallyAvailable = true
@@ -454,9 +381,7 @@
 
     // The spinner is a div now rather than a component, so the styles only
     // have to decide whether it is in the layout at all.
-    private string GetStageSpinnerStyle()  => isStaging      ? "" : "display:none;";
-    private string GetGlobalSpinnerStyle() => isDownloading  ? "" : "display:none;";
-    private string GetSpinnerStyle(DAAudioItem item) => item.SourceIsDownloading ? "" : "display:none;";
-
-    private void UpdateStatus(string message) => InvokeAsync(StateHasChanged);
+    private string GetStageSpinnerStyle()  => isStaging    ? "" : "display:none;";
+    private string GetGlobalSpinnerStyle() => Queue.IsBusy ? "" : "display:none;";
+    private string GetSpinnerStyle(DADownloadJob job) => job.State == DADownloadState.Downloading ? "" : "display:none;";
 }

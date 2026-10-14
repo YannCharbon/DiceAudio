@@ -9,6 +9,8 @@
 @page "/audioexplorer"
 @inject DiceAudioService DAService
 @inject PopupNotificationService Notifications
+@inject DADownloadQueue DownloadQueue
+@implements IDisposable
 
 <style>
   /*  The cards themselves live in app.css (.da-card and friends), shared with
@@ -310,6 +312,7 @@ else if (_breadcrumb.Any())
 
     protected override void OnInitialized()
     {
+        DownloadQueue.LibraryChanged += OnDownloadAdded;
         BuildFolderTree();
         // initialize navigation at root
         _currentFolder = _rootFolder;
@@ -317,6 +320,16 @@ else if (_breadcrumb.Any())
         _historyIndex = -1;
         NavigateToFolder(_rootFolder);
     }
+
+    // A download finished in the background, perhaps after the downloader was
+    // closed: its item (and a folder made for it) must show without a reload.
+    void OnDownloadAdded() => _ = InvokeAsync(() =>
+    {
+        BuildFolderTree();
+        StateHasChanged();
+    });
+
+    public void Dispose() => DownloadQueue.LibraryChanged -= OnDownloadAdded;
 
     // Renders once more when the tags arrive, which enables their editor.
     protected override async Task OnInitializedAsync()

@@ -83,6 +83,11 @@ namespace DiceAudio
                             // Attach to the Closing event and use the service provider
                             _appWindow.Closing += (s, e) =>
                             {
+                                // A yt-dlp left running would outlive the app and
+                                // keep writing into the audio folder.
+                                try { ServiceProvider.GetRequiredService<DADownloadQueue>().CancelAll(); }
+                                catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"Stopping the downloads failed: {ex.Message}"); }
+
                                 var diceService = ServiceProvider.GetRequiredService<DiceAudioService>();
                                 if (diceService != null)
                                 {
@@ -176,6 +181,9 @@ namespace DiceAudio
 
             builder.Services.AddSingleton<YtDlpService>();
             builder.Services.AddSingleton<YtDlpUpdateService>();
+            builder.Services.AddSingleton<IDADownloadRunner>(sp => sp.GetRequiredService<YtDlpService>());
+            builder.Services.AddSingleton<IDADownloadLibrary, DADownloadLibrary>();
+            builder.Services.AddSingleton<DADownloadQueue>();
 
             var app = builder.Build();
             ServiceProvider = app.Services; // Assign the root service provider

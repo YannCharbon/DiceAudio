@@ -18,7 +18,7 @@ using System.Threading.Tasks;
 
 namespace DiceAudio
 {
-    public class YtDlpService
+    public class YtDlpService : IDADownloadRunner
     {
         private readonly string _baseDirectory;
         private readonly string _bundledYtDlpPath;
@@ -28,7 +28,9 @@ namespace DiceAudio
         /// The audio folder, worked out on each call: the data folder it sits
         /// in can change while the app runs.
         private string AudioFilesDirectory => _dataLocation.AudioDir;
+        // The running download's process, for AbortDownload; set and cleared under _processLock.
         private Process? _process;
+        private readonly object _processLock = new();
 
         /// <summary>
         /// Recent yt-dlp requires a JavaScript runtime for full YouTube extraction
@@ -241,9 +243,64 @@ namespace DiceAudio
             return (videoTitles, videoUrls);
         }
 
-        public async Task RunYtDlpAsync(DAAudioItem item, Action<string> reportStatus)
+        /// <summary>
+        /// The file name yt-dlp would give this link with <see cref="DAAudioFileNames.OutputTemplate"/>,
+        /// before the conversion to mp3 (so with the extension of the source,
+        /// for example ".webm"). Null when yt-dlp cannot tell. Lets the queue
+        /// check, before anything is written, that no other item uses the name.
+        /// </summary>
+        public async Task<string?> GetOutputFileNameAsync(string url, CancellationToken cancellationToken = default)
         {
-            if (_process != null)
+            using var process = new Process
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = ExecutablePath,
+                    Arguments = $"{JsRuntimesArgs} --no-playlist --print filename -o \"{DAAudioFileNames.OutputTemplate}\" \"{url}\"",
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    StandardOutputEncoding = System.Text.Encoding.UTF8,
+                    StandardErrorEncoding = System.Text.Encoding.UTF8
+                }
+            };
+
+            try
+            {
+                process.Start();
+                var stdout = process.StandardOutput.ReadToEndAsync(cancellationToken);
+                var stderr = process.StandardError.ReadToEndAsync(cancellationToken);
+                await process.WaitForExitAsync(cancellationToken);
+                string? name = (await stdout).Split('\n', StringSplitOptions.RemoveEmptyEntries)
+                                             .Select(l => l.Trim())
+                                             .FirstOrDefault(l => l.Length > 0);
+                _ = await stderr;
+                return process.ExitCode == 0 && !string.IsNullOrEmpty(name) ? Path.GetFileName(name) : null;
+            }
+            catch (OperationCanceledException)
+            {
+                try { if (!process.HasExited) process.Kill(true); } catch { }
+                throw;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Could not ask yt-dlp for the file name: {ex.Message}");
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Downloads the audio of <paramref name="item"/> into the audio folder.
+        /// <paramref name="outputBaseName"/>, when given, is the exact file name
+        /// to use (without extension; the queue has checked that no other item
+        /// uses it); otherwise yt-dlp names it with <see cref="DAAudioFileNames.OutputTemplate"/>.
+        /// </summary>
+        public async Task RunYtDlpAsync(DAAudioItem item, Action<string> reportStatus, string? outputBaseName = null)
+        {
+            bool busy;
+            lock (_processLock) busy = _process != null;
+            if (busy)
             {
                 reportStatus("Another download is already in progress.");
                 return;
@@ -259,9 +316,14 @@ namespace DiceAudio
             // the data folder, which is only written once it is known to be usable.
             Directory.CreateDirectory(AudioFilesDirectory);
 
-            string arguments = $"{JsRuntimesArgs} --extract-audio --audio-format mp3 --ffmpeg-location \"{_ffmpegPath}\" -o \"{Path.Combine(AudioFilesDirectory, "%(title)s.%(ext)s")}\" \"{item.SourceURL}\"";
+            // A literal name goes through the template engine too: its own "%"
+            // must be doubled to stay a "%".
+            string template = string.IsNullOrEmpty(outputBaseName)
+                ? DAAudioFileNames.OutputTemplate
+                : outputBaseName.Replace("%", "%%") + ".%(ext)s";
+            string arguments = $"{JsRuntimesArgs} --no-playlist --extract-audio --audio-format mp3 --ffmpeg-location \"{_ffmpegPath}\" -o \"{Path.Combine(AudioFilesDirectory, template)}\" \"{item.SourceURL}\"";
 
-            _process = new Process
+            var process = new Process
             {
                 StartInfo = new ProcessStartInfo
                 {
@@ -315,7 +377,7 @@ namespace DiceAudio
                 }
             }
 
-            _process.OutputDataReceived += (sender, args) =>
+            process.OutputDataReceived += (sender, args) =>
             {
                 if (string.IsNullOrEmpty(args.Data)) return;
                 Debug.WriteLine("[yt-dlp stdout] " + args.Data);
@@ -330,7 +392,7 @@ namespace DiceAudio
                 reportStatus(args.Data);
             };
 
-            _process.ErrorDataReceived += (sender, args) =>
+            process.ErrorDataReceived += (sender, args) =>
             {
                 if (string.IsNullOrEmpty(args.Data)) return;
                 Debug.WriteLine("[yt-dlp stderr] " + args.Data);
@@ -346,50 +408,49 @@ namespace DiceAudio
                 reportStatus(args.Data);
             };
 
+            lock (_processLock) _process = process;
+
             try
             {
-                _process.Start();
-                _process.BeginOutputReadLine();
-                _process.BeginErrorReadLine();
-                await _process.WaitForExitAsync();
+                process.Start();
+                process.BeginOutputReadLine();
+                process.BeginErrorReadLine();
+                await process.WaitForExitAsync();
 
-                if (_process != null)
+                reportStatus($"Process exited with code {process.ExitCode}");
+
+                if (process.ExitCode == 0)
                 {
-                    reportStatus($"Process exited with code {_process.ExitCode}");
+                    // The mp3(s) that actually appeared on disk during this download.
+                    var newFiles = Directory.GetFiles(AudioFilesDirectory, "*.mp3")
+                        .Select(f => Path.GetFileName(f))
+                        .Where(f => !existingFiles.Contains(f))
+                        .ToList();
 
-                    if (_process.ExitCode == 0)
+                    // Trust the file that really appeared over the console-parsed name:
+                    // the parsed name can be wrong (sanitisation/encoding), which left
+                    // the item pointing at a non-existent file ("File not found on disk").
+                    bool parsedExists = !string.IsNullOrEmpty(item.LocalFileName)
+                        && File.Exists(Path.Combine(AudioFilesDirectory, item.LocalFileName));
+
+                    if (!parsedExists && newFiles.Count > 0)
+                        item.LocalFileName = newFiles[0];
+
+                    if (!string.IsNullOrEmpty(item.LocalFileName)
+                        && File.Exists(Path.Combine(AudioFilesDirectory, item.LocalFileName)))
                     {
-                        // The mp3(s) that actually appeared on disk during this download.
-                        var newFiles = Directory.GetFiles(AudioFilesDirectory, "*.mp3")
-                            .Select(f => Path.GetFileName(f))
-                            .Where(f => !existingFiles.Contains(f))
-                            .ToList();
-
-                        // Trust the file that really appeared over the console-parsed name:
-                        // the parsed name can be wrong (sanitisation/encoding), which left
-                        // the item pointing at a non-existent file ("File not found on disk").
-                        bool parsedExists = !string.IsNullOrEmpty(item.LocalFileName)
-                            && File.Exists(Path.Combine(AudioFilesDirectory, item.LocalFileName));
-
-                        if (!parsedExists && newFiles.Count > 0)
-                            item.LocalFileName = newFiles[0];
-
-                        if (!string.IsNullOrEmpty(item.LocalFileName)
-                            && File.Exists(Path.Combine(AudioFilesDirectory, item.LocalFileName)))
-                        {
-                            item.SourceDownloadStatusMessage = "Done";
-                            item.IsLocallyAvailable = true;
-                        }
-                        else
-                        {
-                            item.SourceDownloadStatusMessage = "Download succeeded but file could not be located";
-                        }
+                        item.SourceDownloadStatusMessage = "Done";
+                        item.IsLocallyAvailable = true;
                     }
                     else
                     {
-                        item.SourceDownloadStatusMessage = $"Error (exit code {_process.ExitCode})";
-                        item.SourceDownloadProgress = 0;
+                        item.SourceDownloadStatusMessage = "Download succeeded but file could not be located";
                     }
+                }
+                else
+                {
+                    item.SourceDownloadStatusMessage = $"Error (exit code {process.ExitCode})";
+                    item.SourceDownloadProgress = 0;
                 }
             }
             catch (Exception ex)
@@ -400,29 +461,42 @@ namespace DiceAudio
             }
             finally
             {
-                if (_process != null)
+                // Only this download disposes its process: an abort only kills it.
+                lock (_processLock)
                 {
-                    _process.Dispose();
-                    _process = null;
+                    if (ReferenceEquals(_process, process)) _process = null;
                 }
+                process.Dispose();
             }
 
             item.SourceIsDownloading = false;
         }
 
+        /// <summary>
+        /// Stops the running download. The process is only killed here; the
+        /// download that started it notices, reports the end and disposes it.
+        /// Never throws: the download may end at this very moment.
+        /// </summary>
         public void AbortDownload(Action<string> reportStatus)
         {
-            if (_process != null && !_process.HasExited)
+            Process? process;
+            lock (_processLock) process = _process;
+            try
             {
-                _process.Kill(true);
-                reportStatus("Download aborted.");
-                _process.Dispose();
-                _process = null;
+                if (process != null && !process.HasExited)
+                {
+                    process.Kill(true);
+                    reportStatus("Download aborted.");
+                    return;
+                }
             }
-            else
+            catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception or NotSupportedException)
             {
-                reportStatus("No download in progress to abort.");
+                // It ended or was disposed in the meantime.
+                Debug.WriteLine($"Abort: {ex.Message}");
+                return;
             }
+            reportStatus("No download in progress to abort.");
         }
 
         /// <summary>
@@ -453,12 +527,12 @@ namespace DiceAudio
                     continue;
                 }
 
-                // Try to match by name (yt-dlp uses the video title as the filename)
+                // Try to match by name or by video id: "Title.mp3" from older
+                // downloads, "Title [id].mp3" from current ones.
                 foreach (var mp3 in allMp3s)
                 {
                     if (claimed.Contains(mp3)) continue;
-                    var baseName = Path.GetFileNameWithoutExtension(mp3);
-                    if (string.Equals(baseName, item.Name, StringComparison.OrdinalIgnoreCase))
+                    if (DAAudioFileNames.Matches(mp3, item.Name, item.SourceURL))
                     {
                         item.LocalFileName = mp3;
                         item.IsLocallyAvailable = true;

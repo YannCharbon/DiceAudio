@@ -8,6 +8,7 @@
 
 @using Plugin.Maui.Audio
 @inject IAudioManager AudioManager
+@inject DiceAudioService AudioFiles
 @implements IDisposable
 
 @* The host card draws the artwork, so the player is only the transport row:
@@ -145,7 +146,7 @@
 
         var probed = await Task.Run(() =>
         {
-            var playablePath = DAScenarioItemPlayer.GetPlayablePath(item.LocalFileName);
+            var playablePath = AudioFiles.GetPlayablePath(item.LocalFileName);
             return playablePath == null ? 0 : DAAudioPlayer.ProbeDurationSeconds(playablePath, AudioManager);
         });
 
@@ -165,7 +166,7 @@
         StopAudio();
         try
         {
-            var playablePath = DAScenarioItemPlayer.GetPlayablePath(AudioItem.LocalFileName);
+            var playablePath = AudioFiles.GetPlayablePath(AudioItem.LocalFileName);
             if (playablePath == null) { _errorMessage = "File not found on disk"; return; }
 
             _player = DAAudioPlayer.Create(playablePath, AudioManager);

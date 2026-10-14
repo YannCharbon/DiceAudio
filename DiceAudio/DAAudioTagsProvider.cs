@@ -68,6 +68,12 @@ namespace DiceAudio
         /// it can never write the empty lists over files not read yet.
         private readonly TaskCompletionSource _loaded = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
+        /// <summary>True once the tag files have been read; the tags editor stays disabled until then.</summary>
+        public bool IsLoaded => _loaded.Task.IsCompleted;
+
+        /// <summary>Completes once the tag files have been read.</summary>
+        public Task WhenLoaded => _loaded.Task;
+
         // Explicit static constructor to tell C# compiler
         // not to mark type as beforefieldinit
         static DAAudioTagsProvider()

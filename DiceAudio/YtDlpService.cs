@@ -10,6 +10,7 @@ using BootstrapBlazor.Components;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using DiceAudio.Storage;
 using System.Globalization;
 using System.Linq;
 using System.Text;
@@ -22,7 +23,11 @@ namespace DiceAudio
         private readonly string _baseDirectory;
         private readonly string _bundledYtDlpPath;
         private readonly string _ffmpegPath;
-        private readonly string _audioFilesDirectory;
+        private readonly DataLocation _dataLocation;
+
+        /// The audio folder, worked out on each call: the data folder it sits
+        /// in can change while the app runs.
+        private string AudioFilesDirectory => _dataLocation.AudioDir;
         private Process? _process;
 
         /// <summary>
@@ -37,8 +42,8 @@ namespace DiceAudio
         /// The bundled binary sits in the install folder, which is read-only for a
         /// packaged (MSIX) app, so updates land in the app data folder instead.
         /// </summary>
-        public static string ManagedExecutablePath =>
-            Path.Combine(FileSystem.AppDataDirectory, "Tools", "yt-dlp.exe");
+        public string ManagedExecutablePath =>
+            _dataLocation.GetLocalPath(Path.Combine("Tools", "yt-dlp.exe"));
 
         /// <summary>The yt-dlp that ships inside the application package.</summary>
         public string BundledExecutablePath => _bundledYtDlpPath;
@@ -51,13 +56,12 @@ namespace DiceAudio
         public string ExecutablePath =>
             File.Exists(ManagedExecutablePath) ? ManagedExecutablePath : _bundledYtDlpPath;
 
-        public YtDlpService()
+        public YtDlpService(DataLocation dataLocation)
         {
+            _dataLocation = dataLocation;
             _baseDirectory = AppContext.BaseDirectory;
             _bundledYtDlpPath = Path.Combine(_baseDirectory, "Resources", "yt-dlp.exe");
             _ffmpegPath = Path.Combine(_baseDirectory, "Resources", "ffmpeg.exe");
-            _audioFilesDirectory = Path.Combine(FileSystem.AppDataDirectory, "Audio");
-            Directory.CreateDirectory(_audioFilesDirectory);
         }
 
         /// <summary>
@@ -245,7 +249,17 @@ namespace DiceAudio
                 return;
             }
 
-            string arguments = $"{JsRuntimesArgs} --extract-audio --audio-format mp3 --ffmpeg-location \"{_ffmpegPath}\" -o \"{Path.Combine(_audioFilesDirectory, "%(title)s.%(ext)s")}\" \"{item.SourceURL}\"";
+            if (_dataLocation.State != DataLocationState.Ok)
+            {
+                reportStatus(DiceAudio.Resources.Localization.Portability.DataFolderUnusable);
+                return;
+            }
+
+            // Created here rather than at startup: the audio folder is part of
+            // the data folder, which is only written once it is known to be usable.
+            Directory.CreateDirectory(AudioFilesDirectory);
+
+            string arguments = $"{JsRuntimesArgs} --extract-audio --audio-format mp3 --ffmpeg-location \"{_ffmpegPath}\" -o \"{Path.Combine(AudioFilesDirectory, "%(title)s.%(ext)s")}\" \"{item.SourceURL}\"";
 
             _process = new Process
             {
@@ -269,7 +283,7 @@ namespace DiceAudio
 
             // Snapshot existing MP3s before download so we can detect the new one
             var existingFiles = new HashSet<string>(
-                Directory.GetFiles(_audioFilesDirectory, "*.mp3").Select(f => Path.GetFileName(f)),
+                Directory.GetFiles(AudioFilesDirectory, "*.mp3").Select(f => Path.GetFileName(f)),
                 StringComparer.OrdinalIgnoreCase);
 
             // Parse filename from any yt-dlp output line (works for stdout and stderr)
@@ -346,7 +360,7 @@ namespace DiceAudio
                     if (_process.ExitCode == 0)
                     {
                         // The mp3(s) that actually appeared on disk during this download.
-                        var newFiles = Directory.GetFiles(_audioFilesDirectory, "*.mp3")
+                        var newFiles = Directory.GetFiles(AudioFilesDirectory, "*.mp3")
                             .Select(f => Path.GetFileName(f))
                             .Where(f => !existingFiles.Contains(f))
                             .ToList();
@@ -355,13 +369,13 @@ namespace DiceAudio
                         // the parsed name can be wrong (sanitisation/encoding), which left
                         // the item pointing at a non-existent file ("File not found on disk").
                         bool parsedExists = !string.IsNullOrEmpty(item.LocalFileName)
-                            && File.Exists(Path.Combine(_audioFilesDirectory, item.LocalFileName));
+                            && File.Exists(Path.Combine(AudioFilesDirectory, item.LocalFileName));
 
                         if (!parsedExists && newFiles.Count > 0)
                             item.LocalFileName = newFiles[0];
 
                         if (!string.IsNullOrEmpty(item.LocalFileName)
-                            && File.Exists(Path.Combine(_audioFilesDirectory, item.LocalFileName)))
+                            && File.Exists(Path.Combine(AudioFilesDirectory, item.LocalFileName)))
                         {
                             item.SourceDownloadStatusMessage = "Done";
                             item.IsLocallyAvailable = true;
@@ -417,9 +431,9 @@ namespace DiceAudio
         /// </summary>
         public int RepairMissingLocalFileNames(List<DAAudioItem> audioItems)
         {
-            if (!Directory.Exists(_audioFilesDirectory)) return 0;
+            if (!Directory.Exists(AudioFilesDirectory)) return 0;
 
-            var allMp3s = Directory.GetFiles(_audioFilesDirectory, "*.mp3")
+            var allMp3s = Directory.GetFiles(AudioFilesDirectory, "*.mp3")
                 .Select(f => Path.GetFileName(f))
                 .ToList();
 
@@ -434,7 +448,7 @@ namespace DiceAudio
                 // Verify / fix IsLocallyAvailable for items that already have a filename
                 if (!string.IsNullOrEmpty(item.LocalFileName))
                 {
-                    var fullPath = Path.Combine(_audioFilesDirectory, item.LocalFileName);
+                    var fullPath = Path.Combine(AudioFilesDirectory, item.LocalFileName);
                     item.IsLocallyAvailable = File.Exists(fullPath);
                     continue;
                 }
@@ -463,13 +477,13 @@ namespace DiceAudio
         /// </summary>
         public List<string> GetUnclaimedMp3Files(List<DAAudioItem> audioItems)
         {
-            if (!Directory.Exists(_audioFilesDirectory)) return new();
+            if (!Directory.Exists(AudioFilesDirectory)) return new();
 
             var claimed = new HashSet<string>(
                 audioItems.Where(a => !string.IsNullOrEmpty(a.LocalFileName)).Select(a => a.LocalFileName),
                 StringComparer.OrdinalIgnoreCase);
 
-            return Directory.GetFiles(_audioFilesDirectory, "*.mp3")
+            return Directory.GetFiles(AudioFilesDirectory, "*.mp3")
                 .Select(f => Path.GetFileName(f))
                 .Where(f => !claimed.Contains(f))
                 .ToList();

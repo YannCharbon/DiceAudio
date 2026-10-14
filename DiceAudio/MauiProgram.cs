@@ -6,6 +6,7 @@
  * See the LICENSE file in the repository root for details.
  */
 
+using DiceAudio.Integrations;
 using DiceAudio.Storage;
 using Microsoft.Extensions.Logging;
 using Microsoft.Maui.LifecycleEvents;
@@ -130,8 +131,37 @@ namespace DiceAudio
 
             builder.AddAudio();
 
+            // Where the data is, and the store every data file goes through.
+            // Built first, before anything reads a file or a preference: in a
+            // debug run on a sandbox (DICE_DATA_DIR) both are the sandbox's,
+            // never the real ones of this computer.
+#if DEBUG
+            string? debugOverride = Environment.GetEnvironmentVariable(DataLocation.DebugOverrideVariable);
+#else
+            string? debugOverride = null;
+#endif
+            if (string.IsNullOrWhiteSpace(debugOverride))
+                debugOverride = null;
+
+            var localPreferences = LocalPreferences.Create(debugOverride, () => new MauiLocalPreferences());
+            var dataLocation = new DataLocation("DiceAudio", debugOverride ?? FileSystem.AppDataDirectory,
+                                                localPreferences, GetMachineName(), debugOverride);
+            System.Diagnostics.Debug.WriteLine(
+                $"Data folder: {dataLocation.Root} ({dataLocation.State}{(dataLocation.IsDebugOverride ? ", " + DataLocation.DebugOverrideVariable : "")})");
+#if DEBUG
+            // Until the startup screen exists, a folder that cannot be used
+            // stops a debug run here rather than showing an empty library.
+            if (dataLocation.State != DataLocationState.Ok)
+            {
+                throw new InvalidOperationException(
+                    $"The data folder {dataLocation.Root} cannot be used ({dataLocation.State}). Check {DataLocation.DebugOverrideVariable}.");
+            }
+#endif
+            builder.Services.AddSingleton<ILocalPreferences>(localPreferences);
+            builder.Services.AddSingleton(dataLocation);
+            builder.Services.AddSingleton(new SafeFileStore(dataLocation.GetPath));
+
             builder.Services.AddMudServices();
-            builder.Services.AddSingleton(new SafeFileStore(name => Path.Combine(FileSystem.AppDataDirectory, name)));
             builder.Services.AddSingleton<DiceAudioService>();
             builder.Services.AddSingleton<DAPlaybackCoordinator>();
             builder.Services.AddSingleton<DAControlServer>();
@@ -150,10 +180,30 @@ namespace DiceAudio
             var app = builder.Build();
             ServiceProvider = app.Services; // Assign the root service provider
 
+            // Reads the library in the background; every save waits for it.
+            // A folder that cannot be used (only possible in a release build,
+            // a debug build stops above) is never read and never written: its
+            // files are blocked, and the user is told by the main layout until
+            // the startup screen exists.
+            var diceAudioService = app.Services.GetRequiredService<DiceAudioService>();
+            if (dataLocation.State == DataLocationState.Ok)
+                _ = diceAudioService.InitializeAsync();
+            else
+                diceAudioService.MarkDataFolderUnusable($"The data folder cannot be used ({dataLocation.State}).");
+
             // Start the remote-control server if the user enabled it in Settings.
             app.Services.GetRequiredService<DAControlServer>().ApplySavedSettings();
 
             return app;
+        }
+
+        private static string GetMachineName()
+        {
+#if ANDROID
+            return DeviceInfo.Current.Name;
+#else
+            return Environment.MachineName;
+#endif
         }
     }
 }

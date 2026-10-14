@@ -7,6 +7,7 @@
  */
 
 using System.Text;
+using DiceAudio.Storage;
 using System.Text.Json;
 
 namespace DiceAudio
@@ -39,17 +40,20 @@ namespace DiceAudio
             false;
 #endif
 
-        public DAControlServer(DiceAudioService service, DAPlaybackCoordinator coordinator)
+        private readonly ILocalPreferences _localPreferences;
+
+        public DAControlServer(DiceAudioService service, DAPlaybackCoordinator coordinator, ILocalPreferences localPreferences)
         {
             _service = service;
             _coordinator = coordinator;
+            _localPreferences = localPreferences;
         }
 
         /// <summary>Starts the server if the user enabled it in Settings.</summary>
         public void ApplySavedSettings()
         {
-            if (Preferences.Default.Get(PrefEnabled, false))
-                Start(Preferences.Default.Get(PrefPort, DefaultPort));
+            if (_localPreferences.Get(PrefEnabled, false))
+                Start(_localPreferences.Get(PrefPort, DefaultPort));
         }
 
 #if WINDOWS

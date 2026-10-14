@@ -243,13 +243,19 @@
 
     async Task ImportAsync()
     {
+        if (!DAService.CanWriteData)
+        {
+            _resultMessage = DiceAudio.Resources.Localization.Portability.DataFolderUnusable;
+            return;
+        }
+
         _importing = true;
         _progress = 0;
         _progressTotal = _entries.Count;
         _resultMessage = "";
         int imported = 0, skipped = 0, failed = 0;
 
-        var audioDir = Path.Combine(FileSystem.AppDataDirectory, "Audio");
+        var audioDir = DAService.AudioDir;
         Directory.CreateDirectory(audioDir);
 
         foreach (var entry in _entries)
@@ -271,7 +277,7 @@
                     continue;
                 }
 
-                var destName = DAImportHelper.GetUniqueLibraryFileName(entry.Name);
+                var destName = DAImportHelper.GetUniqueLibraryFileName(audioDir, entry.Name);
                 var sourcePath = entry.FullPath;
                 await Task.Run(() => File.Copy(sourcePath, Path.Combine(audioDir, destName)));
 

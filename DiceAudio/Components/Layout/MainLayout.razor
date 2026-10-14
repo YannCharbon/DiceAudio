@@ -17,21 +17,21 @@
 
 @* A data file that could not be read at startup, or a save that failed:
    the user must see it and acknowledge it, so it is a dialog rather than
-   a toast that fades away. *@
+   a toast that fades away. Drawn like DaConfirm, with a single button and
+   no title, as in DiceCombats: there is nothing to decide, only something
+   to know. *@
 @if (_storageNotices.Count > 0)
 {
-    var notice = _storageNotices[0];
     <div class="da-confirm-scrim">
-        <div class="da-confirm" role="alertdialog" aria-modal="true" aria-labelledby="da-storage-notice-t">
-            <h3 id="da-storage-notice-t" class="da-confirm-title">@notice.Title</h3>
-            @foreach (var line in notice.Lines)
+        <div class="da-confirm" role="alertdialog" aria-modal="true">
+            @foreach (var line in _storageNotices)
             {
                 <p class="da-confirm-msg">@line</p>
             }
             <div class="da-confirm-foot">
                 <button type="button" class="da-btn da-btn-fill" @onclick="CloseStorageNotice">
                     <DaIcon Name="check" />
-                    @Portability.OkBtn
+                    @Portability.AlertCloseBtn
                 </button>
             </div>
         </div>
@@ -72,10 +72,10 @@
             },
     };
 
-    /// The notices waiting to be read, oldest first; the first one is shown.
-    /// Each keeps its own title: a failed save is never listed under the
-    /// title of a failed load, or the reverse.
-    private readonly List<(string Title, List<string> Lines)> _storageNotices = new();
+    /// The messages waiting to be read, oldest first. Each one names its own
+    /// file and says whether it could not be read or not be saved, so they
+    /// can be shown together without a title that would fit only some.
+    private readonly List<string> _storageNotices = new();
 
     protected override void OnInitialized()
     {
@@ -90,30 +90,24 @@
         if (AudioService.UnreadableFilesNoticeShown || AudioService.UnreadableFiles.Count == 0) return;
 
         AudioService.UnreadableFilesNoticeShown = true;
-        ShowStorageNotice(Portability.ErrorLoadFailedTitle,
-                          AudioService.UnreadableFiles.Select(f => string.Format(Portability.ErrorLoadFailed, f)));
+        ShowStorageNotice(AudioService.UnreadableFiles.Select(f => string.Format(Portability.ErrorLoadFailed, f)));
     }
 
     // Raised on whatever thread the save ran on.
     private void OnSaveFailed(string fileName, Exception error) =>
-        _ = InvokeAsync(() => ShowStorageNotice(Portability.ErrorSaveFailedTitle,
-                                                new[] { string.Format(Portability.ErrorSaveFailed, fileName) }));
+        _ = InvokeAsync(() => ShowStorageNotice(new[] { string.Format(Portability.ErrorSaveFailed, fileName) }));
 
-    private void ShowStorageNotice(string title, IEnumerable<string> lines)
+    private void ShowStorageNotice(IEnumerable<string> lines)
     {
-        // A notice of the same kind still waiting takes the new lines (one
-        // dialog for several failed saves); any other kind queues behind.
-        int same = _storageNotices.FindIndex(n => n.Title == title);
-        if (same >= 0)
-            _storageNotices[same] = (title, _storageNotices[same].Lines.Concat(lines).Distinct().ToList());
-        else
-            _storageNotices.Add((title, lines.ToList()));
+        // A message already waiting (the same file failing again) is not repeated.
+        foreach (var line in lines)
+            if (!_storageNotices.Contains(line)) _storageNotices.Add(line);
         StateHasChanged();
     }
 
     private void CloseStorageNotice()
     {
-        if (_storageNotices.Count > 0) _storageNotices.RemoveAt(0);
+        _storageNotices.Clear();
     }
 
     public void Dispose()

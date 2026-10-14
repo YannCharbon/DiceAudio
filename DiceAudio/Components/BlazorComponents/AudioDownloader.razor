@@ -389,7 +389,7 @@
             !string.IsNullOrEmpty(a.LocalFileName));
         if (fromLibrary != null) return fromLibrary.LocalFileName;
 
-        var audioDir = Path.Combine(FileSystem.AppDataDirectory, "Audio");
+        var audioDir = DAService.AudioDir;
         if (!Directory.Exists(audioDir)) return null;
 
         var claimed = new HashSet<string>(

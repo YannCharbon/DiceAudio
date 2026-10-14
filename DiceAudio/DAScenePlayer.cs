@@ -768,7 +768,7 @@ namespace DiceAudio
             var item = _service.AudioItems.FirstOrDefault(a => a.Id == usage.AudioItemId);
             if (item == null) return null;
 
-            var playablePath = DAScenarioItemPlayer.GetPlayablePath(item.LocalFileName);
+            var playablePath = _service.GetPlayablePath(item.LocalFileName);
             if (playablePath == null) return null;
 
             try { return DAAudioPlayer.Create(playablePath, usage, _audioManager, _bus); }

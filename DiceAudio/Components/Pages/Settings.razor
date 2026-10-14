@@ -13,6 +13,7 @@
 @inject DiceAudioService AudioService
 @inject DAControlServer ControlServer
 @inject YtDlpUpdateService YtDlpUpdates
+@inject DiceAudio.Storage.ILocalPreferences LocalPreferences
 
 @* Laid out like DiceCombats' settings page, so the two apps' settings read as
    one screen in two colours: a da-h1 title over a da-sub, each section
@@ -147,7 +148,7 @@
                 weeks, so DiceAudio checks for a newer one at startup, at most twice a day, and shows
                 the progress on the loading screen. Turn this off to keep the version you have.
                 <br />
-                @(YtDlpUpdateService.IsUsingDownloadedBinary
+                @(YtDlpUpdates.IsUsingDownloadedBinary
                     ? "In use: a downloaded update."
                     : "In use: the version that shipped with DiceAudio.")
                 @if (YtDlpUpdates.LastCheckUtc is DateTime checkedAt)
@@ -245,8 +246,8 @@
 
     protected override void OnInitialized()
     {
-        _serverEnabled = Preferences.Default.Get(DAControlServer.PrefEnabled, false);
-        _serverPort = Preferences.Default.Get(DAControlServer.PrefPort, DAControlServer.DefaultPort);
+        _serverEnabled = LocalPreferences.Get(DAControlServer.PrefEnabled, false);
+        _serverPort = LocalPreferences.Get(DAControlServer.PrefPort, DAControlServer.DefaultPort);
         _ytDlpAutoUpdate = YtDlpUpdates.AutoUpdateEnabled;
     }
 
@@ -313,7 +314,7 @@
     void OnServerToggled(bool enabled)
     {
         _serverEnabled = enabled;
-        Preferences.Default.Set(DAControlServer.PrefEnabled, enabled);
+        LocalPreferences.Set(DAControlServer.PrefEnabled, enabled);
         if (enabled) ControlServer.Start(_serverPort);
         else ControlServer.Stop();
     }
@@ -321,7 +322,7 @@
     void OnPortChanged(int port)
     {
         _serverPort = port;
-        Preferences.Default.Set(DAControlServer.PrefPort, port);
+        LocalPreferences.Set(DAControlServer.PrefPort, port);
         if (_serverEnabled) ControlServer.Start(port);   // restart on the new port
     }
 

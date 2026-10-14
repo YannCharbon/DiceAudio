@@ -8,6 +8,7 @@
 
 @using Plugin.Maui.Audio
 @inject IAudioManager AudioManager
+@inject DiceAudioService AudioFiles
 @inject IJSRuntime JS
 @implements IDisposable
 
@@ -565,7 +566,7 @@
         _viewDuration = 0;
         _previewPosition = 0;
 
-        var playablePath = DAScenarioItemPlayer.GetPlayablePath(item.LocalFileName);
+        var playablePath = AudioFiles.GetPlayablePath(item.LocalFileName);
         if (playablePath != null)
         {
             try
@@ -760,7 +761,7 @@
         if (Usage == null || Item == null) return;
         StopPreview();
 
-        var playablePath = DAScenarioItemPlayer.GetPlayablePath(Item.LocalFileName);
+        var playablePath = AudioFiles.GetPlayablePath(Item.LocalFileName);
         if (playablePath == null) return;
 
         try

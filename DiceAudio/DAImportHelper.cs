@@ -105,11 +105,10 @@ namespace DiceAudio
 
         /// <summary>
         /// Returns a file name that does not collide with anything in the Audio
-        /// library directory ("Name.mp3" → "Name (2).mp3" …).
+        /// library directory <paramref name="audioDir"/> ("Name.mp3" → "Name (2).mp3" …).
         /// </summary>
-        public static string GetUniqueLibraryFileName(string originalFileName)
+        public static string GetUniqueLibraryFileName(string audioDir, string originalFileName)
         {
-            var audioDir = Path.Combine(FileSystem.AppDataDirectory, "Audio");
             Directory.CreateDirectory(audioDir);
 
             var baseName = Path.GetFileNameWithoutExtension(originalFileName);

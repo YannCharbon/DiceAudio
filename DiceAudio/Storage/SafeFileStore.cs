@@ -1,351 +1,305 @@
-﻿// Mirrored in DiceCombats/DiceCombats/Storage/SafeFileStore.cs — keep both in sync.
-// SPDX-License-Identifier: GPL-3.0-or-later
+/*
+ * Copyright (C) 2025 Yann Charbon
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ *
+ * Shared by DiceAudio and DiceCombats, both released under the GNU GPL v3.
+ * See the LICENSE file in the repository root for details.
+ */
+// Mirrored in DiceCombats/DiceCombats/Storage/SafeFileStore.cs — keep both in sync.
 
 using System.Collections.Concurrent;
 using System.Diagnostics;
-using System.Runtime.ExceptionServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 
-namespace DiceAudio.Storage
+namespace DiceAudio.Storage;
+
+public enum SaveOutcome { Written, Unchanged, Blocked, ChangedOnDisk }
+public enum LoadOutcome { Loaded, Missing, Failed }
+public sealed record LoadResult<T>(LoadOutcome Outcome, T? Value, string? Error);
+
+/// <summary>
+/// Reads and writes the data files without ever leaving one half written.
+/// <list type="bullet">
+/// <item>One lock per file.</item>
+/// <item>The value is serialised when the save is asked for, so later changes
+/// in memory do not leak into a save already on its way.</item>
+/// <item>A file is written only when its content changed since it was last
+/// read or written.</item>
+/// <item>The new content goes to name.tmp, then replaces the file, whose
+/// previous version is kept as name.bak.</item>
+/// <item>A file that exists but cannot be read is never saved over during
+/// this session.</item>
+/// </list>
+/// </summary>
+public sealed class SafeFileStore
 {
-    public enum SaveOutcome { Written, Unchanged, Blocked, ChangedOnDisk }
+    private static readonly UTF8Encoding Utf8NoBom = new(false);
+    private static readonly UTF8Encoding StrictUtf8 = new(false, throwOnInvalidBytes: true);
+    private static readonly byte[] Utf8Bom = { 0xEF, 0xBB, 0xBF };
+    private static readonly int[] RetryDelaysMs = { 200, 400, 800, 1600 };
 
-    public enum LoadOutcome { Loaded, Missing, Failed }
+    private readonly Func<string, string> _resolvePath;
+    private readonly ConcurrentDictionary<string, FileState> _files = new(StringComparer.OrdinalIgnoreCase);
+    private readonly object _pendingGate = new();
+    private readonly HashSet<Task> _pending = new();
 
-    public sealed record LoadResult<T>(LoadOutcome Outcome, T? Value, string? Error);
+    /// <param name="resolvePath">Turns a file name into a full path; DataLocation.GetPath.</param>
+    public SafeFileStore(Func<string, string> resolvePath)
+    {
+        _resolvePath = resolvePath;
+    }
 
     /// <summary>
-    /// Reads and writes the app's data files so that a crash, a locked file or
-    /// an unreadable file never costs the user their data:
-    /// <list type="bullet">
-    /// <item>a save goes to <c>name.tmp</c> first and then replaces the file in
-    /// one step, keeping the previous version as <c>name.bak</c>;</item>
-    /// <item>a save whose content did not change writes nothing;</item>
-    /// <item>a file that exists but cannot be read is never saved over for the
-    /// rest of the session, so the user can still recover it.</item>
-    /// </list>
-    /// No MAUI calls in here: the app passes in how a file name becomes a path.
+    /// Raised when a save gives up after its retries; the app tells the user.
+    /// Never raised for a save that returns Blocked or ChangedOnDisk.
     /// </summary>
-    public sealed class SafeFileStore
+    public event Action<string, Exception>? SaveFailed;
+
+    /// <summary>The files that failed to load, and that are therefore never saved over in this session.</summary>
+    public IReadOnlyCollection<string> BlockedFiles =>
+        _files.Where(f => f.Value.Blocked).Select(f => f.Key).OrderBy(f => f, StringComparer.OrdinalIgnoreCase).ToList();
+
+    public bool IsBlocked(string fileName) => _files.TryGetValue(fileName, out var state) && state.Blocked;
+
+    /// <summary>
+    /// Marks a file as one that must not be saved over in this session, for a
+    /// failure the store could not see itself (the caller failed to use what
+    /// was loaded). A save already writing finishes; every later one is Blocked.
+    /// </summary>
+    public void Block(string fileName, string reason)
     {
-        /// Waits between the attempts of a save (or a read) that hits a locked
-        /// file: five attempts in all, about three seconds before giving up.
-        private static readonly int[] RetryDelaysMs = { 200, 400, 800, 1600 };
+        var state = GetState(fileName);
+        Debug.WriteLine($"{fileName} is blocked: {reason}");
+        state.LoadError = reason;
+        state.Blocked = true;
+    }
 
-        private static readonly UTF8Encoding Utf8NoBom = new(encoderShouldEmitUTF8Identifier: false);
+    /// <summary>
+    /// Loads and deserialises a file. A file that exists but cannot be read,
+    /// is not valid UTF-8, is not valid JSON or holds only <c>null</c> is Failed
+    /// and blocked.
+    /// </summary>
+    public Task<LoadResult<T>> LoadJsonAsync<T>(string fileName, JsonSerializerOptions options, CancellationToken ct = default)
+    {
+        return LoadCoreAsync(fileName, text => JsonSerializer.Deserialize<T>(text, options)
+                                               ?? throw new JsonException("The file holds no data (null)."), ct);
+    }
 
-        private readonly Func<string, string> _resolvePath;
-        private readonly ConcurrentDictionary<string, FileState> _files = new(StringComparer.OrdinalIgnoreCase);
+    public Task<LoadResult<string>> LoadTextAsync(string fileName, CancellationToken ct = default)
+    {
+        return LoadCoreAsync<string>(fileName, text => text, ct);
+    }
 
-        /// Every save not finished yet, so <see cref="FlushAsync"/> can wait for them.
-        private readonly ConcurrentDictionary<Task, byte> _pending = new();
-
-        public SafeFileStore(Func<string, string> resolvePath)
-        {
-            _resolvePath = resolvePath ?? throw new ArgumentNullException(nameof(resolvePath));
-        }
-
-        /// <summary>Raised when a save gives up after its retries; the UI shows ErrorSaveFailed.</summary>
-        public event Action<string, Exception>? SaveFailed;
-
-        /// <summary>The files whose load failed, which this session never writes.</summary>
-        public IReadOnlyCollection<string> BlockedFiles =>
-            _files.Where(f => f.Value.Blocked).Select(f => f.Key).OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToList();
-
-        public bool IsBlocked(string fileName) =>
-            _files.TryGetValue(fileName, out var state) && state.Blocked;
-
-        /// <summary>
-        /// Marks a file as not to be written for the rest of the session, for a
-        /// file whose content could not be taken in even though it was read.
-        /// </summary>
-        public void Block(string fileName)
-        {
-            var state = StateOf(fileName);
-            state.Blocked = true;
-            state.Hash = null;
-        }
-
-        /// <summary>
-        /// Drops what the store remembers about a file (its hash and its block),
-        /// after a restore or a reload has put a new version in place.
-        /// </summary>
-        public void ForgetFile(string fileName)
-        {
-            if (_files.TryGetValue(fileName, out var state))
-            {
-                state.Hash = null;
-                state.Blocked = false;
-            }
-        }
-
-        // ── Loading ────────────────────────────────────────────────────────
-
-        public async Task<LoadResult<T>> LoadJsonAsync<T>(string fileName, JsonSerializerOptions options, CancellationToken ct = default)
-        {
-            var state = StateOf(fileName);
-            await state.Gate.WaitAsync(ct).ConfigureAwait(false);
-            try
-            {
-                var text = await ReadLockedAsync(fileName, state, ct).ConfigureAwait(false);
-                if (text.Outcome != LoadOutcome.Loaded)
-                    return new LoadResult<T>(text.Outcome, default, text.Error);
-
-                try
-                {
-                    var value = JsonSerializer.Deserialize<T>(text.Value!, options);
-                    // "null" is valid JSON but no data file of the apps ever holds
-                    // it, so it is treated as damage rather than as an empty list.
-                    if (value == null)
-                        return Fail<T>(state, "The file contains no data.");
-                    return new LoadResult<T>(LoadOutcome.Loaded, value, null);
-                }
-                catch (Exception ex) when (ex is not OperationCanceledException)
-                {
-                    return Fail<T>(state, ex.Message);
-                }
-            }
-            finally
-            {
-                state.Gate.Release();
-            }
-        }
-
-        public async Task<LoadResult<string>> LoadTextAsync(string fileName, CancellationToken ct = default)
-        {
-            var state = StateOf(fileName);
-            await state.Gate.WaitAsync(ct).ConfigureAwait(false);
-            try
-            {
-                return await ReadLockedAsync(fileName, state, ct).ConfigureAwait(false);
-            }
-            finally
-            {
-                state.Gate.Release();
-            }
-        }
-
-        /// Reads the file while its gate is held. Remembers the hash of what was
-        /// read, or blocks the file when it exists but cannot be read.
-        private async Task<LoadResult<string>> ReadLockedAsync(string fileName, FileState state, CancellationToken ct)
+    // Reads and parses under the file's lock, so that no save can slip in
+    // between a read that worked and a parse that failed.
+    private async Task<LoadResult<T>> LoadCoreAsync<T>(string fileName, Func<string, T> parse, CancellationToken ct)
+    {
+        var state = GetState(fileName);
+        await state.Lock.WaitAsync(ct).ConfigureAwait(false);
+        try
         {
             string path = _resolvePath(fileName);
             if (!File.Exists(path))
             {
-                string bak = path + ".bak", tmp = path + ".tmp";
-                if (!File.Exists(bak) && !File.Exists(tmp))
+                // Only a leftover of an interrupted write: the data is not
+                // gone, so the file must not be recreated empty.
+                string? leftover = new[] { path + ".bak", path + ".tmp" }.FirstOrDefault(File.Exists);
+                if (leftover != null)
                 {
-                    state.Hash = null;
-                    state.Blocked = false;
-                    return new LoadResult<string>(LoadOutcome.Missing, null, null);
+                    string reason = $"Only the previous copy ({Path.GetFileName(leftover)}) was found";
+                    MarkFailed(state, fileName, reason);
+                    return new LoadResult<T>(LoadOutcome.Failed, default, reason);
                 }
 
-                // A save was cut off between its steps: the file is gone but its
-                // previous version is still there. Put that back rather than
-                // starting from nothing, which the next save would make final.
-                if (!File.Exists(bak))
-                    return Fail<string>(state, $"{fileName} is missing, and only an unfinished save of it ({fileName}.tmp) was found.");
-                try
-                {
-                    File.Move(bak, path);
-                    Debug.WriteLine($"{fileName} was missing; restored it from {fileName}.bak.");
-                }
-                catch (Exception ex) when (ex is not OperationCanceledException)
-                {
-                    return Fail<string>(state, $"{fileName} is missing, and {fileName}.bak could not be put back: {ex.Message}");
-                }
+                state.Hash = null;
+                state.Blocked = false;
+                state.LoadError = null;
+                return new LoadResult<T>(LoadOutcome.Missing, default, null);
             }
 
             try
             {
                 byte[] bytes = await WithRetriesAsync(() => File.ReadAllBytesAsync(path, ct), ct).ConfigureAwait(false);
-                // Strict decoding: invalid UTF-8 is damage, not something to
-                // paper over with replacement characters and save back.
-                string text = new UTF8Encoding(false, throwOnInvalidBytes: true).GetString(StripBom(bytes));
+                ReadOnlySpan<byte> body = bytes.AsSpan().StartsWith(Utf8Bom) ? bytes.AsSpan(Utf8Bom.Length) : bytes;
+                T value = parse(StrictUtf8.GetString(body));
                 state.Hash = HashOf(bytes);
-                state.Blocked = false;
-                return new LoadResult<string>(LoadOutcome.Loaded, text, null);
+                return new LoadResult<T>(LoadOutcome.Loaded, value, null);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                return Fail<string>(state, ex.Message);
+                MarkFailed(state, fileName, ex.Message);
+                return new LoadResult<T>(LoadOutcome.Failed, default, ex.Message);
             }
         }
-
-        private static LoadResult<T> Fail<T>(FileState state, string error)
+        finally
         {
-            state.Blocked = true;
-            state.Hash = null;
-            return new LoadResult<T>(LoadOutcome.Failed, default, error);
+            state.Lock.Release();
+        }
+    }
+
+    public Task<SaveOutcome> SaveJsonAsync<T>(string fileName, T value, JsonSerializerOptions options, bool overwriteExternalChange = false, CancellationToken ct = default)
+    {
+        // Serialised now, on the caller's thread: the snapshot is what the
+        // caller had in memory at the moment it asked.
+        string text = JsonSerializer.Serialize(value, options);
+        return SaveTextAsync(fileName, text, overwriteExternalChange, ct);
+    }
+
+    /// <param name="overwriteExternalChange">
+    /// False: when the file on disk is no longer what was last read or
+    /// written here (another computer changed it), nothing is written and the
+    /// result is ChangedOnDisk.
+    /// </param>
+    public Task<SaveOutcome> SaveTextAsync(string fileName, string content, bool overwriteExternalChange = false, CancellationToken ct = default)
+    {
+        var state = GetState(fileName);
+        long generation = Interlocked.Increment(ref state.Generation);
+        // The writing itself runs on the thread pool: the caller is often the
+        // UI thread, and on close it is blocked waiting for FlushAsync.
+        var task = Task.Run(() => SaveAndReportAsync(fileName, state, content, generation, overwriteExternalChange, ct), CancellationToken.None);
+
+        lock (_pendingGate)
+        {
+            _pending.Add(task);
+        }
+        task.ContinueWith(t => { lock (_pendingGate) { _pending.Remove(t); } },
+                          CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+        return task;
+    }
+
+    /// <summary>Awaits every save started before the call. Throws if one of them failed.</summary>
+    public Task FlushAsync(CancellationToken ct = default)
+    {
+        Task[] pending;
+        lock (_pendingGate)
+        {
+            pending = _pending.ToArray();
+        }
+        return pending.Length == 0 ? Task.CompletedTask : Task.WhenAll(pending).WaitAsync(ct);
+    }
+
+    /// <summary>After a restore or a reload: forgets what was read or written, and the block.</summary>
+    public void ForgetFile(string fileName)
+    {
+        var state = GetState(fileName);
+        state.Hash = null;
+        state.Blocked = false;
+        state.LoadError = null;
+    }
+
+    // SaveFailed is raised here, once the file's lock is released, so that a
+    // handler can never hold up the other saves of the file.
+    private async Task<SaveOutcome> SaveAndReportAsync(string fileName, FileState state, string content, long generation, bool overwriteExternalChange, CancellationToken ct)
+    {
+        try
+        {
+            return await SaveCoreAsync(fileName, state, content, generation, overwriteExternalChange, ct).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Debug.WriteLine($"Saving {fileName} failed: {ex}");
+            SaveFailed?.Invoke(fileName, ex);
+            throw;
+        }
+    }
+
+    private async Task<SaveOutcome> SaveCoreAsync(string fileName, FileState state, string content, long generation, bool overwriteExternalChange, CancellationToken ct)
+    {
+        await state.Lock.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            if (state.Blocked) return SaveOutcome.Blocked;
+
+            // A newer snapshot of this file is already waiting: it is the one
+            // to write, and writing this older one first would only cost time.
+            if (generation != Interlocked.Read(ref state.Generation)) return SaveOutcome.Unchanged;
+
+            string path = _resolvePath(fileName);
+            byte[] bytes = Utf8NoBom.GetBytes(content);
+            string hash = HashOf(bytes);
+            if (File.Exists(path) && hash == state.Hash) return SaveOutcome.Unchanged;
+
+            var outcome = await WithRetriesAsync(async () =>
+            {
+                if (!overwriteExternalChange && DiskHash(path) != state.Hash)
+                {
+                    return SaveOutcome.ChangedOnDisk;
+                }
+                await WriteReplaceAsync(path, bytes, ct).ConfigureAwait(false);
+                return SaveOutcome.Written;
+            }, ct).ConfigureAwait(false);
+
+            if (outcome == SaveOutcome.Written)
+            {
+                state.Hash = hash;
+            }
+            return outcome;
+        }
+        finally
+        {
+            state.Lock.Release();
+        }
+    }
+
+    private static string? DiskHash(string path) => File.Exists(path) ? HashOf(File.ReadAllBytes(path)) : null;
+
+    private static async Task WriteReplaceAsync(string path, byte[] bytes, CancellationToken ct)
+    {
+        string tmp = path + ".tmp";
+        await using (var stream = new FileStream(tmp, FileMode.Create, FileAccess.Write, FileShare.None, 81920, FileOptions.Asynchronous))
+        {
+            await stream.WriteAsync(bytes, ct).ConfigureAwait(false);
+            await stream.FlushAsync(ct).ConfigureAwait(false);
+            stream.Flush(flushToDisk: true);
         }
 
-        // ── Saving ─────────────────────────────────────────────────────────
-
-        /// <summary>
-        /// Serialises <paramref name="value"/> now, as it is at the time of the
-        /// call, then writes it in the background of the returned task.
-        /// </summary>
-        public Task<SaveOutcome> SaveJsonAsync<T>(string fileName, T value, JsonSerializerOptions options,
-                                                  bool overwriteExternalChange = false, CancellationToken ct = default)
+        if (File.Exists(path))
         {
-            string text = JsonSerializer.Serialize(value, options);
-            return SaveTextAsync(fileName, text, overwriteExternalChange, ct);
+            File.Replace(tmp, path, path + ".bak", ignoreMetadataErrors: true);
         }
-
-        public Task<SaveOutcome> SaveTextAsync(string fileName, string content,
-                                               bool overwriteExternalChange = false, CancellationToken ct = default)
+        else
         {
-            var state = StateOf(fileName);
-            long sequence = Interlocked.Increment(ref state.LastRequested);
-
-            var task = SaveCoreAsync(fileName, state, sequence, content, overwriteExternalChange, ct);
-            _pending.TryAdd(task, 0);
-            _ = task.ContinueWith(t => _pending.TryRemove(t, out _), CancellationToken.None,
-                                  TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
-            return task;
+            File.Move(tmp, path);
         }
+    }
 
-        private async Task<SaveOutcome> SaveCoreAsync(string fileName, FileState state, long sequence, string content,
-                                                      bool overwriteExternalChange, CancellationToken ct)
+    // 5 attempts while the file is locked (by an antivirus, a sync client or
+    // another window), waiting 200, 400, 800 then 1600 ms between them.
+    private static async Task<T> WithRetriesAsync<T>(Func<Task<T>> action, CancellationToken ct)
+    {
+        for (int attempt = 0; ; attempt++)
         {
-            ExceptionDispatchInfo? failure;
-            await state.Gate.WaitAsync(ct).ConfigureAwait(false);
             try
             {
-                if (state.Blocked) return SaveOutcome.Blocked;
-
-                // A newer snapshot of this file has already been written while
-                // this one waited for the gate: writing this one would put older
-                // data back.
-                if (sequence < state.LastWritten) return SaveOutcome.Unchanged;
-
-                string path = _resolvePath(fileName);
-                byte[] bytes = Utf8NoBom.GetBytes(content);
-                string hash = HashOf(bytes);
-
-                bool exists = File.Exists(path);
-                if (exists && hash == state.Hash)
-                {
-                    state.LastWritten = sequence;
-                    return SaveOutcome.Unchanged;
-                }
-
-                try
-                {
-                    return await WithRetriesAsync(async () =>
-                    {
-                        // Someone else (another computer, an editor) changed the
-                        // file since it was read or last written here.
-                        if (!overwriteExternalChange && state.Hash != null && File.Exists(path))
-                        {
-                            string onDisk = HashOf(await File.ReadAllBytesAsync(path, ct).ConfigureAwait(false));
-                            if (onDisk != state.Hash) return SaveOutcome.ChangedOnDisk;
-                        }
-
-                        await WriteReplaceAsync(path, bytes, ct).ConfigureAwait(false);
-                        state.Hash = hash;
-                        state.LastWritten = sequence;
-                        return SaveOutcome.Written;
-                    }, ct).ConfigureAwait(false);
-                }
-                catch (Exception ex) when (ex is not OperationCanceledException)
-                {
-                    failure = ExceptionDispatchInfo.Capture(ex);
-                }
+                return await action().ConfigureAwait(false);
             }
-            finally
+            catch (Exception ex) when ((ex is IOException or UnauthorizedAccessException) && attempt < RetryDelaysMs.Length)
             {
-                state.Gate.Release();
-            }
-
-            // Raised once the gate is free, so a handler that saves again (or
-            // shows UI that does) cannot wait on this file's own lock.
-            SaveFailed?.Invoke(fileName, failure.SourceException);
-            failure.Throw();
-            return SaveOutcome.Blocked; // not reached
-        }
-
-        /// Writes <c>path.tmp</c>, forces it to disk, then swaps it in. The old
-        /// file becomes <c>path.bak</c>, which the app never reads.
-        private static async Task WriteReplaceAsync(string path, byte[] bytes, CancellationToken ct)
-        {
-            string tmp = path + ".tmp";
-            await using (var stream = new FileStream(tmp, FileMode.Create, FileAccess.Write, FileShare.None,
-                                                     bufferSize: 81920, useAsync: true))
-            {
-                await stream.WriteAsync(bytes, ct).ConfigureAwait(false);
-                await stream.FlushAsync(ct).ConfigureAwait(false);
-                stream.Flush(flushToDisk: true);
-            }
-
-            if (File.Exists(path))
-                File.Replace(tmp, path, path + ".bak", ignoreMetadataErrors: true);
-            else
-                File.Move(tmp, path);
-        }
-
-        /// <summary>
-        /// Waits for every save started before this call. A save that failed has
-        /// already raised <see cref="SaveFailed"/>, so its error is not thrown
-        /// again here.
-        /// </summary>
-        public async Task FlushAsync(CancellationToken ct = default)
-        {
-            var pending = _pending.Keys.ToArray();
-            if (pending.Length == 0) return;
-
-            try
-            {
-                await Task.WhenAll(pending).WaitAsync(ct).ConfigureAwait(false);
-            }
-            catch (Exception) when (!ct.IsCancellationRequested)
-            {
-                // Reported through SaveFailed and to the caller of that save.
+                Debug.WriteLine($"File access failed, attempt {attempt + 1}: {ex.Message}");
+                await Task.Delay(RetryDelaysMs[attempt], ct).ConfigureAwait(false);
             }
         }
+    }
 
-        // ── Helpers ────────────────────────────────────────────────────────
+    private static void MarkFailed(FileState state, string fileName, string reason)
+    {
+        Debug.WriteLine($"Loading {fileName} failed, it will not be saved over: {reason}");
+        state.LoadError = reason;
+        state.Blocked = true;
+    }
 
-        private FileState StateOf(string fileName) => _files.GetOrAdd(fileName, _ => new FileState());
+    private FileState GetState(string fileName) => _files.GetOrAdd(fileName, _ => new FileState());
 
-        private static async Task<TResult> WithRetriesAsync<TResult>(Func<Task<TResult>> action, CancellationToken ct)
-        {
-            for (int attempt = 0; ; attempt++)
-            {
-                try
-                {
-                    return await action().ConfigureAwait(false);
-                }
-                catch (Exception ex) when ((ex is IOException || ex is UnauthorizedAccessException)
-                                           && attempt < RetryDelaysMs.Length)
-                {
-                    await Task.Delay(RetryDelaysMs[attempt], ct).ConfigureAwait(false);
-                }
-            }
-        }
+    private static string HashOf(byte[] bytes) => Convert.ToHexStringLower(SHA256.HashData(bytes));
 
-        private static byte[] StripBom(byte[] bytes) =>
-            bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF
-                ? bytes[3..]
-                : bytes;
-
-        private static string HashOf(byte[] bytes) => Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
-
-        private sealed class FileState
-        {
-            public readonly SemaphoreSlim Gate = new(1, 1);
-
-            /// SHA-256 of the file as last read or written here; null when unknown.
-            public string? Hash;
-
-            public bool Blocked;
-
-            /// Sequence numbers of the save calls: the last one made, and the
-            /// last one whose content is known to be on disk.
-            public long LastRequested;
-            public long LastWritten;
-        }
+    private sealed class FileState
+    {
+        public readonly SemaphoreSlim Lock = new(1, 1);
+        public long Generation;
+        public volatile string? Hash;
+        public volatile bool Blocked;
+        public volatile string? LoadError;
     }
 }

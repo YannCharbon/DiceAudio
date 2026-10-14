@@ -8,6 +8,7 @@
 
 using System;
 using System.Diagnostics;
+using DiceAudio.Storage;
 using System.Globalization;
 using System.Net.Http;
 using System.Threading;
@@ -101,10 +102,12 @@ namespace DiceAudio
         private static readonly TimeSpan StallTimeout = TimeSpan.FromSeconds(20);
 
         private readonly YtDlpService _ytDlp;
+        private readonly ILocalPreferences _localPreferences;
 
-        public YtDlpUpdateService(YtDlpService ytDlp)
+        public YtDlpUpdateService(YtDlpService ytDlp, ILocalPreferences localPreferences)
         {
             _ytDlp = ytDlp;
+            _localPreferences = localPreferences;
         }
 
         /// <summary>Only the Windows build runs yt-dlp.exe, so only it can update one.</summary>
@@ -117,15 +120,15 @@ namespace DiceAudio
         /// </summary>
         public bool AutoUpdateEnabled
         {
-            get => Preferences.Default.Get(PrefAutoUpdate, true);
-            set => Preferences.Default.Set(PrefAutoUpdate, value);
+            get => _localPreferences.Get(PrefAutoUpdate, true);
+            set => _localPreferences.Set(PrefAutoUpdate, value);
         }
 
         /// <summary>
         /// True when the yt-dlp in use is a downloaded update rather than the copy
         /// that shipped with the application.
         /// </summary>
-        public static bool IsUsingDownloadedBinary => File.Exists(YtDlpService.ManagedExecutablePath);
+        public bool IsUsingDownloadedBinary => File.Exists(_ytDlp.ManagedExecutablePath);
 
         /// <summary>
         /// The version of the yt-dlp currently in use, or null when it cannot be run.
@@ -148,7 +151,7 @@ namespace DiceAudio
 
         /// <summary>When the last check ran, or null if it never did.</summary>
         public DateTime? LastCheckUtc =>
-            DateTime.TryParse(Preferences.Default.Get(PrefLastCheck, string.Empty),
+            DateTime.TryParse(_localPreferences.Get(PrefLastCheck, string.Empty),
                               CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var last)
                 ? last.ToUniversalTime()
                 : null;
@@ -171,7 +174,7 @@ namespace DiceAudio
             var last = LastCheckUtc;
             if (last == null) return true;
 
-            var interval = Preferences.Default.Get(PrefLastCheckFailed, false) ? RetryInterval : CheckInterval;
+            var interval = _localPreferences.Get(PrefLastCheckFailed, false) ? RetryInterval : CheckInterval;
             var age = DateTime.UtcNow - last.Value;
             return age >= interval || age < TimeSpan.Zero;
         }
@@ -269,7 +272,7 @@ namespace DiceAudio
             IProgress<YtDlpUpdateProgress>? progress,
             CancellationToken cancellationToken)
         {
-            var target = YtDlpService.ManagedExecutablePath;
+            var target = _ytDlp.ManagedExecutablePath;
             Directory.CreateDirectory(Path.GetDirectoryName(target)!);
 
             var temporary = target + ".part";
@@ -532,8 +535,8 @@ namespace DiceAudio
 
         private void RecordCheck(bool succeeded)
         {
-            Preferences.Default.Set(PrefLastCheck, DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture));
-            Preferences.Default.Set(PrefLastCheckFailed, !succeeded);
+            _localPreferences.Set(PrefLastCheck, DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture));
+            _localPreferences.Set(PrefLastCheckFailed, !succeeded);
         }
 
         private static void SafeDelete(string path)

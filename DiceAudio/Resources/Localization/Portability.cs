@@ -16,17 +16,16 @@ namespace DiceAudio.Resources.Localization
     /// </summary>
     public static class Portability
     {
-        public const string ErrorLoadFailedTitle = "Some of your data could not be read";
-
         public const string ErrorLoadFailed =
             "The file {0} could not be read. To protect it, DiceAudio will not save over it during this session. " +
             "You can restore a backup from Settings, in the Data section.";
 
-        public const string ErrorSaveFailedTitle = "Your changes could not be saved";
-
         public const string ErrorSaveFailed =
             "The file {0} could not be saved. Please check that the data folder can be reached and that the disk is not full, then try again.";
 
-        public const string OkBtn = "OK";
+        public const string AlertCloseBtn = "Close";
+
+        public const string DataFolderUnusable =
+            "The data folder cannot be used at the moment, so nothing can be saved in it during this session.";
     }
 }

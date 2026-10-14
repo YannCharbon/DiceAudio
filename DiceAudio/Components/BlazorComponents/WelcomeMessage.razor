@@ -10,6 +10,7 @@
 @using System.Reflection
 
 @inject DiceAudioService AudioService
+@inject DiceAudio.Storage.DataLocation DataLocation
 
 <style>
     .welcome-header {
@@ -127,16 +128,16 @@
 
         _version = AudioService.GetVersion();
 
-        string releaseNotesPath = Path.Combine(FileSystem.AppDataDirectory, "wwwroot/RELEASE_NOTES.md");
+        string releaseNotesPath = DataLocation.GetLocalPath("wwwroot/RELEASE_NOTES.md");
 
         if (File.Exists(releaseNotesPath))
         {
-            // File exists in AppDataDirectory
+            // File exists in the local app data folder
             _releaseNotes = Markdown.ToHtml(File.ReadAllText(releaseNotesPath));
         }
         else
         {
-            // If the file is not in AppDataDirectory, load it directly from the assembly
+            // If the file is not in the local app data folder, load it directly from the assembly
             using var stream = Task.Run(() => FileSystem.OpenAppPackageFileAsync("wwwroot/RELEASE_NOTES.md")).Result;
             using var reader = new StreamReader(stream);
             _releaseNotes = Markdown.ToHtml(reader.ReadToEnd());

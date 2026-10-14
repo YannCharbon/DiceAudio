@@ -70,7 +70,10 @@
     <button type="button" class="da-btn da-btn-fill" @onclick="@(() => _audioImporterRef?.Show())">
         <DaIcon Name="folder-upload" Size="18" />Import from disk
     </button>
-    <button type="button" class="da-btn da-btn-fill" @onclick="@(() => AudioTagsEditorModalRef?.Show())">
+    @* Until the tag files are read, the editor would show empty lists, and
+       saving them would replace the real ones. *@
+    <button type="button" class="da-btn da-btn-fill" disabled="@(!DAAudioTagsProvider.Instance.IsLoaded)"
+            @onclick="@(() => AudioTagsEditorModalRef?.Show())">
         <DaIcon Name="tag" Size="18" />Add/Remove tags
     </button>
     <button type="button" class="da-btn da-btn-out"
@@ -313,6 +316,13 @@ else if (_breadcrumb.Any())
         _history.Clear();
         _historyIndex = -1;
         NavigateToFolder(_rootFolder);
+    }
+
+    // Renders once more when the tags arrive, which enables their editor.
+    protected override async Task OnInitializedAsync()
+    {
+        if (!DAAudioTagsProvider.Instance.IsLoaded)
+            await DAAudioTagsProvider.Instance.WhenLoaded;
     }
 
     void BuildFolderTree()
@@ -992,9 +1002,12 @@ else if (_breadcrumb.Any())
     /// otherwise throw and leave the file orphaned on disk with nothing in the
     /// library referencing it. Returns false if the file survived.
     /// </summary>
-    static bool TryDeleteAudioFile(string localFileName)
+    bool TryDeleteAudioFile(string localFileName)
     {
-        var path = Path.Combine(FileSystem.AppDataDirectory, "Audio", localFileName);
+        // Nothing is changed in a data folder that cannot be used.
+        if (!DAService.CanWriteData) return false;
+
+        var path = Path.Combine(DAService.AudioDir, localFileName);
 
         DAAudioPlayer.DisposePlayersFor(path);
 

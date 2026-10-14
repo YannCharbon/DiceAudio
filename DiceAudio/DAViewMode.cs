@@ -6,7 +6,7 @@
  * See the LICENSE file in the repository root for details.
  */
 
-using Microsoft.Maui.Storage;
+using DiceAudio.Storage;
 
 namespace DiceAudio
 {
@@ -29,26 +29,31 @@ namespace DiceAudio
     /// </summary>
     public static class DAViewPrefs
     {
+        // A static class used straight from the pages, so it reaches the local
+        // preferences through the root services rather than through injection.
+        private static ILocalPreferences Preferences =>
+            MauiProgram.ServiceProvider.GetRequiredService<ILocalPreferences>();
+
         public const string PrefFolderView = "ExplorerFolderView";
         public const string PrefItemView   = "ExplorerItemView";
         public const string PrefSort       = "ExplorerSort";
 
         public static DAViewMode FolderView
         {
-            get => (DAViewMode)Preferences.Default.Get(PrefFolderView, (int)DAViewMode.Big);
-            set => Preferences.Default.Set(PrefFolderView, (int)value);
+            get => (DAViewMode)Preferences.Get(PrefFolderView, (int)DAViewMode.Big);
+            set => Preferences.Set(PrefFolderView, (int)value);
         }
 
         public static DAViewMode ItemView
         {
-            get => (DAViewMode)Preferences.Default.Get(PrefItemView, (int)DAViewMode.Big);
-            set => Preferences.Default.Set(PrefItemView, (int)value);
+            get => (DAViewMode)Preferences.Get(PrefItemView, (int)DAViewMode.Big);
+            set => Preferences.Set(PrefItemView, (int)value);
         }
 
         public static DASortMode Sort
         {
-            get => (DASortMode)Preferences.Default.Get(PrefSort, (int)DASortMode.DateAdded);
-            set => Preferences.Default.Set(PrefSort, (int)value);
+            get => (DASortMode)Preferences.Get(PrefSort, (int)DASortMode.DateAdded);
+            set => Preferences.Set(PrefSort, (int)value);
         }
     }
 }

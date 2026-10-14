@@ -12,6 +12,7 @@
 @inject NavigationManager Navigation
 @inject DiceAudioService AudioService
 @inject DAPlaybackCoordinator Coordinator
+@inject DiceAudio.Storage.ILocalPreferences LocalPreferences
 
 @* The home page used to be a title, a heading over nothing, and two icons
    that duplicated the title bar. It now answers the two questions you open
@@ -270,7 +271,7 @@
     {
         if (firstRender)
         {
-            string lastKnownVersion = Preferences.Get("LastKnownVersion", "-1");
+            string lastKnownVersion = LocalPreferences.Get("LastKnownVersion", "-1");
 
             // The service decides whether to go to the network; this only reads
             // the conclusion. A failed check leaves the last known release in
@@ -280,7 +281,7 @@
 
             if (status.State == DAUpdateCheckState.UpdateAvailable && _updateInfos != null)
             {
-                string lastShown = Preferences.Get("LastShowedNewVersion", "-1");
+                string lastShown = LocalPreferences.Get("LastShowedNewVersion", "-1");
                 _updateAvailable = lastShown != _updateInfos.tag_name && lastShown != "-1";
             }
 
@@ -304,10 +305,10 @@
 
     private void HandleWelcomeMessageModalClose(bool result)
     {
-        Preferences.Set("LastKnownVersion", AudioService.GetVersion());
+        LocalPreferences.Set("LastKnownVersion", AudioService.GetVersion());
         if (_updateInfos != null)
         {
-            Preferences.Set("LastShowedNewVersion", _updateInfos.tag_name);
+            LocalPreferences.Set("LastShowedNewVersion", _updateInfos.tag_name);
         }
     }
 

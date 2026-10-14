@@ -77,7 +77,7 @@ namespace DiceAudio
             var audioItem = _service.AudioItems.FirstOrDefault(a => a.Id == usage.AudioItemId);
             if (audioItem == null || string.IsNullOrEmpty(audioItem.LocalFileName)) return;
 
-            var playablePath = GetPlayablePath(audioItem.LocalFileName);
+            var playablePath = _service.GetPlayablePath(audioItem.LocalFileName);
             if (playablePath == null) return;
 
             _probedDuration = await Task.Run(() =>
@@ -177,25 +177,6 @@ namespace DiceAudio
                 .Where(t => t.Item != null)
                 .Select(t => new DAResolvedTrack(t.Usage, t.Item!))
                 .ToList();
-
-        /// <summary>
-        /// Absolute path to play an audio file from, or null when the file is not
-        /// on disk.
-        ///
-        /// Earlier builds copied the file into <see cref="FileSystem.CacheDirectory"/>
-        /// and played the copy. Nothing needed that: both are ordinary read/write
-        /// directories in the same container, and both playback backends take a
-        /// path. It only duplicated the whole library on disk — the copies were
-        /// never evicted — and served stale audio whenever a replacement file
-        /// happened to have the same byte length as the one it replaced.
-        /// </summary>
-        internal static string? GetPlayablePath(string localFileName)
-        {
-            if (string.IsNullOrEmpty(localFileName)) return null;
-
-            var path = Path.Combine(FileSystem.AppDataDirectory, "Audio", localFileName);
-            return File.Exists(path) ? path : null;
-        }
 
         public void Play()
         {
@@ -345,7 +326,7 @@ namespace DiceAudio
 
             try
             {
-                var playablePath = GetPlayablePath(audio.LocalFileName);
+                var playablePath = _service.GetPlayablePath(audio.LocalFileName);
                 if (playablePath == null) return;
 
                 var player = DAAudioPlayer.Create(playablePath, usage, _audioManager, _bus);
@@ -387,7 +368,7 @@ namespace DiceAudio
 
             try
             {
-                var playablePath = GetPlayablePath(audioItem.LocalFileName);
+                var playablePath = _service.GetPlayablePath(audioItem.LocalFileName);
                 if (playablePath == null) return;
 
                 _currentPlayer = DAAudioPlayer.Create(playablePath, usage, _audioManager, _bus);

@@ -80,23 +80,117 @@ namespace DiceAudio
         };
 
         /// <summary>
-        /// The lists are loaded in the background when the service is created.
-        /// Until that is done, saving would write an empty list over a file that
-        /// has not been read yet, so every save waits for this.
+        /// Completes when the lists have been read. Until then, saving would
+        /// write an empty list over a file that has not been read yet, so every
+        /// save waits for this.
         /// </summary>
-        private readonly Task _loaded;
+        private readonly TaskCompletionSource _loaded = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        public bool IsLoaded => _loaded.IsCompleted;
+        /// The load, once <see cref="InitializeAsync"/> has started it.
+        private Task? _initialization;
+        private readonly object _initializationGate = new();
+
+        public bool IsLoaded => _loaded.Task.IsCompleted;
 
         /// <summary>Completes once the persisted lists are in memory — await before reading them.</summary>
-        public Task WhenLoaded => _loaded;
+        public Task WhenLoaded => _loaded.Task;
 
-        public DiceAudioService(IAudioManager audioManager, SafeFileStore store)
+        /// <summary>Where the data files and the audio files are.</summary>
+        public DataLocation Location { get; }
+
+        private readonly ILocalPreferences _localPreferences;
+
+        public DiceAudioService(IAudioManager audioManager, SafeFileStore store, DataLocation location, ILocalPreferences localPreferences)
         {
             this.audioManager = audioManager;
             Store = store;
+            Location = location;
+            _localPreferences = localPreferences;
+        }
 
-            _loaded = LoadEverythingAsync();
+        /// <summary>
+        /// Reads every data file, once; later calls return the same task. Called
+        /// at startup only when the data folder can be used, so that nothing is
+        /// ever read from, or saved into, a folder that cannot.
+        /// </summary>
+        public Task InitializeAsync()
+        {
+            lock (_initializationGate)
+            {
+                _initialization ??= Task.Run(async () =>
+                {
+                    try
+                    {
+                        await LoadEverythingAsync().ConfigureAwait(false);
+                    }
+                    finally
+                    {
+                        _loaded.TrySetResult();
+                    }
+                });
+                return _initialization;
+            }
+        }
+
+        /// <summary>
+        /// The data folder cannot be used (missing, not writable, another app's):
+        /// nothing is read, every data file is blocked so that nothing is ever
+        /// written there, and the load is marked as done so that the main layout
+        /// tells the user instead of showing an empty library without a word.
+        /// </summary>
+        public void MarkDataFolderUnusable(string reason)
+        {
+            foreach (var fileName in AllDataFileNames)
+                Store.Block(fileName, reason);
+            _loaded.TrySetResult();
+        }
+
+        /// <summary>Every data file of the library, the tag files included.</summary>
+        public static IReadOnlyList<string> AllDataFileNames { get; } = new[]
+        {
+            AudioItemsFileName, AudioVirtualFoldersFileName, ScenarioGroupsFileName,
+            ScenesFileName, PresetsFileName, PinnedScenarioGroupsFileName,
+        }.Concat(DAAudioTagsProvider.FileNames).ToList();
+
+        /// <summary>
+        /// False when the data folder cannot be used: then nothing, audio files
+        /// included, may be written into it.
+        /// </summary>
+        public bool CanWriteData => Location.State == DataLocationState.Ok;
+
+        /// <summary>
+        /// Waits for the load before a save. False when the load never started
+        /// (the data folder could not be used): nothing must be written then.
+        /// </summary>
+        private async Task<bool> ReadyToSaveAsync()
+        {
+            Task? initialization;
+            lock (_initializationGate) initialization = _initialization;
+            if (initialization == null) return false;
+            await _loaded.Task;
+            return true;
+        }
+
+        /// <summary>The folder of the audio files, worked out on each call (the data folder can move).</summary>
+        public string AudioDir => Location.AudioDir;
+
+        /// <summary>
+        /// Absolute path to play an audio file from, or null when the file is not
+        /// on disk.
+        ///
+        /// Earlier builds copied the file into <see cref="FileSystem.CacheDirectory"/>
+        /// and played the copy. Nothing needed that: both are ordinary read/write
+        /// directories in the same container, and both playback backends take a
+        /// path. It only duplicated the whole library on disk — the copies were
+        /// never evicted — and served stale audio whenever a replacement file
+        /// happened to have the same byte length as the one it replaced.
+        /// </summary>
+        public string? GetPlayablePath(string localFileName)
+        {
+            if (string.IsNullOrEmpty(localFileName)) return null;
+
+            var path = Path.Combine(AudioDir, localFileName);
+            return File.Exists(path) ? path : null;
         }
 
         /// <summary>
@@ -131,7 +225,7 @@ namespace DiceAudio
                 // place are never saved over them, and go on with the others.
                 Debug.WriteLine($"Loading {string.Join(", ", fileNames)} failed: {ex.Message}");
                 foreach (var fileName in fileNames)
-                    Store.Block(fileName);
+                    Store.Block(fileName, ex.Message);
             }
         }
 
@@ -150,7 +244,7 @@ namespace DiceAudio
         /// </summary>
         public async Task SaveEverythingAsync()
         {
-            await _loaded;
+            if (!await ReadyToSaveAsync()) return;
 
             var saves = new List<Task>
             {
@@ -162,13 +256,25 @@ namespace DiceAudio
                 SavePinnedScenarioGroupsAsync(),
                 DAAudioTagsProvider.Instance.SaveTagsAsync(),
             };
+            // A save that fails has already told the user (SaveFailed), and the
+            // other files must still be written: neither the saves nor the
+            // flush below stop at the first error.
             try
             {
                 await Task.WhenAll(saves);
             }
-            finally
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Saving everything failed: {ex.Message}");
+            }
+
+            try
             {
                 await Store.FlushAsync();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Waiting for the saves failed: {ex.Message}");
             }
         }
 
@@ -371,7 +477,7 @@ namespace DiceAudio
 
         public async Task SaveAudioItemListAsync()
         {
-            await _loaded;
+            if (!await ReadyToSaveAsync()) return;
             await SaveListAsync(AudioItems, AudioItemsFileName);
         }
 
@@ -388,7 +494,7 @@ namespace DiceAudio
         /// </summary>
         public void RefreshLocalAvailability()
         {
-            string audioDir = Path.Combine(FileSystem.AppDataDirectory, "Audio");
+            string audioDir = AudioDir;
             foreach (var item in AudioItems)
             {
                 item.IsLocallyAvailable = !string.IsNullOrEmpty(item.LocalFileName)
@@ -398,7 +504,7 @@ namespace DiceAudio
 
         public async Task SaveAudioVirtualFoldersAsync()
         {
-            await _loaded;
+            if (!await ReadyToSaveAsync()) return;
             await SaveListAsync(AudioVirtualFolders, AudioVirtualFoldersFileName);
         }
 
@@ -412,7 +518,7 @@ namespace DiceAudio
         // (one lock per file), so they can no longer overlap.
         public async Task SaveScenarioGroupsAsync()
         {
-            await _loaded;
+            if (!await ReadyToSaveAsync()) return;
             await SaveListAsync(ScenarioGroups, ScenarioGroupsFileName);
         }
 
@@ -566,7 +672,7 @@ namespace DiceAudio
 
         public async Task SavePinnedScenarioGroupsAsync()
         {
-            await _loaded;
+            if (!await ReadyToSaveAsync()) return;
             await SaveListAsync(_pinnedScenarioGroups, PinnedScenarioGroupsFileName);
         }
 
@@ -577,7 +683,7 @@ namespace DiceAudio
 
         public async Task SaveScenesAsync()
         {
-            await _loaded;
+            if (!await ReadyToSaveAsync()) return;
             await SaveListAsync(Scenes, ScenesFileName);
         }
 
@@ -588,7 +694,7 @@ namespace DiceAudio
 
         public async Task SavePresetsAsync()
         {
-            await _loaded;
+            if (!await ReadyToSaveAsync()) return;
             await SaveListAsync(Presets, PresetsFileName);
         }
 
@@ -722,9 +828,9 @@ namespace DiceAudio
                 return _updateStatus;
             }
 
-            Preferences.Set(PrefUpdateLatestTag, release.tag_name);
-            Preferences.Set(PrefUpdateLatestUrl, release.html_url ?? string.Empty);
-            Preferences.Set(PrefUpdateCheckedUtc, DateTime.UtcNow.Ticks);
+            _localPreferences.Set(PrefUpdateLatestTag, release.tag_name);
+            _localPreferences.Set(PrefUpdateLatestUrl, release.html_url ?? string.Empty);
+            _localPreferences.Set(PrefUpdateCheckedUtc, DateTime.UtcNow.Ticks);
 
             _updateStatus = new DAUpdateStatus(
                 IsNewerThanInstalled(release.tag_name)
@@ -740,8 +846,8 @@ namespace DiceAudio
         /// shows what was last true instead of claiming the app is up to date.
         private DAUpdateStatus LoadPersistedUpdateStatus()
         {
-            string tag = Preferences.Get(PrefUpdateLatestTag, string.Empty);
-            long ticks = Preferences.Get(PrefUpdateCheckedUtc, 0L);
+            string tag = _localPreferences.Get(PrefUpdateLatestTag, string.Empty);
+            long ticks = _localPreferences.Get(PrefUpdateCheckedUtc, 0L);
 
             if (string.IsNullOrWhiteSpace(tag) || ticks == 0)
             {
@@ -751,7 +857,7 @@ namespace DiceAudio
             var release = new GitHubRelease
             {
                 tag_name = tag,
-                html_url = Preferences.Get(PrefUpdateLatestUrl, string.Empty),
+                html_url = _localPreferences.Get(PrefUpdateLatestUrl, string.Empty),
             };
 
             return new DAUpdateStatus(

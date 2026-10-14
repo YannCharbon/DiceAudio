@@ -97,5 +97,13 @@ namespace DiceAudio
                 }
             }
         }
+
+        // DiceAudio is built for Windows only in this work; Android keeps its
+        // project files but has no picker for these yet.
+        public Task<bool> SaveStreamAsync(string suggestedName, string extension, string typeLabel, Func<Stream, Task> write) =>
+            throw new NotSupportedException("Saving a file is not available on Android yet.");
+
+        public Task<DAPickedFile?> PickFileAsync(string extension, string typeLabel) =>
+            throw new NotSupportedException("Opening a file is not available on Android yet.");
     }
 }

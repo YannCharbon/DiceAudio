@@ -184,6 +184,7 @@ namespace DiceAudio
             builder.Services.AddSingleton<IDADownloadRunner>(sp => sp.GetRequiredService<YtDlpService>());
             builder.Services.AddSingleton<IDADownloadLibrary, DADownloadLibrary>();
             builder.Services.AddSingleton<DADownloadQueue>();
+            builder.Services.AddSingleton<DABundleExportService>();
 
             var app = builder.Build();
             ServiceProvider = app.Services; // Assign the root service provider

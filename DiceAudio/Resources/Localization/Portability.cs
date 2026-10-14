@@ -27,5 +27,66 @@ namespace DiceAudio.Resources.Localization
 
         public const string DataFolderUnusable =
             "The data folder cannot be used at the moment, so nothing can be saved in it during this session.";
+
+        // ── Export (spec §8.1 and §8.3) ────────────────────────────────────
+
+        public const string ExportTitle = "Export";
+        public const string ExportContains = "This file will contain:";
+        public const string ExportDone = "The file has been saved.";
+        public const string ExportFailed = "The file could not be saved: {0}";
+        public const string WizardCancelBtn = "Cancel";
+
+        public const string ExportItemBtn = "Export";
+        public const string ExportSelectionBtn = "Export…";
+        public const string ExportFolderBtn = "Export folder";
+        public const string ExportIncludeSubfolders = "Include subfolders";
+        public const string ExportAllScenesBtn = "Export all scenes";
+        public const string ExportGroupScenesBtn = "Export all scenes of this group";
+        public const string ExportScenarioBtn = "Export this scenario";
+        public const string ExportGroupBtn = "Export this scenario group";
+        public const string ExportCollectionBtn = "Export this collection";
+        public const string ExportAllPresetsBtn = "Export all presets";
+        public const string ExportLibraryBtn = "Export the whole library…";
+
+        public const string ExportLibraryHelp =
+            "Saves your whole library in a single file: audio items, folders, tags, scenes, scenario groups and presets. " +
+            "The audio files themselves are only included if you tick the option below.";
+
+        /// <summary>
+        /// Until the audio file pack exists (A6), the library help cannot point
+        /// at an option below: this says the same without it.
+        /// </summary>
+        public const string ExportLibraryHelpNoMedia =
+            "Saves your whole library in a single file: audio items, folders, tags, scenes, scenario groups and presets. " +
+            "The audio files themselves are not included.";
+
+        public const string ExportNoSourceWarning =
+            "{0} audio items have no download link, and their file is not included. " +
+            "The person who imports will have to pick their own file for them.";
+
+        /// <summary>New string (not in the spec): broken references found while exporting.</summary>
+        public const string ExportBrokenReferences =
+            "{0} references point to audio items or scenes that are no longer in your library. " +
+            "They are exported as they are, and the person who imports is told about them.";
+
+        /// <summary>New string (not in the spec): the file type shown in the save window.</summary>
+        public const string ExportFileType = "DiceAudio file";
+
+        /// <summary>New string (not in the spec): an export with nothing in it.</summary>
+        public const string ExportNothing = "There is nothing to export here.";
+
+        public const string DataPanelTitle = "Data";
+        public const string SharingTitle = "Sharing";
+
+        public const string SummaryAudioItems = "Audio items: {0}";
+        public const string SummaryFolders = "Folders: {0}";
+        public const string SummaryTags = "Tags: {0}";
+        public const string SummaryScenes = "Scenes: {0}";
+        public const string SummaryScenarioGroups = "Scenario groups: {0}";
+        public const string SummaryScenarios = "Scenarios: {0}";
+        public const string SummaryPresets = "Presets: {0}";
+
+        /// <summary>New string (not in the spec): scenario items exported on their own.</summary>
+        public const string SummaryScenarioItems = "Scenario items: {0}";
     }
 }

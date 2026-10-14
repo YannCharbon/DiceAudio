@@ -9,6 +9,7 @@
 @page "/scenarios"
 @inject DiceAudioService DAService
 @inject NavigationManager NavManager
+@inject DABundleExportService Exports
 
 <style>
 
@@ -175,6 +176,10 @@ else
                     @onclick="StartRenameCollection">
                 <DaIcon Name="edit" Size="18" />
             </button>
+            <button type="button" class="da-btn da-btn-out" @onclick="() => Exports.ExportCollection(_openCollection!)">
+                <DaIcon Name="upload" Size="16" />
+                @DiceAudio.Resources.Localization.Portability.ExportCollectionBtn
+            </button>
         }
     </div>
 
@@ -293,6 +298,11 @@ else
                             @onclick="@(() => TogglePinAsync(g))" @onclick:stopPropagation="true">
                         <DaIcon Name="pin" Filled="@DAService.IsScenarioGroupPinned(g)"
                                 Class="@(DAService.IsScenarioGroupPinned(g) ? "da-i-accent" : null)" />
+                    </button>
+
+                    <button type="button" class="da-ib" title="Export" aria-label="Export"
+                            @onclick="@(() => Exports.ExportGroup(g))" @onclick:stopPropagation="true">
+                        <DaIcon Name="upload" />
                     </button>
 
                     @* MudMenu had no replacement in the house set: the choices are

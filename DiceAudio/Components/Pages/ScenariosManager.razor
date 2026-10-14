@@ -11,6 +11,7 @@
 @inject DAPlaybackCoordinator Coordinator
 @inject PopupNotificationService Notifications
 @inject NavigationManager NavManager
+@inject DABundleExportService Exports
 
 <style>
     .scm-header {
@@ -154,6 +155,11 @@ else
                 </span>
             }
 
+            <button type="button" class="da-btn da-btn-out" @onclick="() => Exports.ExportGroup(_group)">
+                <DaIcon Name="upload" Size="16" />
+                @DiceAudio.Resources.Localization.Portability.ExportGroupBtn
+            </button>
+
             <button type="button" class="da-btn da-btn-fill" @onclick="() => _groupSettings?.Show()">
                 <DaIcon Name="settings" Size="16" />
                 Settings
@@ -208,6 +214,14 @@ else
                 <DaIcon Name="add" Size="16" />
                 New local scene
             </button>
+
+            @if (_group.LocalScenes.Count > 0)
+            {
+                <button type="button" class="da-btn da-btn-out" @onclick="() => Exports.ExportGroupScenes(_group)">
+                    <DaIcon Name="upload" Size="16" />
+                    @DiceAudio.Resources.Localization.Portability.ExportGroupScenesBtn
+                </button>
+            }
 
             @if (DAService.Scenes.Count > 0)
             {
@@ -288,6 +302,10 @@ else
                         <button type="button" class="da-ib" title="Duplicate" aria-label="Duplicate"
                                 @onclick="() => DuplicateLocalScene(sc)">
                             <DaIcon Name="copy" Size="18" />
+                        </button>
+                        <button type="button" class="da-ib" title="Export" aria-label="Export"
+                                @onclick="() => Exports.ExportLocalScene(_group, sc)">
+                            <DaIcon Name="upload" Size="18" />
                         </button>
                         <button type="button" class="da-ib"
                                 title="Make global — copy this scene into the scene catalogue so every scenario group can use it"

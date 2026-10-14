@@ -10,6 +10,8 @@
 @inject DiceAudioService DAService
 @inject PopupNotificationService Notifications
 @inject DADownloadQueue DownloadQueue
+@inject DABundleExportService Exports
+@using DiceAudio.Resources.Localization
 @implements IDisposable
 
 <style>
@@ -166,6 +168,11 @@
                 disabled="@(_selectedIds.Count == 0)"
                 @onclick="OpenBulkMove">
             <DaIcon Name="folder-move" Size="16" />Move to folder…
+        </button>
+        <button type="button" class="da-btn da-btn-out da-btn-sm"
+                disabled="@(_selectedIds.Count == 0)"
+                @onclick="ExportSelection">
+            <DaIcon Name="upload" Size="16" />@Portability.ExportSelectionBtn
         </button>
         <button type="button" class="da-btn da-btn-text da-btn-sm" @onclick="ClearSelection">
             <DaIcon Name="deselect" Size="16" />Clear selection
@@ -480,6 +487,10 @@ else if (_breadcrumb.Any())
                             @onclick="@(() => OpenMoveToFolderPicker(item))">
                         <DaIcon Name="folder-move" Size="18" />
                     </button>
+                    <button type="button" class="da-ib" title="Export" aria-label="Export"
+                            @onclick="@(() => Exports.ExportAudioItems(new[] { item }))">
+                        <DaIcon Name="upload" Size="18" />
+                    </button>
                     <button type="button" class="da-ib da-danger" title="Delete" aria-label="Delete"
                             @onclick="@(() => DeleteAudioItem(item))">
                         <DaIcon Name="delete" Size="18" />
@@ -539,6 +550,10 @@ else if (_breadcrumb.Any())
                         @onclick="@(() => OpenMoveToFolderPicker(item))">
                     <DaIcon Name="folder-move" Size="18" />
                 </button>
+                <button type="button" class="da-ib" title="Export" aria-label="Export"
+                        @onclick="@(() => Exports.ExportAudioItems(new[] { item }))">
+                    <DaIcon Name="upload" Size="18" />
+                </button>
                 <button type="button" class="da-ib da-danger" title="Delete" aria-label="Delete"
                         @onclick="@(() => DeleteAudioItem(item))">
                     <DaIcon Name="delete" Size="18" />
@@ -586,6 +601,10 @@ else if (_breadcrumb.Any())
                             @onclick="@(() => StartRename(folder))">
                         <DaIcon Name="edit" Size="18" />
                     </button>
+                    <button type="button" class="da-ib" title="@Portability.ExportFolderBtn" aria-label="@Portability.ExportFolderBtn"
+                            @onclick="@(() => Exports.ExportFolder(folder))">
+                        <DaIcon Name="upload" Size="18" />
+                    </button>
                 </div>
             }
         </div>;
@@ -629,6 +648,10 @@ else if (_breadcrumb.Any())
                         <button type="button" class="da-ib" title="Rename folder" aria-label="Rename folder"
                                 @onclick="@(() => StartRename(folder))">
                             <DaIcon Name="edit" Size="18" />
+                        </button>
+                        <button type="button" class="da-ib" title="@Portability.ExportFolderBtn" aria-label="@Portability.ExportFolderBtn"
+                                @onclick="@(() => Exports.ExportFolder(folder))">
+                            <DaIcon Name="upload" Size="18" />
                         </button>
                     </div>
                 }
@@ -874,6 +897,12 @@ else if (_breadcrumb.Any())
     }
 
     void ToggleSelected(DAAudioItem item) => SetSelected(item, !IsSelected(item));
+
+    void ExportSelection()
+    {
+        var items = DAService.AudioItems.Where(i => _selectedIds.Contains(i.Id)).ToList();
+        if (items.Count > 0) Exports.ExportAudioItems(items);
+    }
 
     void ToggleSelectionMode()
     {

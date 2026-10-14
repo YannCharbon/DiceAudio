@@ -1,0 +1,189 @@
+﻿@*
+ * DiceAudio - Copyright (C) 2025 Yann Charbon
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ *
+ * This file is part of DiceAudio, released under the GNU GPL v3.
+ * See the LICENSE file in the repository root for details.
+*@
+
+@*
+    The one export dialog. It sits in the main layout and opens when a page
+    asks DABundleExportService for an export: it shows what the file will
+    contain, then saves it as a .dicea file. The option to add the audio
+    files themselves comes with the audio file pack.
+*@
+
+@using DiceAudio.Portability
+@using DiceAudio.Resources.Localization
+@implements IDisposable
+@inject DABundleExportService Exports
+
+@if (_request != null)
+{
+    <div class="da-confirm-scrim">
+        <div class="da-confirm" role="dialog" aria-modal="true" aria-labelledby="da-export-t">
+            <h3 id="da-export-t" class="da-confirm-title">@Portability.ExportTitle</h3>
+
+            @if (_request.IsLibrary)
+            {
+                <p class="da-confirm-msg">@Portability.ExportLibraryHelpNoMedia</p>
+            }
+
+            @if (_request.OffersSubfolders)
+            {
+                <label class="da-chk" style="margin-bottom:10px;">
+                    <input type="checkbox" checked="@_includeSubfolders" disabled="@_saving"
+                           @onchange="@((ChangeEventArgs e) => SetSubfolders(e.Value is bool v && v))" />
+                    @Portability.ExportIncludeSubfolders
+                </label>
+            }
+
+            @if (_bundle != null && _summary.Count > 0)
+            {
+                <p class="da-confirm-msg" style="margin-bottom:4px;">@Portability.ExportContains</p>
+                <ul class="da-confirm-msg" style="margin-top:0; padding-left:20px;">
+                    @foreach (var line in _summary)
+                    {
+                        <li>@line</li>
+                    }
+                </ul>
+                @foreach (var warning in _warnings)
+                {
+                    <p class="da-confirm-msg" style="color:var(--warn);">@warning</p>
+                }
+            }
+            else if (_bundle != null)
+            {
+                <p class="da-confirm-msg">@Portability.ExportNothing</p>
+            }
+
+            @if (!string.IsNullOrEmpty(_result))
+            {
+                <p class="da-confirm-msg" style="@(_failed ? "color:var(--danger);" : "color:var(--ok);")">@_result</p>
+            }
+
+            <div class="da-confirm-foot">
+                @if (_done)
+                {
+                    <button type="button" class="da-btn da-btn-fill" @onclick="Close">
+                        <DaIcon Name="check" />@Portability.AlertCloseBtn
+                    </button>
+                }
+                else
+                {
+                    <button type="button" class="da-btn" disabled="@_saving" @onclick="Close">@Portability.WizardCancelBtn</button>
+                    <button type="button" class="da-btn da-btn-fill"
+                            disabled="@(_saving || _bundle == null || _summary.Count == 0)" @onclick="SaveAsync">
+                        <DaIcon Name="upload" />@Portability.ExportItemBtn
+                    </button>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private DAExportRequest? _request;
+    private DABundle? _bundle;
+    private bool _includeSubfolders = true;
+    private readonly List<string> _summary = new();
+    private readonly List<string> _warnings = new();
+    private bool _saving, _done, _failed;
+    private string _result = "";
+
+    protected override void OnInitialized() => Exports.Requested += OnRequested;
+
+    public void Dispose() => Exports.Requested -= OnRequested;
+
+    private void OnRequested(DAExportRequest request) => _ = InvokeAsync(() =>
+    {
+        _request = request;
+        _includeSubfolders = true;
+        _saving = _done = _failed = false;
+        _result = "";
+        Build();
+        StateHasChanged();
+    });
+
+    private void SetSubfolders(bool value)
+    {
+        _includeSubfolders = value;
+        Build();
+    }
+
+    /// Runs the collector (on the UI thread, where the lists are) and sums up what it found.
+    private void Build()
+    {
+        _summary.Clear();
+        _warnings.Clear();
+        if (_request == null) return;
+
+        try
+        {
+            _bundle = _request.Build(_includeSubfolders);
+        }
+        catch (Exception ex)
+        {
+            _bundle = null;
+            _failed = true;
+            _result = string.Format(Portability.ExportFailed, ex.Message);
+            return;
+        }
+
+        var b = _bundle;
+        int scenes = b.Scenes.Count + b.LocalScenes.Count + b.ScenarioGroups.Sum(g => g.LocalScenes.Count);
+        int scenarios = b.Scenarios.Count + b.ScenarioGroups.Sum(g => g.Scenarios.Count);
+        Add(Portability.SummaryScenarioGroups, b.ScenarioGroups.Count);
+        Add(Portability.SummaryScenarios, scenarios);
+        Add(Portability.SummaryScenarioItems, b.ScenarioItems.Count);
+        Add(Portability.SummaryScenes, scenes);
+        Add(Portability.SummaryPresets, b.Presets.Count);
+        Add(Portability.SummaryAudioItems, b.AudioItems.Count);
+        Add(Portability.SummaryFolders, b.Folders.Count);
+        Add(Portability.SummaryTags, b.Tags.Count);
+
+        int noSource = b.Warnings.Count(w => w.Code == DAWarningCode.NoSourceNoFile);
+        int broken = b.Warnings.Count(w => w.Code == DAWarningCode.BrokenReference);
+        if (noSource > 0) _warnings.Add(string.Format(Portability.ExportNoSourceWarning, noSource));
+        if (broken > 0) _warnings.Add(string.Format(Portability.ExportBrokenReferences, broken));
+    }
+
+    private void Add(string format, int count)
+    {
+        if (count > 0) _summary.Add(string.Format(format, count));
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_request == null || _bundle == null) return;
+        _saving = true;
+        _result = "";
+        StateHasChanged();
+        try
+        {
+            if (await Exports.SaveAsync(_bundle, _request.SuggestedName))
+            {
+                _done = true;
+                _failed = false;
+                _result = Portability.ExportDone;
+            }
+        }
+        catch (Exception ex)
+        {
+            _failed = true;
+            _result = string.Format(Portability.ExportFailed, ex.Message);
+            // The same content can be tried again: rebuild a fresh copy.
+            Build();
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private void Close()
+    {
+        _request = null;
+        _bundle = null;
+    }
+}

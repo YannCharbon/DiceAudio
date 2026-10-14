@@ -7,6 +7,7 @@
 *@
 
 @implements IDisposable
+@inject DABundleExportService Exports
 
 <style>
     .si-card {
@@ -107,6 +108,13 @@
         <button type="button" class="da-ib" title="Edit" aria-label="Edit" @onclick="OpenEditor">
             <DaIcon Name="edit" Size="16" />
         </button>
+        @if (Group != null)
+        {
+            <button type="button" class="da-ib" title="Export" aria-label="Export"
+                    @onclick="() => Exports.ExportScenarioItem(Group, Scenario, ScenarioItem)">
+                <DaIcon Name="upload" Size="16" />
+            </button>
+        }
         <button type="button" class="da-ib da-danger" title="Delete" aria-label="Delete"
                 @onclick="() => DeleteItem?.Invoke(ScenarioItem)">
             <DaIcon Name="delete" Size="16" />

@@ -96,53 +96,13 @@ namespace DiceAudio
 
         /// <summary>
         /// Gives the scene and all of its children fresh Guids, remapping the
-        /// commands' LayerId references onto the new layer ids. AudioItemId
-        /// references into the library are intentionally preserved.
+        /// references between them. AudioItemId references into the library are
+        /// intentionally preserved.
         /// </summary>
         private static void RemapScene(DAScene scene)
         {
             scene.Id = Guid.NewGuid();
-
-            var layerIdMap = new Dictionary<Guid, Guid>();
-            foreach (var layer in scene.Layers)
-            {
-                var newId = Guid.NewGuid();
-                layerIdMap[layer.Id] = newId;
-                layer.Id = newId;
-            }
-
-            foreach (var step in scene.Steps)
-            {
-                step.Id = Guid.NewGuid();
-                foreach (var command in step.Commands)
-                {
-                    command.Id = Guid.NewGuid();
-                    if (layerIdMap.TryGetValue(command.LayerId, out var mapped))
-                        command.LayerId = mapped;
-                }
-                // The auto-advance trigger points at a layer too.
-                if (step.AdvanceOnLayerEndId is Guid advanceOn
-                    && layerIdMap.TryGetValue(advanceOn, out var mappedAdvance))
-                    step.AdvanceOnLayerEndId = mappedAdvance;
-            }
-
-            var contextIdMap = new Dictionary<Guid, Guid>();
-            foreach (var context in scene.Contexts)
-            {
-                var newId = Guid.NewGuid();
-                contextIdMap[context.Id] = newId;
-                context.Id = newId;
-                foreach (var state in context.LayerStates)
-                {
-                    if (layerIdMap.TryGetValue(state.LayerId, out var mapped))
-                        state.LayerId = mapped;
-                }
-            }
-
-            // Keep the default-context reference pointing at the remapped context.
-            if (scene.DefaultContextId is Guid oldDefault
-                && contextIdMap.TryGetValue(oldDefault, out var newDefault))
-                scene.DefaultContextId = newDefault;
+            DiceAudio.Portability.IdRemapper.RenewSceneInternals(scene);
         }
     }
 }

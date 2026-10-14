@@ -7,6 +7,7 @@
 *@
 
 @inject DAPlaybackCoordinator Coordinator
+@inject DABundleExportService Exports
 @implements IDisposable
 
 <style>
@@ -105,6 +106,15 @@
                     @onclick="() => MoveScenario?.Invoke(Scenario, false)">
                 <DaIcon Name="circle-down" Size="20" />
             </button>
+            @if (Group != null)
+            {
+                <button type="button" class="da-ib"
+                        title="@DiceAudio.Resources.Localization.Portability.ExportScenarioBtn"
+                        aria-label="@DiceAudio.Resources.Localization.Portability.ExportScenarioBtn"
+                        @onclick="() => Exports.ExportScenario(Group, Scenario)">
+                    <DaIcon Name="upload" Size="20" />
+                </button>
+            }
             <button type="button" class="da-ib da-danger" title="Delete" aria-label="Delete"
                     @onclick="() => DeleteScenario?.Invoke(Scenario)">
                 <DaIcon Name="delete" Size="20" />

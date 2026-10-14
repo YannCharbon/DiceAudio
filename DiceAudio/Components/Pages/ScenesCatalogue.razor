@@ -8,6 +8,7 @@
 
 @page "/scenes"
 @inject DiceAudioService DAService
+@inject DABundleExportService Exports
 
 <style>
     /* The card itself is .da-strip and the tile .da-icon, both from app.css:
@@ -32,6 +33,14 @@
         <DaIcon Name="add" Size="16" />
         New scene
     </button>
+
+    @if (DAService.Scenes.Count > 0)
+    {
+        <button type="button" class="da-btn da-btn-out" @onclick="Exports.ExportAllScenes">
+            <DaIcon Name="upload" Size="16" />
+            @DiceAudio.Resources.Localization.Portability.ExportAllScenesBtn
+        </button>
+    }
 
     @{ var scenePresets = DAService.Presets.Where(p => p.Kind == DAPresetKind.Scene).ToList(); }
     @if (scenePresets.Count > 0)
@@ -95,6 +104,10 @@
                 <button type="button" class="da-ib" title="Duplicate" aria-label="Duplicate"
                         @onclick="() => DuplicateScene(s)">
                     <DaIcon Name="copy" Size="18" />
+                </button>
+                <button type="button" class="da-ib" title="Export" aria-label="Export"
+                        @onclick="() => Exports.ExportScene(s)">
+                    <DaIcon Name="upload" Size="18" />
                 </button>
                 <button type="button" class="da-ib da-danger" title="Delete" aria-label="Delete"
                         @onclick="() => DeleteScene(s)">

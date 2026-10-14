@@ -38,6 +38,46 @@ namespace DiceAudio
             }
         }
 
+        public async Task<bool> SaveStreamAsync(string suggestedName, string extension, string typeLabel, Func<Stream, Task> write)
+        {
+            var picker = new FileSavePicker
+            {
+                SuggestedStartLocation = PickerLocationId.DocumentsLibrary,
+                SuggestedFileName = Path.GetFileNameWithoutExtension(suggestedName),
+            };
+            picker.FileTypeChoices.Add(typeLabel, new List<string> { extension });
+
+            var hwnd = ((MauiWinUIWindow)App.Current!.Windows[0].Handler!.PlatformView!).WindowHandle;
+            WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
+
+            var file = await picker.PickSaveFileAsync();
+            if (file == null) return false;
+
+            await using var stream = await file.OpenStreamForWriteAsync();
+            stream.SetLength(0); // an existing file chosen in the picker is replaced, not patched
+            await write(stream);
+            await stream.FlushAsync();
+            return true;
+        }
+
+        public async Task<DAPickedFile?> PickFileAsync(string extension, string typeLabel)
+        {
+            var picker = new FileOpenPicker
+            {
+                SuggestedStartLocation = PickerLocationId.DocumentsLibrary
+            };
+            picker.FileTypeFilter.Add(extension);
+
+            var hwnd = ((MauiWinUIWindow)App.Current!.Windows[0].Handler!.PlatformView!).WindowHandle;
+            WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
+
+            var file = await picker.PickSingleFileAsync();
+            if (file == null) return null;
+
+            var stream = await file.OpenStreamForReadAsync();
+            return new DAPickedFile(file.Name, string.IsNullOrEmpty(file.Path) ? null : file.Path, stream);
+        }
+
         public async Task<byte[]> LoadFileAsync()
         {
             var picker = new FileOpenPicker

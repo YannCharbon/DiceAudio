@@ -8,6 +8,7 @@
 
 @page "/presets"
 @inject DiceAudioService DAService
+@inject DABundleExportService Exports
 
 <style>
     .pre-cat-header {
@@ -34,6 +35,16 @@
     insert copies from the Scenarios and Scenes pages. Inserted copies are independent —
     editing them never changes the preset.
 </p>
+
+@if (DAService.Presets.Count > 0)
+{
+    <div class="da-irow" style="gap:10px; margin-bottom:10px;">
+        <button type="button" class="da-btn da-btn-out" @onclick="Exports.ExportAllPresets">
+            <DaIcon Name="upload" Size="16" />
+            @DiceAudio.Resources.Localization.Portability.ExportAllPresetsBtn
+        </button>
+    </div>
+}
 
 @if (DAService.Presets.Count == 0)
 {
@@ -71,6 +82,10 @@
                 <button type="button" class="da-ib" title="Rename" aria-label="Rename"
                         @onclick="() => StartRenaming(p)">
                     <DaIcon Name="edit" Size="16" />
+                </button>
+                <button type="button" class="da-ib" title="Export" aria-label="Export"
+                        @onclick="() => Exports.ExportPreset(p)">
+                    <DaIcon Name="upload" Size="16" />
                 </button>
                 <button type="button" class="da-ib da-danger" title="Delete" aria-label="Delete"
                         @onclick="() => DeletePreset(p)">

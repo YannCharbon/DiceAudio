@@ -28,8 +28,9 @@ and drive the whole evening from one window instead of juggling media players.
 
 - **The audio library.** Your audio files are organised in folders and tagged in three categories: type
   (music, ambience or sound effect), location and expression. A search covers the whole library, filters
-  narrow it down by type or by a tag expression such as "ambiance and mysterious and not combat", and
-  the files themselves stay where you put them on your disk.
+  narrow it down by type or by a tag expression such as "ambiance and mysterious and not combat". These
+  folders and tags exist only in DiceAudio: the audio files are kept in the Audio folder of your data
+  folder.
 - **Importing your audio.** Download from YouTube, SoundCloud and thousands of other sites with the
   built-in downloader: stage several links, choose the destination folder and start. You can also import
   files you already have on your disk.
@@ -49,8 +50,8 @@ and drive the whole evening from one window instead of juggling media players.
   scene or a new item without building it again.
 - **Remote control.** DiceAudio can start a local HTTP server which exposes playback, navigation inside a
   scenario and scene contexts, so another application can drive the sound.
-- **On your machine.** The library points to the audio files you already have and the settings stay on
-  your computer. The interface is in English and the app runs on Windows. Mobile is not available for
+- **On your machine.** Your library, your audio files and your settings stay on your computer, in a
+  folder you can choose. The interface is in English and the app runs on Windows. Mobile is not available for
   now, it might come in the future. DiceAudio is free and open source under GPL-3.0.
 
 ---
@@ -116,6 +117,30 @@ the waveform. The preview plays only the selected region and the original file i
 ![Track settings](docs/img/audio-clip-editor.jpg)
 
 More screenshots on the [website](https://yanncharbon.github.io/DiceAudio/#screenshots).
+
+---
+
+## Your data
+
+- **Sharing.** Audio items, folders, scenes, scenarios, scenario groups, collections and presets can be
+  exported to a `.dicea` file, together with everything they use: a scenario group comes with its scenes
+  and the audio items they play. The file holds the descriptions and the download links. If you tick the
+  option, the audio files on your computer are saved in a second file (`.diceamedia`). Audio files are
+  often protected by copyright, so please keep that second file for your own use.
+- **Importing.** **Import a DiceAudio file…** shows what is new and what you already have, and you choose
+  what to do with each item. Each audio item then gets its file back from the `.diceamedia` file, from a
+  file already on your computer, or from its download link. The items still without a file are listed,
+  and the **Missing files** filter of the Explorer shows them later.
+- **Backups.** DiceAudio backs up your data the first time you open it each day, and before every import,
+  restore or change of data folder. A backup holds everything except the audio files. You restore one in
+  Settings, under Data.
+- **Using several computers (Windows).** **Choose another folder…** moves your library and its audio
+  files to a folder of your choice, for example one that OneDrive or Dropbox keeps in sync. Please open
+  DiceAudio on one computer at a time. If it is open elsewhere, DiceAudio warns you at start. When
+  another computer changes the data, a message offers to **Reload** it, and DiceAudio never reloads by
+  itself.
+
+The [website](https://yanncharbon.github.io/DiceAudio/#data) gives the details.
 
 ---
 

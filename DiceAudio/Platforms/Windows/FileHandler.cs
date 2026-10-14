@@ -60,6 +60,22 @@ namespace DiceAudio
             return true;
         }
 
+        public async Task<string?> PickSaveFileAsync(string suggestedName, string extension, string typeLabel)
+        {
+            var picker = new FileSavePicker
+            {
+                SuggestedStartLocation = PickerLocationId.DocumentsLibrary,
+                SuggestedFileName = Path.GetFileNameWithoutExtension(suggestedName),
+            };
+            picker.FileTypeChoices.Add(typeLabel, new List<string> { extension });
+
+            var hwnd = ((MauiWinUIWindow)App.Current!.Windows[0].Handler!.PlatformView!).WindowHandle;
+            WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
+
+            var file = await picker.PickSaveFileAsync();
+            return file == null || string.IsNullOrEmpty(file.Path) ? null : file.Path;
+        }
+
         public async Task<DAPickedFile?> PickFileAsync(string extension, string typeLabel)
         {
             var picker = new FileOpenPicker

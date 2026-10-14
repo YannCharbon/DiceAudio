@@ -9,8 +9,9 @@
 @*
     The one export dialog. It sits in the main layout and opens when a page
     asks DABundleExportService for an export: it shows what the file will
-    contain, then saves it as a .dicea file. The option to add the audio
-    files themselves comes with the audio file pack.
+    contain, offers to save the audio files too (a second .diceamedia file),
+    then saves. The copyright notice appears the first time in the session
+    that the audio files are ticked; it never blocks the export.
 *@
 
 @using DiceAudio.Portability
@@ -21,12 +22,12 @@
 @if (_request != null)
 {
     <div class="da-confirm-scrim">
-        <div class="da-confirm" role="dialog" aria-modal="true" aria-labelledby="da-export-t">
+        <div class="da-confirm" role="dialog" aria-modal="true" aria-labelledby="da-export-t" style="width:min(560px, 100%);">
             <h3 id="da-export-t" class="da-confirm-title">@Portability.ExportTitle</h3>
 
             @if (_request.IsLibrary)
             {
-                <p class="da-confirm-msg">@Portability.ExportLibraryHelpNoMedia</p>
+                <p class="da-confirm-msg">@Portability.ExportLibraryHelp</p>
             }
 
             @if (_request.OffersSubfolders)
@@ -47,7 +48,43 @@
                         <li>@line</li>
                     }
                 </ul>
-                @foreach (var warning in _warnings)
+
+                @if (_bundle.AudioItems.Count > 0)
+                {
+                    <label class="da-chk">
+                        <input type="checkbox" checked="@_includeMedia" disabled="@_saving"
+                               @onchange="@((ChangeEventArgs e) => SetMedia(e.Value is bool v && v))" />
+                        @Portability.ExportMediaOption
+                    </label>
+                    <p class="da-confirm-msg" style="margin:4px 0 8px 26px;">
+                        @(_includeMedia
+                            ? string.Format(Portability.ExportMediaSize, _present, _bundle.AudioItems.Count, DABundleExportService.FormatSize(_bytes))
+                            : Portability.ExportMediaHelp)
+                    </p>
+
+                    @if (_includeMedia)
+                    {
+                        <label class="da-chk" style="margin:0 0 10px 26px;">
+                            <input type="checkbox" checked="@_checksums" disabled="@_saving"
+                                   @onchange="@((ChangeEventArgs e) => _checksums = e.Value is bool v && v)" />
+                            @Portability.ExportChecksumOption
+                        </label>
+
+                        @if (!_copyrightAcknowledged)
+                        {
+                            <div class="da-msec" style="margin:0 0 12px; border-left:3px solid var(--warn);">
+                                <div style="font-weight:700; margin-bottom:6px;">@Portability.CopyrightTitle</div>
+                                <p class="da-confirm-msg" style="margin-bottom:8px;">@Portability.CopyrightText</p>
+                                <label class="da-chk">
+                                    <input type="checkbox" @onchange="@((ChangeEventArgs e) => { if (e.Value is bool v && v) _copyrightAcknowledged = true; })" />
+                                    @Portability.CopyrightAcknowledge
+                                </label>
+                            </div>
+                        }
+                    }
+                }
+
+                @foreach (var warning in Warnings())
                 {
                     <p class="da-confirm-msg" style="color:var(--warn);">@warning</p>
                 }
@@ -55,6 +92,14 @@
             else if (_bundle != null)
             {
                 <p class="da-confirm-msg">@Portability.ExportNothing</p>
+            }
+
+            @if (_saving && _progress is { } p && p.FilesTotal > 0)
+            {
+                <p class="da-confirm-msg" style="margin-bottom:4px;">@string.Format(Portability.ExportMediaProgress, p.FilesDone, p.FilesTotal)</p>
+                <div style="height:6px; border-radius:3px; background:var(--s2); overflow:hidden; margin-bottom:12px;">
+                    <div style="height:100%; background:var(--a1); width:@(Percent(p))%;"></div>
+                </div>
             }
 
             @if (!string.IsNullOrEmpty(_result))
@@ -69,11 +114,16 @@
                         <DaIcon Name="check" />@Portability.AlertCloseBtn
                     </button>
                 }
+                else if (_saving)
+                {
+                    @* Stops the export; nothing half-written is left behind. *@
+                    <button type="button" class="da-btn" @onclick="() => _cts?.Cancel()">@Portability.WizardCancelBtn</button>
+                }
                 else
                 {
-                    <button type="button" class="da-btn" disabled="@_saving" @onclick="Close">@Portability.WizardCancelBtn</button>
+                    <button type="button" class="da-btn" @onclick="Close">@Portability.WizardCancelBtn</button>
                     <button type="button" class="da-btn da-btn-fill"
-                            disabled="@(_saving || _bundle == null || _summary.Count == 0)" @onclick="SaveAsync">
+                            disabled="@(_bundle == null || _summary.Count == 0)" @onclick="SaveAsync">
                         <DaIcon Name="upload" />@Portability.ExportItemBtn
                     </button>
                 }
@@ -83,22 +133,39 @@
 }
 
 @code {
+    /// <summary>
+    /// "I understand" was ticked in this session. In memory only, on purpose:
+    /// the notice comes back at the next start, and is never stored.
+    /// </summary>
+    private static bool _copyrightAcknowledged;
+
     private DAExportRequest? _request;
     private DABundle? _bundle;
     private bool _includeSubfolders = true;
+    private bool _includeMedia;
+    private bool _checksums;
+    private int _present;
+    private long _bytes;
     private readonly List<string> _summary = new();
-    private readonly List<string> _warnings = new();
     private bool _saving, _done, _failed;
     private string _result = "";
+    private DAMediaProgress? _progress;
+    private CancellationTokenSource? _cts;
 
     protected override void OnInitialized() => Exports.Requested += OnRequested;
 
-    public void Dispose() => Exports.Requested -= OnRequested;
+    public void Dispose()
+    {
+        Exports.Requested -= OnRequested;
+        _cts?.Cancel();
+    }
 
     private void OnRequested(DAExportRequest request) => _ = InvokeAsync(() =>
     {
+        if (_saving) return;   // one export at a time
         _request = request;
         _includeSubfolders = true;
+        _includeMedia = _checksums = false;
         _saving = _done = _failed = false;
         _result = "";
         Build();
@@ -111,11 +178,16 @@
         Build();
     }
 
+    private void SetMedia(bool value)
+    {
+        _includeMedia = value;
+        Estimate();
+    }
+
     /// Runs the collector (on the UI thread, where the lists are) and sums up what it found.
     private void Build()
     {
         _summary.Clear();
-        _warnings.Clear();
         if (_request == null) return;
 
         try
@@ -141,11 +213,22 @@
         Add(Portability.SummaryAudioItems, b.AudioItems.Count);
         Add(Portability.SummaryFolders, b.Folders.Count);
         Add(Portability.SummaryTags, b.Tags.Count);
+        Estimate();
+    }
 
-        int noSource = b.Warnings.Count(w => w.Code == DAWarningCode.NoSourceNoFile);
-        int broken = b.Warnings.Count(w => w.Code == DAWarningCode.BrokenReference);
-        if (noSource > 0) _warnings.Add(string.Format(Portability.ExportNoSourceWarning, noSource));
-        if (broken > 0) _warnings.Add(string.Format(Portability.ExportBrokenReferences, broken));
+    private void Estimate()
+    {
+        if (_bundle == null || !_includeMedia) return;
+        (_present, _, _bytes) = Exports.MediaEstimate(_bundle);
+    }
+
+    private IEnumerable<string> Warnings()
+    {
+        if (_bundle == null) yield break;
+        int nothing = Exports.NothingToGetCount(_bundle, _includeMedia);
+        int broken = _bundle.Warnings.Count(w => w.Code == DAWarningCode.BrokenReference);
+        if (nothing > 0) yield return string.Format(Portability.ExportNoSourceWarning, nothing);
+        if (broken > 0) yield return string.Format(Portability.ExportBrokenReferences, broken);
     }
 
     private void Add(string format, int count)
@@ -153,31 +236,44 @@
         if (count > 0) _summary.Add(string.Format(format, count));
     }
 
+    private static int Percent(DAMediaProgress p) =>
+        p.BytesTotal > 0 ? (int)Math.Clamp(p.BytesDone * 100 / p.BytesTotal, 0, 100)
+                         : p.FilesTotal > 0 ? p.FilesDone * 100 / p.FilesTotal : 0;
+
     private async Task SaveAsync()
     {
         if (_request == null || _bundle == null) return;
         _saving = true;
+        _failed = false;
         _result = "";
+        _progress = null;
+        _cts = new CancellationTokenSource();
+        var progress = new Progress<DAMediaProgress>(p => { _progress = p; StateHasChanged(); });
         StateHasChanged();
         try
         {
-            if (await Exports.SaveAsync(_bundle, _request.SuggestedName))
+            if (await Exports.SaveAsync(_bundle, _request.SuggestedName, _includeMedia, _checksums, progress, _cts.Token))
             {
                 _done = true;
-                _failed = false;
                 _result = Portability.ExportDone;
             }
+        }
+        catch (OperationCanceledException)
+        {
+            _result = Portability.ExportCancelled;
+            Build();   // the cancelled run may have changed its copy of the bundle
         }
         catch (Exception ex)
         {
             _failed = true;
             _result = string.Format(Portability.ExportFailed, ex.Message);
-            // The same content can be tried again: rebuild a fresh copy.
             Build();
         }
         finally
         {
             _saving = false;
+            _cts.Dispose();
+            _cts = null;
         }
     }
 

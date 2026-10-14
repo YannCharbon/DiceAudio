@@ -52,14 +52,6 @@ namespace DiceAudio.Resources.Localization
             "Saves your whole library in a single file: audio items, folders, tags, scenes, scenario groups and presets. " +
             "The audio files themselves are only included if you tick the option below.";
 
-        /// <summary>
-        /// Until the audio file pack exists (A6), the library help cannot point
-        /// at an option below: this says the same without it.
-        /// </summary>
-        public const string ExportLibraryHelpNoMedia =
-            "Saves your whole library in a single file: audio items, folders, tags, scenes, scenario groups and presets. " +
-            "The audio files themselves are not included.";
-
         public const string ExportNoSourceWarning =
             "{0} audio items have no download link, and their file is not included. " +
             "The person who imports will have to pick their own file for them.";
@@ -74,6 +66,30 @@ namespace DiceAudio.Resources.Localization
 
         /// <summary>New string (not in the spec): an export with nothing in it.</summary>
         public const string ExportNothing = "There is nothing to export here.";
+
+        // ── The audio file pack (spec §8.3) ───────────────────────────────
+
+        public const string ExportMediaOption = "Also save the audio files, in a second file (.diceamedia)";
+        public const string ExportMediaHelp =
+            "Without this second file, the person who imports gets the links to download the audio again, " +
+            "and can pick their own files for the rest.";
+        public const string ExportMediaSize = "Audio files on this computer: {0} of {1}, {2} in total.";
+        public const string ExportChecksumOption =
+            "Add checksums, so that damaged files are detected on import (slower)";
+
+        public const string CopyrightTitle = "Before you export audio files";
+        public const string CopyrightText =
+            "Audio files are often protected by copyright. You may use this export for your own needs, " +
+            "for example to move your library to another computer. Sharing these files publicly, or with people " +
+            "who do not hold the rights to them, is not allowed. You are responsible for what you do with these files; " +
+            "neither DiceAudio nor I can be held responsible for it.";
+        public const string CopyrightAcknowledge = "I understand";
+
+        /// <summary>New string (not in the spec): progress while the audio files are written.</summary>
+        public const string ExportMediaProgress = "Saving the audio files… {0} of {1}";
+
+        /// <summary>New string (not in the spec): the user stopped the export.</summary>
+        public const string ExportCancelled = "The export was stopped. Nothing has been saved.";
 
         public const string DataPanelTitle = "Data";
         public const string SharingTitle = "Sharing";

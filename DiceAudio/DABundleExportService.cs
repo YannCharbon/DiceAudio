@@ -116,20 +116,120 @@ namespace DiceAudio
         /// <summary>
         /// Asks where to save, adds the duration and size of the audio files
         /// that are on this computer (a hint for matching on import), then
-        /// writes the bundle. False when the user cancels.
+        /// writes the bundle and, when asked, the audio file pack next to it
+        /// (same name, .diceamedia). Both are written to a ".tmp" file first and
+        /// put in place only once everything is written, so a cancelled or
+        /// failed export leaves no half-written file. False when the user
+        /// cancels the save window; <see cref="OperationCanceledException"/>
+        /// when the export is stopped.
         /// </summary>
-        public Task<bool> SaveAsync(DABundle bundle, string suggestedName)
+        public async Task<bool> SaveAsync(DABundle bundle, string suggestedName, bool includeMedia, bool checksums,
+                                          IProgress<DAMediaProgress>? progress = null, CancellationToken ct = default)
         {
+            string? picked = await _files.PickSaveFileAsync(SafeFileName(suggestedName) + DABundle.FileExtension,
+                DABundle.FileExtension, Resources.Localization.Portability.ExportFileType);
+            if (picked == null) return false;
+
+            string target = picked.EndsWith(DABundle.FileExtension, StringComparison.OrdinalIgnoreCase)
+                ? picked : picked + DABundle.FileExtension;
+            string packTarget = Path.ChangeExtension(target, DAMediaManifest.FileExtension);
+            string targetTmp = target + ".tmp", packTmp = packTarget + ".tmp";
             string audioDir = _service.AudioDir;
-            return _files.SaveStreamAsync(SafeFileName(suggestedName) + DABundle.FileExtension, DABundle.FileExtension,
-                Resources.Localization.Portability.ExportFileType,
-                async stream =>
+
+            try
+            {
+                // Off the UI thread, on the bundle's own copies: reading a whole
+                // library's files and packing them takes a while.
+                await Task.Run(async () =>
                 {
-                    // The file reads take a while for a whole library: off the UI thread,
-                    // on the bundle's own copies.
-                    await Task.Run(() => AddFileFacts(bundle, audioDir));
-                    await bundle.WriteAsync(stream);
-                });
+                    AddFileFacts(bundle, audioDir);
+
+                    if (includeMedia)
+                    {
+                        var sources = MediaSources(bundle, audioDir);
+                        DAMediaManifest manifest;
+                        await using (var pack = new FileStream(packTmp, FileMode.Create, FileAccess.ReadWrite, FileShare.None, 1 << 16, useAsync: true))
+                        {
+                            manifest = await DAMediaPackWriter.WriteAsync(pack, bundle.BundleId, bundle.AppVersion,
+                                                                          sources, checksums, progress, ct);
+                            await pack.FlushAsync(ct);
+                        }
+                        bundle.ApplyMediaPack(Path.GetFileName(packTarget), manifest);
+                    }
+
+                    await using (var file = new FileStream(targetTmp, FileMode.Create, FileAccess.Write, FileShare.None, 1 << 16, useAsync: true))
+                    {
+                        await bundle.WriteAsync(file, ct);
+                    }
+
+                    ct.ThrowIfCancellationRequested();
+                    if (includeMedia) File.Move(packTmp, packTarget, overwrite: true);
+                    File.Move(targetTmp, target, overwrite: true);
+                }, ct);
+                return true;
+            }
+            catch
+            {
+                TryDelete(targetTmp);
+                TryDelete(packTmp);
+                // The save window may have created the chosen file empty: an
+                // empty .dicea is of no use to anyone.
+                if (File.Exists(target) && new FileInfo(target).Length == 0) TryDelete(target);
+                throw;
+            }
+        }
+
+        /// <summary>The files the pack can carry: items of the bundle whose file is in the audio folder.</summary>
+        private static List<DAMediaSource> MediaSources(DABundle bundle, string audioDir) =>
+            bundle.AudioItems
+                .Where(r => !string.IsNullOrEmpty(r.OriginalFileName))
+                .Select(r => new DAMediaSource(r.Id, r.OriginalFileName!, Path.Combine(audioDir, r.OriginalFileName!)))
+                .Where(s => File.Exists(s.FullPath))
+                .ToList();
+
+        /// <summary>
+        /// For the dialog: how many items of the bundle have their file here,
+        /// out of how many, and their total size. Quick enough for the UI thread.
+        /// </summary>
+        public (int Present, int Total, long Bytes) MediaEstimate(DABundle bundle)
+        {
+            var sources = MediaSources(bundle, _service.AudioDir);
+            long bytes = 0;
+            foreach (var s in sources)
+            {
+                try { bytes += new FileInfo(s.FullPath).Length; }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+            }
+            return (sources.Count, bundle.AudioItems.Count, bytes);
+        }
+
+        /// <summary>
+        /// Items the person who imports will have to find a file for: no link,
+        /// and, when the audio files go along, no file here either.
+        /// </summary>
+        public int NothingToGetCount(DABundle bundle, bool includeMedia)
+        {
+            var noSource = bundle.Warnings.Where(w => w.Code == DAWarningCode.NoSourceNoFile && w.Id != null)
+                                          .Select(w => w.Id!.Value).ToHashSet();
+            if (!includeMedia) return noSource.Count;
+            var packed = MediaSources(bundle, _service.AudioDir).Select(s => s.ItemId).ToHashSet();
+            return noSource.Count(id => !packed.Contains(id));
+        }
+
+        private static void TryDelete(string path)
+        {
+            try { if (File.Exists(path)) File.Delete(path); }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { Debug.WriteLine($"Could not delete {path}: {ex.Message}"); }
+        }
+
+        /// <summary>"1.2 GB", "350 MB", "12 KB": sizes as people read them.</summary>
+        public static string FormatSize(long bytes)
+        {
+            string[] units = { "bytes", "KB", "MB", "GB", "TB" };
+            double size = bytes;
+            int unit = 0;
+            while (size >= 1024 && unit < units.Length - 1) { size /= 1024; unit++; }
+            return unit == 0 ? $"{bytes} bytes" : $"{size.ToString(size < 10 ? "0.0" : "0", System.Globalization.CultureInfo.InvariantCulture)} {units[unit]}";
         }
 
         private static void AddFileFacts(DABundle bundle, string audioDir)

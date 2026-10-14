@@ -156,6 +156,24 @@ namespace DiceAudio.Portability
             Converters = { new JsonStringEnumConverter() },
         };
 
+        /// <summary>
+        /// Links the bundle to the media pack written with it, and keeps the
+        /// <see cref="DAWarningCode.NoSourceNoFile"/> warnings only for the
+        /// items that have neither a link nor a file in the pack.
+        /// </summary>
+        public void ApplyMediaPack(string packFileName, DAMediaManifest manifest)
+        {
+            MediaPack = new DAMediaPackInfo
+            {
+                FileName = packFileName,
+                Entries = manifest.Entries.Count,
+                TotalBytes = manifest.Entries.Sum(e => e.SizeBytes),
+                HasChecksums = manifest.Entries.Count > 0 && manifest.Entries.All(e => e.Sha256 != null),
+            };
+            var packed = manifest.Entries.Select(e => e.ItemId).ToHashSet();
+            Warnings.RemoveAll(w => w.Code == DAWarningCode.NoSourceNoFile && w.Id is Guid id && packed.Contains(id));
+        }
+
         public string Serialize() => JsonSerializer.Serialize(this, WriteOptions);
 
         /// <summary>Writes the bundle as UTF-8 JSON, without a BOM.</summary>

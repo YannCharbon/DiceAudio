@@ -33,6 +33,14 @@ namespace DiceAudio
         /// caller disposes the result, which closes the stream.
         /// </summary>
         Task<DAPickedFile?> PickFileAsync(string extension, string typeLabel);
+
+        /// <summary>
+        /// Asks where to save a file of the given type and returns its full
+        /// path, or null when the user cancels. Used when a second file must go
+        /// next to the first (an export and its audio file pack). Nothing is
+        /// written; the caller writes the file itself.
+        /// </summary>
+        Task<string?> PickSaveFileAsync(string suggestedName, string extension, string typeLabel);
     }
 
     /// <summary>A file the user picked, open for reading.</summary>

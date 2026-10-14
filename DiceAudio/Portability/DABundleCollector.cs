@@ -502,7 +502,8 @@ namespace DiceAudio.Portability
                     });
 
                     // Without a link the person who imports can only pick a file
-                    // of their own (the media pack, which could carry it, is A6).
+                    // of their own, unless the audio file pack carries it:
+                    // DABundle.ApplyMediaPack then drops this warning.
                     if (string.IsNullOrWhiteSpace(item.SourceURL))
                     {
                         _bundle.Warnings.Add(new BundleWarning

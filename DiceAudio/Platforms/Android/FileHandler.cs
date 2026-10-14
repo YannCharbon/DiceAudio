@@ -103,6 +103,9 @@ namespace DiceAudio
         public Task<bool> SaveStreamAsync(string suggestedName, string extension, string typeLabel, Func<Stream, Task> write) =>
             throw new NotSupportedException("Saving a file is not available on Android yet.");
 
+        public Task<string?> PickSaveFileAsync(string suggestedName, string extension, string typeLabel) =>
+            throw new NotSupportedException("Saving a file is not available on Android yet.");
+
         public Task<DAPickedFile?> PickFileAsync(string extension, string typeLabel) =>
             throw new NotSupportedException("Opening a file is not available on Android yet.");
     }

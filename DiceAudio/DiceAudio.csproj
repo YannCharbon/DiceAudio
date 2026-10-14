@@ -18,7 +18,7 @@
         <ApplicationTitle>DiceAudio</ApplicationTitle>
         <ApplicationId>com.yanncharbon.diceaudio</ApplicationId>
         <ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
-        <ApplicationVersion>1</ApplicationVersion>
+        <ApplicationVersion>2</ApplicationVersion>
 
         <!-- Supported OS versions -->
         <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">14.2</SupportedOSPlatformVersion>

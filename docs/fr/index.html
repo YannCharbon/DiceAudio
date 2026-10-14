@@ -4,14 +4,14 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>DiceAudio - Gestionnaire audio JDR open source</title>
-    <meta name="description" content="DiceAudio est un gestionnaire audio pour le jeu de rôle sur table : bibliothèque étiquetée, scènes en couches qui fondent d'un contexte à l'autre, scénarios pour toute une séance et API de contrôle locale." />
+    <meta name="description" content="DiceAudio est un gestionnaire audio pour le jeu de rôle sur table : bibliothèque étiquetée, scènes en couches avec fondus entre les contextes, scénarios pour toute une séance et API de contrôle locale." />
     <link rel="stylesheet" href="../style.css" />
     <link rel="icon" href="../logo.svg" type="image/svg+xml" />
 
     <meta name="google-site-verification" content="_48weFEogx-29jpGcYPBlgfw3vu8xmv0ZpCxvn52Kq0" />
     <meta name="robots" content="index, follow" />
     <meta property="og:title" content="DiceAudio - Gestionnaire audio JDR open source" />
-    <meta property="og:description" content="DiceAudio est un gestionnaire audio pour le jeu de rôle sur table : bibliothèque étiquetée, scènes en couches qui fondent d'un contexte à l'autre, scénarios pour toute une séance et API de contrôle locale." />
+    <meta property="og:description" content="DiceAudio est un gestionnaire audio pour le jeu de rôle sur table : bibliothèque étiquetée, scènes en couches avec fondus entre les contextes, scénarios pour toute une séance et API de contrôle locale." />
     <meta property="og:image" content="https://yanncharbon.github.io/DiceAudio/logo.svg" />
     <meta property="og:url" content="https://yanncharbon.github.io/DiceAudio/fr/" />
     <meta property="og:type" content="website" />
@@ -26,7 +26,7 @@
         "name": "DiceAudio",
         "applicationCategory": "GameApplication",
         "operatingSystem": "Windows",
-        "description": "DiceAudio est un gestionnaire audio pour le jeu de rôle sur table : bibliothèque étiquetée, scènes en couches qui fondent d'un contexte à l'autre, scénarios pour toute une séance et API de contrôle locale.",
+        "description": "DiceAudio est un gestionnaire audio pour le jeu de rôle sur table : bibliothèque étiquetée, scènes en couches avec fondus entre les contextes, scénarios pour toute une séance et API de contrôle locale.",
         "url": "https://yanncharbon.github.io/DiceAudio/",
         "downloadUrl": "https://github.com/YannCharbon/DiceAudio/releases/latest",
         "image": "https://yanncharbon.github.io/DiceAudio/logo.svg",
@@ -37,29 +37,36 @@
 </head>
 <body>
 
-    <div class="topbar">
+    <header class="topbar">
         <div class="topbar-inner">
-            <a class="brand" href="../"><img src="../logo.svg" alt="DiceAudio logo" />DiceAudio</a>
-            <nav>
-            <a class="hide-small" href="#features">Fonctions</a>
-            <a class="hide-small" href="#screenshots">Captures</a>
-            <a class="hide-small" href="#ecosystem">Écosystème</a>
-            <a class="hide-small" href="#install">Installation</a>
-                <a href="https://github.com/YannCharbon/DiceAudio/"><img src="../github-mark-white.svg" alt="" />Dépôt GitHub</a>
-                <a href="../"><img src="../language-svgrepo-com.svg" alt="" />EN</a>
-                <a class="cta" href="https://github.com/YannCharbon/DiceAudio/releases/latest/">Télécharger</a>
+            <div class="crumb">
+                <a class="crumb-family" href="https://yanncharbon.github.io/DiceAtrium/fr/" title="Famille Dice Atrium" aria-label="Famille Dice Atrium"><img src="../atrium-logo.svg" alt="" /></a>
+                <span class="crumb-sep" aria-hidden="true">/</span>
+                <a class="brand" href="../"><img src="../logo.svg" alt="" />DiceAudio</a>
+            </div>
+            <nav class="nav-sections" aria-label="Sections de la page">
+                <a href="#features">Fonctionnalités</a>
+                <a href="#screenshots">Aperçu</a>
+                <a href="#beyond">Autres usages</a>
+                <a href="#ecosystem">Écosystème</a>
+                <a href="#install">Installation</a>
             </nav>
+            <div class="nav-util">
+                <a class="nav-key" href="https://github.com/YannCharbon/DiceAudio/" title="GitHub" aria-label="GitHub"><img src="../github-mark-white.svg" alt="" /></a>
+                <a class="nav-key nav-lang" href="../" hreflang="en" title="English version" aria-label="English version">EN</a>
+                <a class="btn primary nav-cta" href="https://github.com/YannCharbon/DiceAudio/releases/latest/">Télécharger</a>
+            </div>
         </div>
-    </div>
+    </header>
 
     <header class="hero">
         <div class="hero-inner">
             <img class="gem" src="../logo.svg" alt="DiceAudio logo" />
             <h1>DiceAudio</h1>
-            <p class="tagline">DiceAudio vous aide à gérer l'audio de vos parties de jeu de rôle sur table. Rassemblez dans une seule bibliothèque les musiques, ambiances et effets sonores que vous utilisez, construisez des scènes en couches qui suivent ce qui se passe à la table, et pilotez toute la soirée depuis une seule fenêtre.</p>
+            <p class="tagline">DiceAudio vous aide à gérer l'ambiance sonore de vos parties de jeu de rôle sur table. Rassemblez vos musiques, ambiances et effets sonores dans une même bibliothèque, créez des scènes composées de plusieurs couches qui s'adaptent à ce qui se passe autour de la table, et pilotez l'ensemble de votre séance depuis une seule fenêtre.</p>
 
             <div class="badges">
-                <a href="https://github.com/YannCharbon/DiceAudio/releases/latest"><img src="https://img.shields.io/github/v/release/YannCharbon/DiceAudio?style=for-the-badge&color=d81e6a" alt="Latest release" /></a>
+                <a href="https://github.com/YannCharbon/DiceAudio/releases/latest"><img src="https://img.shields.io/github/v/release/YannCharbon/DiceAudio?style=for-the-badge&color=E73C7E" alt="Latest release" /></a>
                 <img src="https://img.shields.io/badge/license-GPL--3.0-blue?style=for-the-badge" alt="License GPL-3.0" />
                 <img src="https://img.shields.io/badge/Windows-informational?style=for-the-badge" alt="Windows" />
             </div>
@@ -69,7 +76,7 @@
                     <img src="../download-minimalistic-svgrepo-com.svg" alt="" />Télécharger
                 </a>
                 <a class="btn" href="https://github.com/YannCharbon/DiceAudio/">
-                    <img src="../github-mark-white.svg" alt="" />Dépôt GitHub
+                    <img src="../github-mark-white.svg" alt="" />GitHub
                 </a>
             </div>
 
@@ -79,44 +86,44 @@
 
     <section id="features">
         <div class="wrap">
-            <h2>Ce que fait l'application</h2>
-            <p class="lead">DiceAudio est fait pour le maître de jeu qui veut que le son suive ce qui se passe à la table, sans avoir à se battre avec un lecteur multimédia au milieu de la partie.</p>
+            <h2>Fonctionnalités</h2>
+            <p class="lead">DiceAudio s'adresse aux maîtres de jeu qui souhaitent que l'ambiance sonore accompagne le déroulement de la partie, sans devoir se battre avec un lecteur multimédia en pleine séance.</p>
             <div class="cards">
                 <div class="card">
                     <h3>La bibliothèque audio</h3>
-                    <p>Vos fichiers audio sont organisés en dossiers et étiquetés selon trois catégories : le type (musique, ambiance ou effet sonore), le lieu et l'expression. Une recherche parcourt toute la bibliothèque, des filtres la réduisent par type, et les fichiers eux-mêmes restent là où vous les avez mis sur votre disque.</p>
+                    <p>Vos fichiers audio sont organisés en dossiers et classés à l'aide d'étiquettes réparties en trois catégories : le type (musique, ambiance ou effet sonore), le lieu et l'expression. Une recherche couvre l'ensemble de la bibliothèque et des filtres permettent de n'afficher qu'un type de son. Les fichiers eux-mêmes restent là où vous les avez placés sur votre disque.</p>
                 </div>
                 <div class="card">
-                    <h3>Importer votre audio</h3>
-                    <p>Téléchargez depuis YouTube, SoundCloud et des milliers d'autres sites grâce au téléchargeur intégré : mettez plusieurs liens en file, choisissez le dossier de destination et lancez. Vous pouvez aussi importer les fichiers que vous avez déjà sur votre disque.</p>
+                    <h3>Importer vos fichiers audio</h3>
+                    <p>Le téléchargeur intégré récupère l'audio depuis YouTube, SoundCloud et des milliers d'autres sites : ajoutez un ou plusieurs liens, choisissez le dossier de destination, puis lancez le téléchargement. Vous pouvez également importer des fichiers déjà présents sur votre disque.</p>
                 </div>
                 <div class="card">
                     <h3>Réglages de piste</h3>
-                    <p>Chaque élément a son propre volume et peut être découpé sur la portion que vous voulez réellement jouer. Le découpage est non destructif, le fichier d'origine n'est jamais modifié.</p>
+                    <p>Chaque élément dispose de son propre volume et peut être raccourci pour ne jouer que le passage qui vous intéresse. Le fichier d'origine n'est jamais modifié.</p>
                 </div>
                 <div class="card">
                     <h3>Les scènes</h3>
-                    <p>Une scène est construite à partir de plusieurs couches, chacune étant une ambiance, une musique ou un effet sonore pris dans votre bibliothèque, avec son rôle et ses réglages de lecture.</p>
+                    <p>Une scène se compose de plusieurs couches superposées. Chaque couche est une ambiance, une musique ou un effet sonore issu de votre bibliothèque, avec son propre rôle et ses propres réglages de lecture.</p>
                 </div>
                 <div class="card">
                     <h3>Les contextes</h3>
-                    <p>Une scène peut avoir plusieurs contextes, qui sont les états dans lesquels elle peut se trouver, par exemple calme, mystérieux ou bagarre. Chaque contexte retient un niveau pour chaque couche, et y passer fait fondre toute la scène sur le temps de transition que vous avez défini.</p>
+                    <p>Une scène peut comporter plusieurs contextes, qui correspondent aux différentes situations dans lesquelles elle peut se trouver : calme, mystère ou bagarre, par exemple. Chaque contexte définit le volume de chacune des couches. Lorsque vous changez de contexte, toute la scène effectue un fondu enchaîné vers ces nouveaux réglages, sur la durée de transition que vous avez définie.</p>
                 </div>
                 <div class="card">
                     <h3>Les scénarios</h3>
-                    <p>Un scénario est la liste ordonnée de ce que vous comptez jouer pendant une séance, et les scénarios sont rassemblés en groupes, en général un par aventure ou par arc narratif. Un élément peut être une piste seule, une playlist, une sélection aléatoire basée sur des critères d'étiquettes, ou une scène entière.</p>
+                    <p>Un scénario est la liste ordonnée de ce que vous prévoyez de jouer pendant une séance. Les scénarios sont rassemblés en groupes, généralement un par aventure ou par arc narratif. Chaque élément d'un scénario peut être une piste seule, une playlist, une piste choisie au hasard selon des critères d'étiquettes, ou une scène complète.</p>
                 </div>
                 <div class="card">
                     <h3>Les presets</h3>
-                    <p>N'importe quel élément de scénario peut être enregistré comme preset avec une catégorie, puis réutilisé pour démarrer une nouvelle scène ou un nouvel élément sans tout reconstruire.</p>
+                    <p>Tout élément de scénario peut être enregistré comme preset dans une catégorie, puis réutilisé pour créer une nouvelle scène ou un nouvel élément sans repartir de zéro.</p>
                 </div>
                 <div class="card">
                     <h3>Contrôle à distance</h3>
-                    <p>DiceAudio peut démarrer un serveur HTTP local qui expose la lecture, la navigation dans un scénario et les contextes des scènes. Une autre application peut alors piloter le son : une note Trilium avec le widget fourni, ou une automatisation DiceCombats quand quelque chose se passe dans un combat. Le serveur est désactivé par défaut et s'active dans les réglages.</p>
+                    <p>DiceAudio peut démarrer un serveur HTTP local qui permet à d'autres programmes de contrôler la lecture, la navigation dans les scénarios et les contextes des scènes. Une autre application peut ainsi piloter le son, par exemple une note Trilium équipée du widget fourni, ou une automatisation DiceCombats déclenchée par un événement en combat. Ce serveur est désactivé par défaut et s'active dans les réglages.</p>
                 </div>
                 <div class="card">
                     <h3>Sur votre machine</h3>
-                    <p>La bibliothèque pointe vers les fichiers audio que vous avez déjà et les réglages restent sur votre ordinateur. L'interface est en anglais et l'application tourne sur Windows. Le mobile n'est pas disponible pour le moment, cela viendra peut-être plus tard. DiceAudio est gratuite et open source sous GPL-3.0.</p>
+                    <p>La bibliothèque s'appuie sur les fichiers audio que vous possédez déjà, et tous les réglages restent sur votre ordinateur. L'interface est en anglais et l'application fonctionne sous Windows. Il n'existe pas encore de version mobile, mais elle pourrait voir le jour plus tard. DiceAudio est gratuit et open source, sous licence GPL-3.0.</p>
                 </div>
             </div>
         </div>
@@ -124,109 +131,142 @@
 
     <section id="screenshots">
         <div class="wrap">
-            <h2>Un aperçu</h2>
-            <p class="lead">Ces captures sont prises dans une bibliothèque réellement utilisée, elles montrent donc à quoi ressemble une séance préparée.</p>
+            <h2>Aperçu de l'application</h2>
+            <p class="lead">Ces captures d'écran proviennent de la bibliothèque que j'utilise réellement pour mes parties. Elles montrent donc à quoi ressemble une séance préparée.</p>
             <div class="shots">
                 <article class="shot">
                     <div class="shot-media"><img src="../img/scene-editor.jpg" alt="L'éditeur de scène" loading="lazy" /></div>
                     <div class="shot-text">
                         <h3>L'éditeur de scène</h3>
-                        <p>Une scène est faite de couches et de contextes, et les deux s'éditent sur la même page. Chaque couche pointe vers un élément de votre bibliothèque et garde ses propres réglages. Chaque contexte retient quelles couches jouent et à quel volume, avec le temps que doit prendre le fondu. Passer de Calme à Mystérieux pendant la partie ne demande alors qu'un clic.</p>
+                        <p>Une scène se compose de couches et de contextes, qui se modifient tous deux sur la même page. Chaque couche renvoie à un élément de votre bibliothèque et conserve ses propres réglages. Chaque contexte précise quelles couches sont jouées, à quel volume, et la durée du fondu enchaîné. En pleine partie, passer de Calme à Mystérieux ne demande alors qu'un seul clic.</p>
                     </div>
                 </article>
                 <article class="shot">
                     <div class="shot-media"><img src="../img/audio-scenarios.jpg" alt="Les scénarios" loading="lazy" /></div>
                     <div class="shot-text">
                         <h3>Les scénarios</h3>
-                        <p>Un groupe rassemble les scénarios d'une aventure, et chaque scénario liste dans l'ordre ce que vous comptez jouer. Les pistes seules ont leurs propres boutons de lecture et leur barre de progression, tandis que les scènes affichent leurs contextes sous forme de boutons, pour démarrer directement dans le bon état.</p>
+                        <p>Un groupe rassemble les scénarios d'une même aventure, et chaque scénario présente dans l'ordre ce que vous prévoyez de jouer. Les pistes seules disposent de leurs propres commandes de lecture et d'une barre de progression, tandis que les scènes affichent leurs contextes sous forme de boutons, ce qui vous permet de lancer directement l'ambiance voulue.</p>
                     </div>
                 </article>
                 <article class="shot">
                     <div class="shot-media"><img src="../img/scenario_item_editor_options.jpg" alt="Ce que peut être un élément de scénario" loading="lazy" /></div>
                     <div class="shot-text">
-                        <h3>Ce que peut être un élément de scénario</h3>
-                        <p>Un élément n'est pas forcément une piste : ce peut être une playlist, une sélection aléatoire basée sur des critères, ou une scène entière. Des effets sonores peuvent y être attachés, et l'élément complet peut être enregistré comme preset pour plus tard.</p>
+                        <h3>Les différents types d'éléments</h3>
+                        <p>Un élément n'est pas forcément une simple piste : il peut aussi s'agir d'une playlist, d'une piste choisie au hasard selon des critères, ou d'une scène complète. Vous pouvez y associer des effets sonores, et enregistrer l'élément entier comme preset pour le réutiliser plus tard.</p>
                     </div>
                 </article>
                 <article class="shot">
                     <div class="shot-media"><img src="../img/random_play_criterion.jpg" alt="La lecture aléatoire par critères" loading="lazy" /></div>
                     <div class="shot-text">
                         <h3>La lecture aléatoire par critères</h3>
-                        <p>Au lieu de choisir une piste, vous décrivez ce que vous voulez et vous laissez DiceAudio choisir. Les critères se construisent à partir des catégories d'étiquettes, combinées avec ET ou OU, si bien qu'une ambiance de forêt à l'expression mystérieuse joue autre chose à chaque fois que le groupe entre dans les bois.</p>
+                        <p>Plutôt que de choisir une piste précise, vous décrivez ce que vous souhaitez entendre et DiceAudio fait le choix pour vous. Les critères reposent sur les catégories d'étiquettes, combinées avec ET ou OU. Par exemple, en demandant une ambiance de forêt à l'expression mystérieuse, vous entendrez un morceau différent chaque fois que les joueurs s'aventurent dans les bois.</p>
                     </div>
                 </article>
                 <article class="shot">
                     <div class="shot-media"><img src="../img/audio-library.jpg" alt="La bibliothèque" loading="lazy" /></div>
                     <div class="shot-text">
                         <h3>La bibliothèque</h3>
-                        <p>Chaque élément garde ses étiquettes, sa place dans les dossiers et ses réglages de lecture, et peut être joué, édité, déplacé ou supprimé depuis sa carte.</p>
+                        <p>Chaque élément conserve ses étiquettes, son emplacement dans les dossiers et ses réglages de lecture. Depuis sa carte, vous pouvez le lire, le modifier, le déplacer ou le supprimer.</p>
                     </div>
                 </article>
                 <article class="shot">
                     <div class="shot-media"><img src="../img/audio-explorer.jpg" alt="Dossiers et filtres" loading="lazy" /></div>
                     <div class="shot-text">
                         <h3>Dossiers et filtres</h3>
-                        <p>Votre bibliothèque est organisée dans des dossiers que vous créez vous-même, avec une recherche sur tous les éléments et des filtres par type. La barre du haut affiche toujours ce qui est en train de jouer.</p>
+                        <p>Votre bibliothèque est organisée en dossiers que vous créez vous-même. Une recherche couvre l'ensemble des éléments et des filtres permettent de trier par type. La barre supérieure indique en permanence ce qui est en cours de lecture.</p>
                     </div>
                 </article>
                 <article class="shot">
                     <div class="shot-media"><img src="../img/audio-downloader.jpg" alt="Le téléchargeur audio" loading="lazy" /></div>
                     <div class="shot-text">
                         <h3>Le téléchargeur audio</h3>
-                        <p>Collez un ou plusieurs liens, vérifiez ce qui est en file, choisissez le dossier de destination et lancez le téléchargement. Les pistes arrivent directement dans votre bibliothèque, prêtes à être étiquetées.</p>
+                        <p>Collez un ou plusieurs liens, vérifiez la liste des pistes à télécharger, choisissez le dossier de destination, puis lancez le téléchargement. Les pistes arrivent directement dans votre bibliothèque, prêtes à être étiquetées.</p>
                     </div>
                 </article>
                 <article class="shot">
                     <div class="shot-media"><img src="../img/audio-clip-editor.jpg" alt="Réglages de piste et découpage" loading="lazy" /></div>
                     <div class="shot-text">
                         <h3>Réglages de piste et découpage</h3>
-                        <p>Réglez le volume d'une piste et, si vous n'en avez besoin que d'une partie, déplacez le début et la fin du découpage sur la forme d'onde. L'aperçu ne joue que la région sélectionnée et le fichier d'origine n'est jamais modifié.</p>
+                        <p>Réglez le volume d'une piste et, si vous n'avez besoin que d'une partie, déplacez le début et la fin de l'extrait sur la forme d'onde. L'aperçu ne joue que la zone sélectionnée, et le fichier d'origine n'est jamais modifié.</p>
                     </div>
                 </article>
             </div>
         </div>
     </section>
 
-    <section>
+    <section id="remote">
         <div class="wrap">
             <h2>Contrôle à distance et intégration Trilium Notes</h2>
-            <p class="lead">DiceAudio embarque un serveur HTTP et peut être piloté par une API HTTP depuis n'importe quel service externe. L'application est aussi livrée avec un widget Trilium Notes qui permet d'intégrer le lecteur DiceAudio dans n'importe laquelle de vos notes. C'est très pratique, car vous placez le bon extrait audio directement là où il est utile dans votre scénario ou votre script.</p>
-            <div class="shots">
-                <article class="shot">
-                    <div class="shot-media"><img src="../img/trilium-widget.jpg" alt="Contrôle à distance" loading="lazy" /></div>
-                    <div class="shot-text">
-                        <h3>Installer le widget Trilium</h3>
-                        <ul>
-                            <li>Créez une note de code Trilium nommée <code>DiceAudioWidgetHTML</code> avec le langage réglé sur <b>HTML</b>, et collez-y le contenu de <a href="https://github.com/YannCharbon/DiceAudio/blob/master/TriliumPlugin/trilium/DiceAudioWidgetHTML.html">DiceAudioWidgetHTML.html</a>.</li>
-                            <li>Créez une note de code enfant avec le langage réglé sur <b>JavaScript frontend</b>, et collez-y le contenu de <a href="https://github.com/YannCharbon/DiceAudio/blob/master/TriliumPlugin/trilium/DiceAudioWidgetJS.frontend.js">DiceAudioWidgetJS.frontend.js</a>.</li>
-                            <li>Créez une autre note nommée <code>DiceAudio widget render</code>. Dans les <b>Basic properties</b> de la note, réglez le type sur <b>Render Note</b>. Puis dans les <b>Owned Attributes</b> de la note, ajoutez <code>~renderNote=DiceAudioWidgetHTML</code>.</li>
-                            <li>Après ces étapes, la note doit s'afficher. Quand DiceAudio est lancé, elle ne doit pas afficher <code>⚠ DiceAudio not reachable.</code></li>
-                            <li>Vous pouvez maintenant inclure cette note n'importe où en passant par le <b>menu Paragraphe</b> -> <b>Insert (+ button)</b> -> <b>Insert note</b> -> <b>sélectionnez la note <code>DiceAudio widget render</code></b></li>
-                        </ul>
-                    </div>
-                </article>
+            <p class="lead">DiceAudio intègre un serveur HTTP et peut être piloté par n'importe quel programme externe grâce à son API. Il est également fourni avec un widget pour Trilium Notes, qui permet d'intégrer le lecteur DiceAudio directement dans vos notes. Vous disposez ainsi du bon son exactement là où vous en avez besoin dans votre scénario ou votre script.</p>
+            <article class="shot-wide">
+                <div class="shot-media"><img src="../img/trilium-widget.jpg" alt="Le widget DiceAudio dans une note Trilium" loading="lazy" /></div>
+                <div class="shot-text">
+                    <h3>Installer le widget Trilium</h3>
+                    <ol class="field-steps">
+                        <li>Créez une note de code Trilium nommée <code>DiceAudioWidgetHTML</code> avec le langage réglé sur <b>HTML</b>, et collez-y le contenu de <a href="https://github.com/YannCharbon/DiceAudio/blob/master/TriliumPlugin/trilium/DiceAudioWidgetHTML.html">DiceAudioWidgetHTML.html</a>.</li>
+                        <li>Créez une note de code enfant avec le langage réglé sur <b>JavaScript frontend</b>, et collez-y le contenu de <a href="https://github.com/YannCharbon/DiceAudio/blob/master/TriliumPlugin/trilium/DiceAudioWidgetJS.frontend.js">DiceAudioWidgetJS.frontend.js</a>.</li>
+                        <li>Créez une autre note nommée <code>DiceAudio widget render</code>. Dans les <b>Basic properties</b> de la note, réglez le type sur <b>Render Note</b>. Ensuite, dans les <b>Owned Attributes</b> de la note, ajoutez <code>~renderNote=DiceAudioWidgetHTML</code>.</li>
+                        <li>Une fois ces étapes terminées, la note doit s'afficher. Lorsque DiceAudio est lancé, elle ne doit plus afficher <code>⚠ DiceAudio not reachable.</code></li>
+                        <li>Vous pouvez maintenant insérer cette note n'importe où, via le <b>menu Paragraphe</b> -> <b>Insert (+ button)</b> -> <b>Insert note</b> -> <b>sélectionnez la note <code>DiceAudio widget render</code></b></li>
+                    </ol>
+                </div>
+            </article>
+        </div>
+    </section>
+
+    <section id="beyond">
+        <div class="wrap">
+            <h2>Au-delà de la table de jeu</h2>
+            <p class="lead">DiceAudio a été développé pour un usage dans le cadre du jeu de rôle, mais d'une façon plus générale l'app sert à préparer l'ambiance sonore d'un événement à l'avance, puis à la piloter en direct manuellement ou depuis un autre programme. Cela s'applique à bien des situations qui n'ont rien à voir avec le JDR.</p>
+            <div class="cards">
+                <div class="card">
+                    <h3>Escape games</h3>
+                    <p>Une scène par salle et un contexte par situation : fouille, énigme résolue, alarme, compte à rebours final. Grâce à l'API locale, le système qui gère la salle peut même déclencher ces changements automatiquement.</p>
+                </div>
+                <div class="card">
+                    <h3>GN et soirées enquête</h3>
+                    <p>Le scénario devient le déroulé de la soirée : une ambiance pour chaque lieu et des effets sonores prêts pour les moments clés.</p>
+                </div>
+                <div class="card">
+                    <h3>Théâtre amateur et spectacles scolaires</h3>
+                    <p>Le scénario fait office de conduite son. Chaque élément peut être une piste, un extrait de piste ou une scène complète, et vous passez de l'un à l'autre au fil de la représentation.</p>
+                </div>
+                <div class="card">
+                    <h3>Maisons hantées et Halloween</h3>
+                    <p>Des ambiances en plusieurs couches qui tournent toute la soirée, un changement de contexte à l'arrivée de chaque groupe, et des effets sonores déclenchés d'une simple touche.</p>
+                </div>
+                <div class="card">
+                    <h3>Soirées jeux de société</h3>
+                    <p>Certains jeux prennent une tout autre dimension avec une ambiance sonore. Une scène par jeu, un contexte pour les moments de tension, et plus rien d'autre à gérer.</p>
+                </div>
+                <div class="card">
+                    <h3>Contes et lectures</h3>
+                    <p>Pour lire une histoire à des enfants ou raconter un conte à un groupe, avec une forêt, un orage ou un marché en fond sonore, chaque piste étant limitée au passage qui vous intéresse.</p>
+                </div>
             </div>
+            <p class="lead" style="margin:22px 0 0;">Si vous utilisez DiceAudio pour un autre usage auquel je n'ai pas encore pensé, n'hésitez pas à m'en faire part. Cela peut m'aider à développer les prochaines fonctionnalités.</p>
         </div>
     </section>
 
     <section id="ecosystem">
         <div class="wrap">
-            <h2>Un écosystème</h2>
-            <p class="lead">L'écosystème Dice compte aujourd'hui deux applications : DiceAudio et DiceCombats. Elles sont écrites par la même personne et peuvent se parler, donc ce qui se passe dans un combat peut piloter ce que votre table entend.</p>
-            <div class="eco">
-                <div class="eco-card self">
-                    <img src="../logo.svg" alt="DiceAudio logo" />
-                    <div>
-                        <h3>DiceAudio <span style="color:var(--text-dim);font-weight:400;font-size:0.9rem;">Cette application</span></h3>
-                        <p>La bibliothèque, les scènes et les scénarios. Son API locale permet à une autre application de lancer une scène, de la faire avancer ou de tout arrêter.</p>
-                    </div>
+            <h2>Écosystème Dice</h2>
+            <p class="lead">DiceAudio fait partie d'un écosystème d'applications nommé Dice, une famille d'outils gratuits et open source que j'écris pour ma propre table de jeu et que je partage avec d'autres maîtres de jeu. Chaque application est dédiée à une thématique et à des tâches différentes dans le monde du JDR, et suit les mêmes principes : pas d'installateur, pas de compte, vos données restent sur votre machine, et la même philosophie de communication par interface HTTP.</p>
+            <div class="atrium-banner">
+                <img src="../atrium-logo.svg" alt="Logo Dice Atrium" />
+                <div>
+                    <h3>Dice Atrium</h3>
+                    <p>Toutes les applications Dice sont regroupées dans l'Atrium.</p>
+                    <a class="btn primary" href="https://yanncharbon.github.io/DiceAtrium/fr/">Voir le Dice Atrium</a>
                 </div>
-                <div class="eco-card">
-                    <img src="../sibling-logo.svg" alt="DiceCombats logo" />
+            </div>
+            <div class="eco-grid">
+                <div class="eco-app">
+                    <img src="../sibling-logo.svg" alt="Logo DiceCombats" />
                     <div>
                         <h3>DiceCombats</h3>
-                        <p>DiceCombats gère les combats de votre table : des créatures construites avec les champs que votre système demande, l'initiative, les types de dégâts et les résistances, et un journal de combat. Ses automatisations peuvent appeler l'API de DiceAudio quand un coup est appliqué.</p>
-                        <a href="https://yanncharbon.github.io/DiceCombats/">Voir la page DiceCombats</a>
+                        <p>Gère les combats de votre table : fiches de créatures construites avec les champs dont votre système a besoin, initiative, types de dégâts, résistances et journal de combat. Ses automatisations peuvent appeler l'API de DiceAudio, par exemple pour jouer un jingle lors d'un coup critique. La liaison entre les deux applications se configure manuellement dans leurs réglages respectifs.</p>
+                        <a href="https://yanncharbon.github.io/DiceCombats/fr/">Voir la page DiceCombats</a>
                     </div>
                 </div>
             </div>
@@ -236,14 +276,14 @@
     <section id="install">
         <div class="wrap">
             <h2>Installation</h2>
-            <p class="lead">Il n'y a pas d'installateur ni de compte à créer. L'application stocke ses données sur votre machine.</p>
+            <p class="lead">Aucun installateur ni compte n'est nécessaire. L'application enregistre ses données sur votre machine.</p>
             <ul class="plain">
-                <li><strong>Windows</strong>: Téléchargez le ZIP de la dernière version, extrayez-le où vous voulez et lancez <span class="code-style">DiceAudio.exe</span>. Épinglez-le au menu démarrer si vous le voulez sous la main.</li>
-                <li><strong>Android</strong>: L'application n'est pas disponible sur mobile pour le moment. Cela viendra peut-être plus tard.</li>
+                <li><strong>Windows</strong> : téléchargez le ZIP de la dernière version, extrayez-le à l'emplacement de votre choix, puis lancez <span class="code-style">DiceAudio.exe</span>. Vous pouvez ensuite l'épingler au menu Démarrer pour y accéder plus facilement.</li>
+                <li><strong>Android</strong> : l'application n'est pas encore disponible sur mobile, mais une version pourrait voir le jour plus tard.</li>
             </ul>
 
             <h2 style="margin-top:34px;">Compiler depuis les sources</h2>
-            <p class="lead">Il vous faut le SDK .NET 10 et les charges de travail MAUI installées. Le reste est restauré depuis NuGet.</p>
+            <p class="lead">Le SDK .NET 10 et les workloads MAUI doivent être installés. Les autres dépendances sont récupérées automatiquement depuis NuGet.</p>
 <pre><code>git clone https://github.com/YannCharbon/DiceAudio.git
 dotnet workload install maui-windows maui-android
 dotnet publish DiceAudio/DiceAudio.csproj -f net10.0-windows10.0.19041.0 -c Release -p:RuntimeIdentifierOverride=win10-x64 -p:WindowsPackageType=None -p:IncludeAllContentForSelfExtract=true -p:PublishReadyToRun=true -p:IncludeNativeLibrariesForSelfExtract=true</code></pre>
@@ -256,20 +296,20 @@ dotnet publish DiceAudio/DiceAudio.csproj -f net10.0-windows10.0.19041.0 -c Rele
             <div class="cards">
                 <div class="card">
                     <h3>Bugs et idées</h3>
-                    <p>Si vous trouvez un bug ou si vous souhaitez une nouvelle fonctionnalité, vous pouvez ouvrir un ticket sur le dépôt.</p>
+                    <p>Si vous rencontrez un bug ou souhaitez proposer une nouvelle fonctionnalité, vous pouvez ouvrir un ticket sur le dépôt GitHub.</p>
                 </div>
                 <div class="card">
                     <h3>Pull requests</h3>
-                    <p>Les contributions sont bienvenues. Merci de les documenter et de suivre le style du code qui les entoure.</p>
+                    <p>Les contributions sont les bienvenues. Merci de les documenter et de respecter autant que possible le style du code existant.</p>
                 </div>
                 <div class="card">
                     <h3>Licence</h3>
-                    <p>Le projet est publié sous GPL-3.0-or-later. Le code source est ouvert et le restera.</p>
+                    <p>DiceAudio est publié sous licence GPL-3.0-or-later. Son code source est ouvert et le restera.</p>
                 </div>
             </div>
 
             <h2 style="margin-top:34px;">Soutenir le projet</h2>
-            <p class="lead">Ce projet est gratuit et je le développe sur mon temps libre, donc les mises à jour et les corrections peuvent mettre du temps à arriver. Si DiceAudio sert à votre table, un don m'aide à continuer.</p>
+            <p class="lead">DiceAudio est gratuit et je le développe sur mon temps libre. Les nouvelles fonctionnalités et les corrections peuvent donc parfois prendre du temps. Si l'application vous est utile, un don m'aide à continuer à la développer.</p>
             <a href="https://www.paypal.com/donate/?hosted_button_id=4X9ZURL5T4E6N"><img src="https://www.paypalobjects.com/en_US/i/btn/btn_donateCC_LG.gif" alt="Donate with PayPal" /></a>
         </div>
     </section>
@@ -277,14 +317,14 @@ dotnet publish DiceAudio/DiceAudio.csproj -f net10.0-windows10.0.19041.0 -c Rele
     <section id="ainotice">
         <div class="wrap">
             <h2>À propos de l'IA</h2>
-            <p>J'ai commencé à développer DiceAudio en septembre 2023, dans le cadre d'un ancien projet jamais publié, à une époque où je ne considérais pas encore les outils de code assistés par IA comme assez fiables pour ce genre de travail. Jusqu'au début 2026, j'ai écrit tout le code moi-même. Ces outils ayant beaucoup progressé, j'utilise maintenant Claude Code pour implémenter plus vite les nouvelles fonctionnalités. J'aime écrire du code, mais ce à quoi je tiens encore plus, c'est d'avoir du temps pour travailler mes scénarios de JDR. Confier une partie du développement à l'IA me laisse davantage de temps pour ce côté créatif du loisir. Si l'usage de l'IA dans le projet vous dérange, je comprends tout à fait que vous préfériez ne pas utiliser DiceAudio. Je tiens malgré tout à être clair sur un point : l'IA est ici un outil de développement. Les fonctionnalités, les choix de conception et la direction générale de DiceAudio viennent toujours de moi, un maître de jeu qui construit un outil pour d'autres maîtres de jeu.</p>
+            <p>J'ai commencé à développer DiceAudio en septembre 2023, dans le cadre d'un ancien projet jamais publié, à une époque où je ne considérais pas encore les outils de code assistés par IA comme assez fiables pour ce genre de travail. Jusqu'au début de l'année 2026, j'ai écrit tout le code moi-même. Ces outils ayant beaucoup progressé, j'utilise maintenant Claude Code pour implémenter plus vite les nouvelles fonctionnalités. J'aime écrire du code, mais ce à quoi je tiens encore plus, c'est d'avoir du temps pour travailler mes scénarios de JDR. Confier une partie du développement à l'IA me laisse davantage de temps pour ce côté créatif du loisir. Si l'usage de l'IA dans le projet vous dérange, je comprends tout à fait que vous préfériez ne pas utiliser DiceAudio. Je tiens malgré tout à être clair sur un point : l'IA est ici un outil de développement. Les fonctionnalités, les choix de conception et la direction générale de DiceAudio viennent toujours de moi, un maître de jeu qui construit un outil pour d'autres maîtres de jeu.</p>
         </div>
     </section>
 
     <footer>
         <div class="wrap">
             <span>DiceAudio, GPL-3.0-or-later. Construit avec .NET MAUI et Blazor.</span>
-            <span><a href="https://github.com/YannCharbon/DiceAudio/">GitHub</a> &middot; <a href="https://yanncharbon.github.io/DiceCombats/">DiceCombats</a></span>
+            <span><a href="https://github.com/YannCharbon/DiceAudio/">GitHub</a> &middot; <a href="https://yanncharbon.github.io/DiceAtrium/fr/">Dice Atrium</a> &middot; <a href="https://yanncharbon.github.io/DiceCombats/fr/">DiceCombats</a></span>
         </div>
     </footer>
 

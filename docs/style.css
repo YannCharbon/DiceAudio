@@ -1,20 +1,62 @@
-/* DiceAudio site. The DiceCombats site uses the same sheet with its own accents,
-   so the two pages of the ecosystem stay recognisably related. */
+/* ═══════════════════════════════════════════════════════════════════════════
+   DiceAudio site
+
+   The three Dice sites share this sheet and differ only by the :root token
+   block, the way DiceAudio's and DiceCombats' app.css do. The tokens are the
+   apps' own (surface ramp, borders, text ramp, accents, radii, brand
+   gradient), so a page and a screenshot of its app read as the same thing.
+   ═══════════════════════════════════════════════════════════════════════════ */
 
 :root {
-    --accent: #d81e6a;
-    --accent-soft: #ff4f8b;
-    --accent-deep: #7a1140;
-    --accent-contrast: #ffffff;
+    /* ── DiceAudio: the values of DiceAudio/wwwroot/css/app.css ─────────── */
+    --g1: rgba(238, 119, 82, 0.20); /* #EE7752 orange */
+    --g2: rgba(231, 60, 126, 0.60); /* #E73C7E pink   */
+    --g3: rgba(35, 166, 213, 0.90); /* #23A6D5 blue   */
+    --g4: rgba(35, 166, 171, 1.00); /* #23A6AB teal   */
+    --brand: linear-gradient(-45deg, var(--g1), var(--g2), var(--g3), var(--g4));
+    --atrium-brand: linear-gradient(90deg, #FF3F9E, #A45CFF, #4A7DFF, #19D3FF, #35DC8C);
 
-    --bg: #0e1113;
-    --bg-raised: #161a1d;
-    --bg-card: #1a1f23;
-    --line: #2a3238;
-    --text: #e7edf0;
-    --text-dim: #9fb0b8;
-    --radius: 14px;
+    --a1: #E73C7E;  /* primary            */
+    --a1h: #F05A93; /* primary, hover     */
+    --a1t: #FF7FA8; /* primary as text    */
+    --a2: #23A6D5;  /* info, links        */
+    --a3: #23A6AB;  /* section headings   */
+    --ink: #140610; /* text on the accent */
+
+    --s0: #09090F;
+    --s1: #0D0D1A;
+    --s2: #0F0F1B;
+    --s3: #12121F;
+    --s4: #1A1A30;
+    --s5: #23233F;
+    --s6: #2E2E58;
+    --b1: #2A2A4A;
+    --b2: #363660;
+    --b3: #444470;
+    --b4: #5555AA;
+
+    --t1: #ffffff;
+    --t2: rgba(255, 255, 255, 0.88);
+    --t3: rgba(255, 255, 255, 0.64);
+    --t4: rgba(255, 255, 255, 0.52);
+
+    --bar-bg: rgba(9, 9, 15, .88);
+    --glass: rgba(9, 9, 20, .55);
+    --glass-hi: rgba(9, 9, 20, .75);
+    --hero-glow: radial-gradient(900px 420px at 50% -140px, rgba(231, 60, 126, .22), rgba(35, 166, 213, .08) 48%, transparent 72%);
+
+    /* ── radii and motion, identical in both apps ─────────────────────────── */
+    --r-card: 12px;
+    --r-panel: 10px;
+    --r-tile: 9px;
+    --r-bar: 8px;
+    --r-btn: 7px;
+    --r-chip: 5px;
+    --r-pill: 999px;
+    --fx: 160ms;
+
     --page: 1120px;
+    --bar-h: 62px;
 }
 
 * {
@@ -23,13 +65,14 @@
 
 html {
     scroll-behavior: smooth;
+    scroll-padding-top: calc(var(--bar-h) + 16px);
 }
 
 body {
     margin: 0;
-    background: var(--bg);
-    color: var(--text);
-    font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--s0);
+    color: var(--t2);
+    font-family: Roboto, "Helvetica Neue", Helvetica, system-ui, sans-serif;
     line-height: 1.65;
     -webkit-font-smoothing: antialiased;
 }
@@ -39,12 +82,17 @@ img {
 }
 
 a {
-    color: var(--accent-soft);
+    color: var(--a2);
     text-decoration: none;
 }
 
 a:hover {
     text-decoration: underline;
+}
+
+:focus-visible {
+    outline: 2px solid var(--a2);
+    outline-offset: 2px;
 }
 
 .wrap {
@@ -53,25 +101,64 @@ a:hover {
     padding: 0 20px;
 }
 
-/* ---------------- Navigation ---------------- */
+/* ═══ the top bar ══════════════════════════════════════════════════════════
+   A website navigation in the apps' material. Three groups, each with one
+   job: where you are (family / app), where to go on this page (sections),
+   and what to do (source, language, download). The brand gradient runs
+   along its bottom edge, the hairline every Dice app bar carries. */
 
 .topbar {
     position: sticky;
     top: 0;
     z-index: 20;
-    background: rgba(14, 17, 19, 0.88);
+    background: var(--bar-bg);
     backdrop-filter: blur(10px);
-    border-bottom: 1px solid var(--line);
+    -webkit-backdrop-filter: blur(10px);
+}
+
+.topbar::after {
+    content: "";
+    position: absolute;
+    inset: auto 0 0 0;
+    height: 2px;
+    background-image: var(--brand);
 }
 
 .topbar-inner {
     display: flex;
     align-items: center;
-    gap: 18px;
-    height: 62px;
-    max-width: var(--page);
+    gap: 20px;
+    height: var(--bar-h);
+    max-width: 1240px;
     margin: 0 auto;
     padding: 0 20px;
+}
+
+.crumb {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 0 0 auto;
+}
+
+.crumb-family {
+    display: inline-flex;
+    opacity: .8;
+    transition: opacity var(--fx);
+}
+
+.crumb-family:hover {
+    opacity: 1;
+}
+
+.crumb-family img {
+    width: 24px;
+    height: 24px;
+}
+
+.crumb-sep {
+    color: var(--t4);
+    font-size: 1.1rem;
 }
 
 .brand {
@@ -80,7 +167,8 @@ a:hover {
     gap: 10px;
     font-weight: 700;
     font-size: 1.05rem;
-    color: var(--text);
+    color: var(--t1);
+    white-space: nowrap;
 }
 
 .brand:hover {
@@ -88,129 +176,112 @@ a:hover {
 }
 
 .brand img {
-    width: 30px;
-    height: 30px;
+    width: 32px;
+    height: 32px;
 }
 
-.topbar nav {
+.nav-sections {
     display: flex;
     align-items: center;
-    gap: 6px;
-    margin-left: auto;
-    flex-wrap: wrap;
+    justify-content: center;
+    gap: 2px;
+    flex: 1 1 auto;
+    min-width: 0;
 }
 
-.topbar nav a {
-    color: var(--text-dim);
-    padding: 6px 10px;
-    border-radius: 8px;
-    font-size: 0.92rem;
+.nav-sections a {
+    color: var(--t3);
+    padding: 6px 11px;
+    border-radius: var(--r-btn);
+    font-size: .92rem;
+    font-weight: 600;
+    white-space: nowrap;
+    transition: background var(--fx), color var(--fx);
 }
 
-.topbar nav a:hover {
-    color: var(--text);
-    background: var(--bg-card);
+.nav-sections a:hover {
+    color: var(--t1);
+    background: var(--s6);
     text-decoration: none;
 }
 
-.topbar nav a.cta {
-    color: var(--accent-contrast);
-    background: var(--accent);
-    font-weight: 600;
-}
-
-.topbar nav a.cta:hover {
-    background: var(--accent-soft);
-}
-
-.topbar nav a img {
-    height: 16px;
-    width: auto;
-    vertical-align: -3px;
-    margin-right: 4px;
-}
-
-/* ---------------- Hero ---------------- */
-
-.hero {
-    position: relative;
-    overflow: hidden;
-    border-bottom: 1px solid var(--line);
-    background:
-        radial-gradient(900px 380px at 50% -120px, color-mix(in srgb, var(--accent) 26%, transparent), transparent 70%),
-        var(--bg);
-}
-
-.hero-inner {
-    max-width: var(--page);
-    margin: 0 auto;
-    padding: 56px 20px 40px;
-    text-align: center;
-}
-
-.hero img.gem {
-    width: 108px;
-    height: auto;
-    margin-bottom: 6px;
-}
-
-.hero h1 {
-    margin: 0;
-    font-size: clamp(2.1rem, 5vw, 3.1rem);
-    letter-spacing: -0.5px;
-}
-
-.hero .tagline {
-    margin: 10px auto 0;
-    max-width: 720px;
-    color: var(--text-dim);
-    font-size: 1.12rem;
-}
-
-.badges {
+.nav-util {
     display: flex;
-    justify-content: center;
-    flex-wrap: wrap;
+    align-items: center;
     gap: 8px;
-    margin: 20px 0 4px;
+    flex: 0 0 auto;
+    margin-left: auto;
 }
 
-.badges img {
-    height: 26px;
-}
-
-.hero-actions {
-    display: flex;
+/* The apps' square icon key, with the operable edge. */
+.nav-key {
+    display: inline-flex;
+    align-items: center;
     justify-content: center;
-    flex-wrap: wrap;
-    gap: 12px;
-    margin-top: 18px;
+    width: 36px;
+    height: 36px;
+    border-radius: var(--r-btn);
+    border: 1px solid var(--b2);
+    color: var(--t2);
+    font-size: .78rem;
+    font-weight: 700;
+    letter-spacing: .04em;
+    transition: background var(--fx), border-color var(--fx), color var(--fx);
 }
+
+.nav-key:hover {
+    background: var(--s6);
+    border-color: var(--b3);
+    color: var(--t1);
+    text-decoration: none;
+}
+
+.nav-key img {
+    width: 18px;
+    height: 18px;
+}
+
+.nav-cta {
+    min-height: 36px;
+}
+
+/* ═══ buttons ══════════════════════════════════════════════════════════════ */
 
 .btn {
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 8px;
-    padding: 11px 20px;
-    border-radius: 999px;
-    font-weight: 600;
-    border: 1px solid var(--line);
-    color: var(--text);
+    min-height: 40px;
+    padding: 0 16px;
+    border-radius: var(--r-btn);
+    font-size: 14px;
+    font-weight: 700;
+    white-space: nowrap;
+    background: transparent;
+    border: 1px solid var(--b2);
+    color: var(--a1t);
+    transition: background var(--fx), border-color var(--fx), color var(--fx);
 }
 
 .btn:hover {
+    background: var(--s6);
+    border-color: var(--b3);
     text-decoration: none;
-    border-color: var(--accent);
 }
 
-.btn.primary {
-    background: var(--accent);
-    color: var(--accent-contrast);
+/* Dark ink on the accent fill, as in the apps: white on the accent fails
+   for anything but large text. */
+.btn.primary,
+.cta {
+    background: var(--a1);
     border-color: transparent;
+    color: var(--ink);
 }
 
-.btn.primary:hover {
-    background: var(--accent-soft);
+.btn.primary:hover,
+.cta:hover {
+    background: var(--a1h);
 }
 
 .btn img {
@@ -218,74 +289,169 @@ a:hover {
     width: auto;
 }
 
+/* The icons are white files; on the accent fill they take the ink. */
+.btn.primary img,
+.cta img {
+    filter: brightness(0);
+    opacity: .85;
+}
+
+/* ═══ hero ═════════════════════════════════════════════════════════════════ */
+
+.hero {
+    position: relative;
+    overflow: hidden;
+    border-bottom: 1px solid var(--b1);
+    background: var(--hero-glow), var(--s0);
+}
+
+.hero-inner {
+    max-width: var(--page);
+    margin: 0 auto;
+    padding: 64px 20px 44px;
+    text-align: center;
+}
+
+.hero img.gem {
+    width: 150px;
+    height: auto;
+    margin-bottom: 14px;
+    filter: drop-shadow(0 10px 24px rgba(0, 0, 0, .5));
+}
+
+.hero h1 {
+    margin: 0;
+    color: var(--t1);
+    font-size: clamp(2.2rem, 6vw, 3.4rem);
+    font-weight: 700;
+    letter-spacing: -.01em;
+}
+
+.hero .tagline {
+    margin: 12px auto 0;
+    max-width: 740px;
+    color: var(--t3);
+    font-size: 1.1rem;
+}
+
+.badges {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 22px 0 4px;
+}
+
+.badges img {
+    height: 26px;
+    border-radius: var(--r-chip);
+}
+
+.hero-actions {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 20px;
+}
+
 .hero-shot {
-    margin: 34px auto 0;
-    max-width: 940px;
-    border-radius: var(--radius);
-    border: 1px solid var(--line);
-    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+    margin: 38px auto 0;
+    max-width: min(960px, 100%);
+    border-radius: var(--r-card);
+    border: 1px solid var(--b2);
+    box-shadow: 0 24px 60px rgba(0, 0, 0, .6);
     display: block;
 }
 
-/* ---------------- Sections ---------------- */
+/* ═══ sections ═════════════════════════════════════════════════════════════
+   A section title is the apps' section heading: uppercase, in the heading
+   accent, underlined by the default border. */
 
 section {
-    padding: 56px 0;
-    border-bottom: 1px solid var(--line);
+    padding: 60px 0;
+    border-bottom: 1px solid var(--b1);
 }
 
 section h2 {
-    margin: 0 0 8px;
-    font-size: 1.75rem;
+    margin: 0 0 14px;
+    padding: 0 2px 9px;
+    border-bottom: 1px solid var(--b1);
+    color: var(--a3);
+    font-size: 1.2rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .08em;
 }
 
 section .lead {
     margin: 0 0 28px;
-    color: var(--text-dim);
-    max-width: 760px;
+    color: var(--t3);
+    max-width: 780px;
+}
+
+section p {
+    color: var(--t3);
 }
 
 .cards {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    gap: 16px;
+    gap: 12px;
 }
 
 .card {
-    background: var(--bg-card);
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
+    background: var(--s3);
+    border: 1px solid var(--b1);
+    border-radius: var(--r-panel);
     padding: 18px 18px 20px;
+    transition: border-color var(--fx), background var(--fx);
+}
+
+.card:hover {
+    border-color: var(--b3);
+    background: var(--s4);
 }
 
 .card h3 {
     margin: 0 0 6px;
-    font-size: 1.08rem;
-    color: var(--accent-soft);
+    font-size: 1.05rem;
+    color: var(--t1);
+}
+
+/* The accent rule the apps put on a card that is "on". */
+.card h3::before {
+    content: "";
+    display: block;
+    width: 26px;
+    height: 3px;
+    margin-bottom: 10px;
+    border-radius: 2px;
+    background: var(--a1);
 }
 
 .card p {
     margin: 0;
-    color: var(--text-dim);
-    font-size: 0.96rem;
+    color: var(--t3);
+    font-size: .95rem;
 }
 
-/* ---------------- Screenshot gallery ---------------- */
+/* ═══ screenshot gallery ═══════════════════════════════════════════════════ */
 
 .shots {
     display: flex;
     flex-direction: column;
-    gap: 26px;
+    gap: 20px;
 }
 
 .shot {
     display: grid;
     grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
-    gap: 26px;
+    gap: 28px;
     align-items: center;
-    background: var(--bg-raised);
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
+    background: var(--s3);
+    border: 1px solid var(--b1);
+    border-radius: var(--r-card);
     padding: 18px;
 }
 
@@ -297,60 +463,92 @@ section .lead {
     max-width: 100%;
     max-height: 500px;
     display: block;
-    border-radius: 10px;
-    border: 1px solid var(--line);
+    border-radius: var(--r-bar);
+    border: 1px solid var(--b2);
 }
 
 .shot-text h3 {
     margin: 0 0 8px;
+    color: var(--t1);
     font-size: 1.2rem;
 }
 
 .shot-text p {
     margin: 0;
-    color: var(--text-dim);
+    color: var(--t3);
 }
 
-/* ---------------- Custom fields ---------------- */
+.shot-text ul {
+    color: var(--t3);
+}
+
+/* A very wide screenshot (a toolbar, a widget): the image takes the whole
+   card width and the text goes underneath instead of beside it. */
+.shot-wide {
+    background: var(--s3);
+    border: 1px solid var(--b1);
+    border-radius: var(--r-card);
+    padding: 18px;
+}
+
+.shot-wide .shot-media img {
+    width: 100%;
+    max-height: none;
+}
+
+.shot-wide .shot-text {
+    margin-top: 22px;
+    max-width: 860px;
+}
+
+.shot-wide .shot-text h3 {
+    margin-bottom: 16px;
+}
+
+.shot-wide .field-steps {
+    margin-bottom: 0;
+}
+
+/* ═══ custom fields (DiceCombats) ══════════════════════════════════════════ */
 
 .fields-split {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
-    gap: 26px;
+    gap: 28px;
     align-items: start;
 }
 
 .fields-split img {
     width: 100%;
-    border-radius: 10px;
-    border: 1px solid var(--line);
+    border-radius: var(--r-bar);
+    border: 1px solid var(--b2);
 }
 
 /* One card per field type: the example carries the explanation. */
 .ftypes {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
-    gap: 16px;
-    margin-top: 26px;
+    gap: 12px;
+    margin-top: 28px;
 }
 
 .ftype {
-    background: var(--bg-card);
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
+    background: var(--s3);
+    border: 1px solid var(--b1);
+    border-radius: var(--r-panel);
     padding: 16px;
 }
 
 .ftype h3 {
     margin: 0 0 4px;
     font-size: 1.05rem;
-    color: var(--accent-soft);
+    color: var(--t1);
 }
 
     .ftype > p {
         margin: 0 0 12px;
-        color: var(--text-dim);
-        font-size: 0.92rem;
+        color: var(--t3);
+        font-size: .92rem;
     }
 
 .ftype figure {
@@ -367,9 +565,9 @@ section .lead {
     width: auto;
     height: auto;
     display: block;
-    border-radius: 8px;
-    border: 1px solid var(--line);
-    background: #202020;
+    border-radius: var(--r-bar);
+    border: 1px solid var(--b2);
+    background: var(--s0);
 }
 
 /* Reads as: this configuration gives that card. */
@@ -377,7 +575,7 @@ section .lead {
     display: flex;
     align-items: center;
     gap: 10px;
-    color: var(--accent);
+    color: var(--a1);
     margin: 12px 0;
 }
 
@@ -386,7 +584,7 @@ section .lead {
         content: "";
         flex: 1 1 auto;
         height: 1px;
-        background: linear-gradient(to right, transparent, var(--line), transparent);
+        background: linear-gradient(to right, transparent, var(--b2), transparent);
     }
 
     .ftype-arrow svg {
@@ -394,11 +592,12 @@ section .lead {
     }
 
 .ftype figcaption {
-    margin-top: 5px;
-    color: #7d8f98;
-    font-size: 0.75rem;
+    margin-top: 6px;
+    color: var(--t4);
+    font-size: .72rem;
+    font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: .1em;
 }
 
 .field-steps {
@@ -410,9 +609,9 @@ section .lead {
 
 .field-steps li {
     position: relative;
-    padding-left: 38px;
+    padding-left: 40px;
     margin-bottom: 14px;
-    color: var(--text-dim);
+    color: var(--t3);
 }
 
 .field-steps li::before {
@@ -420,63 +619,110 @@ section .lead {
     content: counter(step);
     position: absolute;
     left: 0;
-    top: 1px;
-    width: 26px;
-    height: 26px;
-    border-radius: 50%;
-    background: var(--accent);
-    color: var(--accent-contrast);
+    top: 0;
+    width: 28px;
+    height: 28px;
+    border-radius: var(--r-tile);
+    background: var(--a1);
+    color: var(--ink);
     font-weight: 700;
-    font-size: 0.85rem;
+    font-size: .85rem;
     display: flex;
     align-items: center;
     justify-content: center;
 }
 
 .field-steps li strong {
-    color: var(--text);
+    color: var(--t1);
 }
 
-/* ---------------- Ecosystem ---------------- */
+/* ═══ ecosystem ════════════════════════════════════════════════════════════ */
 
-.eco {
+.atrium-banner {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 24px;
+    align-items: center;
+    background: var(--s3);
+    border: 1px solid var(--b1);
+    border-radius: var(--r-card);
+    padding: 24px;
+    margin-bottom: 20px;
+    position: relative;
+    overflow: hidden;
+}
+
+/* The Atrium's own gradient, as the hairline every Dice app bar wears. */
+.atrium-banner::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 3px;
+    background: var(--atrium-brand);
+}
+
+.atrium-banner > img {
+    width: 120px;
+    height: auto;
+}
+
+.atrium-banner h3 {
+    margin: 0 0 8px;
+    color: var(--t1);
+    font-size: 1.4rem;
+}
+
+.atrium-banner p {
+    margin: 0 0 14px;
+    color: var(--t3);
+}
+
+.eco-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    gap: 16px;
+    gap: 12px;
 }
 
-.eco-card {
+/* An app is shown as the apps show an object: a strip with a leading tile. */
+.eco-app {
     display: flex;
-    gap: 14px;
+    gap: 16px;
     align-items: flex-start;
-    background: var(--bg-card);
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
-    padding: 18px;
+    background: var(--s3);
+    border: 1px solid var(--b1);
+    border-radius: var(--r-card);
+    padding: 16px 18px;
+    transition: border-color var(--fx), background var(--fx);
 }
 
-.eco-card img {
-    width: 54px;
-    height: 54px;
+.eco-app:hover {
+    border-color: var(--b3);
+    background: var(--s4);
+}
+
+.eco-app img {
+    width: 56px;
+    height: 56px;
     flex: 0 0 auto;
 }
 
-.eco-card h3 {
+.eco-app h3 {
     margin: 0 0 4px;
+    color: var(--t1);
     font-size: 1.1rem;
 }
 
-.eco-card p {
+.eco-app p {
     margin: 0 0 8px;
-    color: var(--text-dim);
-    font-size: 0.95rem;
+    color: var(--t3);
+    font-size: .95rem;
 }
 
-.eco-card.self {
-    border-color: var(--accent);
+.eco-app.self {
+    border-color: var(--a1);
 }
 
-/* ---------------- Image lightbox ---------------- */
+/* ═══ image lightbox ═══════════════════════════════════════════════════════ */
 
 .zoomable {
     cursor: zoom-in;
@@ -490,7 +736,7 @@ section .lead {
     align-items: center;
     justify-content: center;
     padding: 28px;
-    background: rgba(0, 0, 0, 0.88);
+    background: rgba(0, 0, 0, .88);
     cursor: zoom-out;
 }
 
@@ -503,9 +749,9 @@ section .lead {
         max-height: 100%;
         width: auto;
         height: auto;
-        border-radius: 10px;
-        border: 1px solid var(--line);
-        box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
+        border-radius: var(--r-panel);
+        border: 1px solid var(--b2);
+        box-shadow: 0 24px 60px rgba(0, 0, 0, .6);
     }
 
 .lightbox-close {
@@ -514,28 +760,29 @@ section .lead {
     right: 16px;
     width: 40px;
     height: 40px;
-    border: 1px solid var(--line);
-    border-radius: 50%;
-    background: var(--bg-card);
-    color: var(--text);
+    border: 1px solid rgba(255, 255, 255, .20);
+    border-radius: var(--r-pill);
+    background: var(--glass);
+    color: var(--t1);
     font-size: 22px;
     line-height: 1;
     cursor: pointer;
 }
 
     .lightbox-close:hover {
-        border-color: var(--accent);
+        background: var(--glass-hi);
+        border-color: rgba(255, 255, 255, .5);
     }
 
 body.lightbox-open {
     overflow: hidden;
 }
 
-/* ---------------- Lists, code, footer ---------------- */
+/* ═══ lists, code, footer ══════════════════════════════════════════════════ */
 
 ul.plain {
     padding-left: 20px;
-    color: var(--text-dim);
+    color: var(--t3);
 }
 
 ul.plain li {
@@ -543,25 +790,25 @@ ul.plain li {
 }
 
 ul.plain strong {
-    color: var(--text);
+    color: var(--t1);
 }
 
 code, .code-style {
-    background: #11161a;
-    border: 1px solid var(--line);
-    border-radius: 6px;
+    background: var(--s2);
+    border: 1px solid var(--b1);
+    border-radius: var(--r-chip);
     padding: 2px 7px;
-    font-family: Consolas, "Courier New", monospace;
-    font-size: 0.9em;
-    color: #cfe9e2;
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: .9em;
+    color: var(--t2);
     -webkit-box-decoration-break: clone;
     box-decoration-break: clone;
 }
 
 pre {
-    background: #11161a;
-    border: 1px solid var(--line);
-    border-radius: 10px;
+    background: var(--s2);
+    border: 1px solid var(--b1);
+    border-radius: var(--r-panel);
     padding: 14px 16px;
     overflow-x: auto;
 }
@@ -574,8 +821,8 @@ pre code {
 
 footer {
     padding: 30px 0 46px;
-    color: var(--text-dim);
-    font-size: 0.9rem;
+    color: var(--t3);
+    font-size: .9rem;
 }
 
 footer .wrap {
@@ -584,6 +831,15 @@ footer .wrap {
     gap: 12px;
     align-items: center;
     justify-content: space-between;
+}
+
+/* ═══ narrow windows ═══════════════════════════════════════════════════════ */
+
+/* Below this the sections leave the bar; the page itself is the menu. */
+@media (max-width: 960px) {
+    .nav-sections {
+        display: none;
+    }
 }
 
 @media (max-width: 820px) {
@@ -595,7 +851,49 @@ footer .wrap {
         order: 0;
     }
 
-    .topbar nav a.hide-small {
-        display: none;
+    .fields-split {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 640px) {
+    .topbar-inner {
+        gap: 10px;
+        padding: 0 14px;
+    }
+
+    .crumb-family img {
+        width: 20px;
+        height: 20px;
+    }
+
+    .brand {
+        font-size: .98rem;
+        gap: 8px;
+    }
+
+    .brand img {
+        width: 28px;
+        height: 28px;
+    }
+
+    .nav-util {
+        gap: 6px;
+    }
+
+    .nav-cta {
+        padding: 0 12px;
+    }
+
+    .atrium-banner {
+        grid-template-columns: 1fr;
+        text-align: center;
+        justify-items: center;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    html {
+        scroll-behavior: auto;
     }
 }

@@ -48,6 +48,7 @@
                 <a href="#features">Fonctionnalités</a>
                 <a href="#screenshots">Aperçu</a>
                 <a href="#beyond">Autres usages</a>
+                <a href="#data">Vos données</a>
                 <a href="#ecosystem">Écosystème</a>
                 <a href="#install">Installation</a>
             </nav>
@@ -91,7 +92,7 @@
             <div class="cards">
                 <div class="card">
                     <h3>La bibliothèque audio</h3>
-                    <p>Vos fichiers audio sont organisés en dossiers et classés à l'aide d'étiquettes réparties en trois catégories : le type (musique, ambiance ou effet sonore), le lieu et l'expression. Une recherche couvre l'ensemble de la bibliothèque et des filtres permettent de n'afficher qu'un type de son. Les fichiers eux-mêmes restent là où vous les avez placés sur votre disque.</p>
+                    <p>Vos fichiers audio sont organisés en dossiers et classés à l'aide d'étiquettes réparties en trois catégories : le type (musique, ambiance ou effet sonore), le lieu et l'expression. Une recherche couvre l'ensemble de la bibliothèque et des filtres permettent de n'afficher qu'un type de son. Ces dossiers et ces étiquettes n'existent que dans DiceAudio : les fichiers audio eux-mêmes sont réunis dans le dossier Audio de votre dossier de données.</p>
                 </div>
                 <div class="card">
                     <h3>Importer vos fichiers audio</h3>
@@ -245,6 +246,63 @@
                 </div>
             </div>
             <p class="lead" style="margin:22px 0 0;">Si vous utilisez DiceAudio pour un autre usage auquel je n'ai pas encore pensé, n'hésitez pas à m'en faire part. Cela peut m'aider à développer les prochaines fonctionnalités.</p>
+        </div>
+    </section>
+
+    <section id="data">
+        <div class="wrap">
+            <h2>Vos données</h2>
+            <p class="lead">Votre bibliothèque, vos scènes, vos scénarios et vos réglages restent sur votre ordinateur. DiceAudio vous permet de les partager avec d'autres MJ et en conserve des sauvegardes à votre place.</p>
+            <div class="cards">
+                <div class="card">
+                    <h3>Partager avec tout ce qui est nécessaire</h3>
+                    <p>Pistes, dossiers, scènes, scénarios, groupes de scénarios, collections et presets peuvent tous être exportés. Le fichier contient également tout ce qu'ils utilisent. Ainsi, un groupe de scénarios est accompagné de ses scènes, des pistes qu'elles jouent ainsi que des dossiers et des étiquettes de ces pistes. Dans les réglages (Settings), section Data, <strong>Export the whole library…</strong> enregistre l'ensemble en une seule fois. L'export prend la forme d'un fichier <span class="code-style">.dicea</span>, qui contient les descriptions et les liens de téléchargement, mais jamais l'audio lui-même.</p>
+                </div>
+                <div class="card">
+                    <h3>Les fichiers audio</h3>
+                    <p>Si vous cochez <strong>Also save the audio files, in a second file (.diceamedia)</strong>, les fichiers audio présents sur votre ordinateur sont enregistrés dans un second fichier, à côté du premier. La première fois que vous le faites au cours d'une session, DiceAudio vous rappelle que les fichiers audio sont souvent protégés par le droit d'auteur. Vous pouvez utiliser cet export pour votre usage personnel, par exemple pour transférer votre bibliothèque sur un autre ordinateur. En revanche, il n'est pas permis de partager ces fichiers publiquement, ni avec des personnes qui n'en détiennent pas les droits.</p>
+                </div>
+                <div class="card">
+                    <h3>Importer</h3>
+                    <p>Le bouton <strong>Import a DiceAudio file…</strong> se trouve dans l'explorateur et dans les réglages. Lorsque rien dans le fichier ne figure déjà dans votre bibliothèque, un simple récapitulatif vous demande de confirmer. Dans le cas contraire, chaque entrée du fichier est marquée <strong>New</strong>, <strong>Up to date</strong>, <strong>Differs</strong> ou <strong>Name already used</strong>. Vous décidez alors de ce qu'il convient d'en faire. Un groupe de scénarios ou un dossier peut aussi être fusionné avec le vôtre (<strong>Merge</strong>). Les parties d'un groupe de scénarios rejoignent le groupe ou le scénario de votre choix. Une sauvegarde est effectuée avant toute modification.</p>
+                </div>
+                <div class="card">
+                    <h3>Récupérer l'audio</h3>
+                    <p>Après l'importation, DiceAudio attribue à chaque piste son fichier. Il le reprend du fichier <span class="code-style">.diceamedia</span> lorsque celui-ci existe : il le cherche à côté du fichier <span class="code-style">.dicea</span> ou vous le demande. À défaut, il utilise un fichier de votre ordinateur qui porte le même nom ou qui a la même taille. Sinon, il télécharge la piste depuis son lien, par la liste des téléchargements. Les pistes encore dépourvues de fichier sont listées, chacune avec un bouton <strong>Pick file…</strong>, et le filtre <strong>Missing files</strong> de l'explorateur permet de les retrouver plus tard.</p>
+                </div>
+                <div class="card">
+                    <h3>Sauvegardes</h3>
+                    <p>DiceAudio sauvegarde vos données à la première ouverture de chaque journée, ainsi qu'avant chaque importation, chaque restauration et chaque changement de dossier de données. Une sauvegarde contient votre bibliothèque, vos dossiers, étiquettes, scènes, groupes de scénarios, presets et réglages, mais jamais les fichiers audio eux-mêmes. Les dix sauvegardes automatiques les plus récentes sont conservées. Celles que vous effectuez avec <strong>Back up now</strong> ne sont jamais supprimées par l'application, pas plus que celles qui précèdent une importation, une restauration ou un changement de dossier.</p>
+                </div>
+                <div class="card">
+                    <h3>Restaurer une sauvegarde</h3>
+                    <p>Dans les réglages (Settings), section Data, la sauvegarde la plus récente s'affiche avec un bouton <strong>Restore</strong>. Le bouton <strong>All backups…</strong> présente les autres, avec leur date, l'ordinateur concerné et leur motif. Avant toute restauration, DiceAudio sauvegarde vos données actuelles, afin que vous puissiez revenir en arrière si nécessaire. Une fois la sauvegarde restaurée, les pistes dont le fichier ne se trouve plus sur cet ordinateur sont listées. <strong>Save a backup to a file…</strong> en place une copie hors de l'application, et <strong>Restore from a file…</strong> permet d'en récupérer une. Enfin, <strong>Open the backups folder</strong> affiche l'emplacement où elles sont conservées.</p>
+                </div>
+                <div class="card">
+                    <h3>Choisir le dossier de données</h3>
+                    <p>Dans les réglages (Settings), section Data, le bouton <strong>Choose another folder…</strong> déplace votre bibliothèque, ses sauvegardes et vos fichiers audio dans le dossier de votre choix. Avant le déplacement, DiceAudio indique la place occupée par vos fichiers audio et l'espace libre sur le disque de destination. Il arrête ensuite la lecture et les téléchargements, copie l'ensemble, vérifie la copie, puis redémarre avec le nouveau dossier. Vos anciennes données restent en place jusqu'à ce que vous cliquiez sur <strong>Delete the old copy</strong>. Le bouton <strong>Back to the default folder</strong> permet de les ramener dans le dossier par défaut. Cette fonction n'existe que sous Windows.</p>
+                </div>
+                <div class="card">
+                    <h3>Un dossier qui contient déjà des données</h3>
+                    <p>Il arrive que le dossier choisi contienne déjà des données de DiceAudio, provenant par exemple d'un autre ordinateur. DiceAudio présente alors le contenu des deux côtés et propose trois possibilités. <strong>Use the folder's data</strong> utilise le dossier tel quel. <strong>Replace it with mine</strong> sauvegarde d'abord les données du dossier dans ses propres sauvegardes, puis les remplace par les vôtres. <strong>Merge</strong> ajoute vos données à celles du dossier ; lorsqu'un élément existe des deux côtés, vous décidez de la suite, comme lors d'une importation.</p>
+                </div>
+                <div class="card">
+                    <h3>Utiliser plusieurs ordinateurs</h3>
+                    <p>Un dossier synchronisé par OneDrive, Dropbox ou un service similaire permet d'utiliser la même bibliothèque sur plusieurs ordinateurs. Veuillez n'ouvrir DiceAudio que sur un seul ordinateur à la fois. Je vous conseille également de régler le service pour qu'il conserve toujours les fichiers de ce dossier sur l'appareil ; à défaut, DiceAudio pourrait devoir attendre leur téléchargement. Si le dossier est inaccessible au démarrage, par exemple parce qu'un disque n'est pas branché, DiceAudio n'y crée pas de bibliothèque vide. Vous pouvez alors réessayer, choisir un autre dossier ou ouvrir le dossier par défaut pour cette session uniquement.</p>
+                </div>
+                <div class="card">
+                    <h3>Ouvert sur un autre ordinateur</h3>
+                    <p>Lorsque le dossier de données est déjà utilisé sur un autre ordinateur, DiceAudio vous le signale au démarrage. Il indique le nom de cet ordinateur et l'heure à laquelle le dossier y a été ouvert. Le bouton <strong>Open anyway</strong> ouvre malgré tout le dossier sur cet ordinateur-ci. Si DiceAudio est encore ouvert sur l'autre ordinateur, veuillez d'abord l'y fermer. Le bouton <strong>Quit</strong> ferme DiceAudio sans rien modifier.</p>
+                </div>
+                <div class="card">
+                    <h3>Modifications faites sur un autre ordinateur</h3>
+                    <p>Lorsqu'un autre ordinateur modifie les données pendant que DiceAudio est ouvert, un message vous en informe et propose un bouton <strong>Reload</strong>. DiceAudio ne recharge jamais rien de lui-même : vous pouvez attendre un moment calme de la séance. Le rechargement arrête les scénarios en cours de lecture. Si vous enregistrez une modification sur des données changées entre-temps ailleurs, DiceAudio vous demande quelle version conserver. <strong>Reload</strong> reprend la version de l'autre ordinateur, tandis que <strong>Overwrite</strong> conserve la vôtre.</p>
+                </div>
+                <div class="card">
+                    <h3>Rien ne se perd sans prévenir</h3>
+                    <p>Si DiceAudio est fermé avant que vous ayez fait ce choix, votre version est conservée dans le dossier de données, dans un fichier dont le nom se termine par <span class="code-style">.unsaved.json</span>. DiceAudio vous le signale au démarrage suivant. Au démarrage, il vous signale également les fichiers de données qui ne se trouvent que dans le cloud. Il en va de même des copies qu'un service de synchronisation crée lorsque deux ordinateurs modifient le même fichier en même temps. Dans l'explorateur, une piste dont le fichier n'a pas encore été téléchargé sur cet ordinateur porte la mention <strong>Only in the cloud</strong>.</p>
+                </div>
+            </div>
         </div>
     </section>
 

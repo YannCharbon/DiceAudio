@@ -17,6 +17,7 @@ using System.Diagnostics;
 using System.Reflection;
 using System.Net.Http.Headers;
 using Plugin.Maui.Audio;
+using DiceAudio.Storage;
 
 namespace DiceAudio
 {
@@ -37,6 +38,27 @@ namespace DiceAudio
         private List<Guid> _pinnedScenarioGroups = new List<Guid>();
 
         readonly IAudioManager audioManager;
+
+        /// <summary>
+        /// Every data file is read and written through this store: atomic,
+        /// write-if-changed saves, and a file that failed to load is never
+        /// saved over (see <see cref="UnreadableFiles"/>).
+        /// </summary>
+        public SafeFileStore Store { get; }
+
+        public const string AudioItemsFileName = "audioItems.json";
+        public const string AudioVirtualFoldersFileName = "audioVirtualFolders.json";
+        public const string ScenarioGroupsFileName = "scenarioGroups.json";
+        public const string PinnedScenarioGroupsFileName = "pinnedScenarioGroups.json";
+        public const string ScenesFileName = "scenes.json";
+        public const string PresetsFileName = "presets.json";
+
+        /// <summary>
+        /// Changes made to a file outside the app are not looked for yet (that
+        /// comes with the use from several computers), so every save overwrites
+        /// the file, as it always has.
+        /// </summary>
+        private const bool OverwriteExternalChange = true;
 
         /// <summary>
         /// Enums are written by name rather than by their position, so adding a
@@ -69,30 +91,89 @@ namespace DiceAudio
         /// <summary>Completes once the persisted lists are in memory — await before reading them.</summary>
         public Task WhenLoaded => _loaded;
 
-        public DiceAudioService(IAudioManager audioManager)
+        public DiceAudioService(IAudioManager audioManager, SafeFileStore store)
         {
             this.audioManager = audioManager;
+            Store = store;
 
             _loaded = LoadEverythingAsync();
         }
 
+        /// <summary>
+        /// Loads each file on its own: one that cannot be read leaves its list
+        /// empty and is blocked by the store, so it is never saved over, while
+        /// the others load normally. The main layout tells the user.
+        /// </summary>
+        // Nothing here touches the UI, so no continuation needs to come back to
+        // the thread that created the service.
         private async Task LoadEverythingAsync()
+        {
+            await LoadStepAsync(DAAudioTagsProvider.FileNames, () => DAAudioTagsProvider.Instance.LoadAsync(Store)).ConfigureAwait(false);
+            await LoadStepAsync(new[] { AudioItemsFileName }, LoadAudioItemListAsync).ConfigureAwait(false);
+            await LoadStepAsync(new[] { AudioVirtualFoldersFileName }, LoadAudioVirtualFoldersListAsync).ConfigureAwait(false);
+            await LoadStepAsync(new[] { ScenarioGroupsFileName }, LoadScenarioGroupsAsync).ConfigureAwait(false);
+            await LoadStepAsync(new[] { ScenesFileName }, LoadScenesAsync).ConfigureAwait(false);
+            await LoadStepAsync(new[] { PresetsFileName }, LoadPresetsAsync).ConfigureAwait(false);
+            await LoadStepAsync(new[] { PinnedScenarioGroupsFileName }, LoadPinnedScenarioGroupsAsync).ConfigureAwait(false);
+        }
+
+        private async Task LoadStepAsync(IReadOnlyList<string> fileNames, Func<Task> load)
         {
             try
             {
-                await LoadAudioItemListAsync();
-                await LoadAudioVirtualFoldersListAsync();
-                await LoadScenarioGroupsAsync();
-                await LoadScenesAsync();
-                await LoadPresetsAsync();
-                await LoadPinnedScenarioGroupsAsync();
+                await load().ConfigureAwait(false);
             }
             catch (Exception ex)
             {
-                // Starting with empty lists is better than not starting at all.
-                Debug.WriteLine($"Initial load failed: {ex.Message}");
+                // The store reports a damaged file without throwing, so this is
+                // the unexpected. Whatever went wrong, the files of this step
+                // were not taken in: block them, so the lists left in their
+                // place are never saved over them, and go on with the others.
+                Debug.WriteLine($"Loading {string.Join(", ", fileNames)} failed: {ex.Message}");
+                foreach (var fileName in fileNames)
+                    Store.Block(fileName);
             }
         }
+
+        /// <summary>The data files that could not be read at startup, and that this session does not write.</summary>
+        public IReadOnlyCollection<string> UnreadableFiles => Store.BlockedFiles;
+
+        /// <summary>
+        /// Set once the main layout has told the user about <see cref="UnreadableFiles"/>,
+        /// so that the notice shows once per session.
+        /// </summary>
+        public bool UnreadableFilesNoticeShown { get; set; }
+
+        /// <summary>
+        /// Saves every list and the tags, then waits until every write, including
+        /// those started elsewhere, is done. Used when the app closes.
+        /// </summary>
+        public async Task SaveEverythingAsync()
+        {
+            await _loaded;
+
+            var saves = new List<Task>
+            {
+                SaveAudioItemListAsync(),
+                SaveAudioVirtualFoldersAsync(),
+                SaveScenarioGroupsAsync(),
+                SaveScenesAsync(),
+                SavePresetsAsync(),
+                SavePinnedScenarioGroupsAsync(),
+                DAAudioTagsProvider.Instance.SaveTagsAsync(),
+            };
+            try
+            {
+                await Task.WhenAll(saves);
+            }
+            finally
+            {
+                await Store.FlushAsync();
+            }
+        }
+
+        /// <summary>Waits for every save already started. See <see cref="SafeFileStore.FlushAsync"/>.</summary>
+        public Task FlushAsync(CancellationToken ct = default) => Store.FlushAsync(ct);
 
         public void AddAudioItem(DAAudioItem audioItem)
         {
@@ -288,80 +369,51 @@ namespace DiceAudio
             return current;
         }
 
-        private static string audioItemsFilePath = Path.Combine(FileSystem.AppDataDirectory, "audioItems.json");
-
         public async Task SaveAudioItemListAsync()
         {
             await _loaded;
-
-            string json = JsonSerializer.Serialize(AudioItems, WriteOptions);
-            await File.WriteAllTextAsync(audioItemsFilePath, json);
-            Debug.WriteLine($"Write file to {audioItemsFilePath}");
+            await SaveListAsync(AudioItems, AudioItemsFileName);
         }
 
         public async Task LoadAudioItemListAsync()
         {
-            if (File.Exists(audioItemsFilePath))
-            {
-                Debug.WriteLine("File exists");
-                string json = await File.ReadAllTextAsync(audioItemsFilePath);
-                var temp = JsonSerializer.Deserialize<List<DAAudioItem>>(json, ReadOptions);
-                if (temp != null)
-                {
-                    AudioItems = temp;
-                }
-            }
+            AudioItems = await LoadListAsync<DAAudioItem>(AudioItemsFileName).ConfigureAwait(false) ?? AudioItems;
+            RefreshLocalAvailability();
         }
 
-        private static string audioVirtualFoldersFilePath = Path.Combine(FileSystem.AppDataDirectory, "audioVirtualFolders.json");
+        /// <summary>
+        /// Works out again, from the audio folder, which items have their file on
+        /// this computer. The saved flag only says what was true when it was
+        /// written, which a file deleted, restored or copied since then changes.
+        /// </summary>
+        public void RefreshLocalAvailability()
+        {
+            string audioDir = Path.Combine(FileSystem.AppDataDirectory, "Audio");
+            foreach (var item in AudioItems)
+            {
+                item.IsLocallyAvailable = !string.IsNullOrEmpty(item.LocalFileName)
+                                          && File.Exists(Path.Combine(audioDir, item.LocalFileName));
+            }
+        }
 
         public async Task SaveAudioVirtualFoldersAsync()
         {
             await _loaded;
-
-            string json = JsonSerializer.Serialize(AudioVirtualFolders, WriteOptions);
-            await File.WriteAllTextAsync(audioVirtualFoldersFilePath, json);
-            Debug.WriteLine($"Write file to {audioVirtualFoldersFilePath}");
+            await SaveListAsync(AudioVirtualFolders, AudioVirtualFoldersFileName);
         }
 
         public async Task LoadAudioVirtualFoldersListAsync()
         {
-            if (File.Exists(audioVirtualFoldersFilePath))
-            {
-                Debug.WriteLine("File exists");
-                string json = await File.ReadAllTextAsync(audioVirtualFoldersFilePath);
-                var temp = JsonSerializer.Deserialize<List<DAVirtualAudioFolder>>(json, ReadOptions);
-                if (temp != null)
-                {
-                    AudioVirtualFolders = temp;
-                }
-            }
+            AudioVirtualFolders = await LoadListAsync<DAVirtualAudioFolder>(AudioVirtualFoldersFileName).ConfigureAwait(false) ?? AudioVirtualFolders;
         }
 
-        private static string scenarioGroupsFilePath = Path.Combine(FileSystem.AppDataDirectory, "scenarioGroups.json");
-
-        /// <summary>
-        /// One writer at a time: the scenario pages save on every change, and the
-        /// app lifecycle saves on its own, so two writes to the same file could
-        /// otherwise overlap and fail.
-        /// </summary>
-        private readonly SemaphoreSlim _scenarioGroupsWriteGate = new(1, 1);
-
+        // The scenario pages auto-save on every change and the app lifecycle
+        // saves on its own: the store puts the writes of one file in order
+        // (one lock per file), so they can no longer overlap.
         public async Task SaveScenarioGroupsAsync()
         {
             await _loaded;
-
-            await _scenarioGroupsWriteGate.WaitAsync();
-            try
-            {
-                string json = JsonSerializer.Serialize(ScenarioGroups, WriteOptions);
-                await File.WriteAllTextAsync(scenarioGroupsFilePath, json);
-                Debug.WriteLine($"Write file to {scenarioGroupsFilePath}");
-            }
-            finally
-            {
-                _scenarioGroupsWriteGate.Release();
-            }
+            await SaveListAsync(ScenarioGroups, ScenarioGroupsFileName);
         }
 
         /// <summary>Idle time before an auto-save actually writes.</summary>
@@ -412,7 +464,7 @@ namespace DiceAudio
 
         public async Task LoadScenarioGroupsAsync()
         {
-            ScenarioGroups = await LoadListAsync<DAScenarioGroup>(scenarioGroupsFilePath) ?? ScenarioGroups;
+            ScenarioGroups = await LoadListAsync<DAScenarioGroup>(ScenarioGroupsFileName).ConfigureAwait(false) ?? ScenarioGroups;
         }
 
         /// <summary>
@@ -482,8 +534,6 @@ namespace DiceAudio
             await SaveScenarioGroupsAsync();
         }
 
-        private static string pinnedScenarioGroupsFilePath = Path.Combine(FileSystem.AppDataDirectory, "pinnedScenarioGroups.json");
-
         /// <summary>Whether this group is pinned to the home page.</summary>
         public bool IsScenarioGroupPinned(DAScenarioGroup group) => _pinnedScenarioGroups.Contains(group.Id);
 
@@ -517,63 +567,60 @@ namespace DiceAudio
         public async Task SavePinnedScenarioGroupsAsync()
         {
             await _loaded;
-            await SaveListAsync(_pinnedScenarioGroups, pinnedScenarioGroupsFilePath);
+            await SaveListAsync(_pinnedScenarioGroups, PinnedScenarioGroupsFileName);
         }
 
         public async Task LoadPinnedScenarioGroupsAsync()
         {
-            _pinnedScenarioGroups = await LoadListAsync<Guid>(pinnedScenarioGroupsFilePath) ?? _pinnedScenarioGroups;
+            _pinnedScenarioGroups = await LoadListAsync<Guid>(PinnedScenarioGroupsFileName).ConfigureAwait(false) ?? _pinnedScenarioGroups;
         }
-
-        private static string scenesFilePath = Path.Combine(FileSystem.AppDataDirectory, "scenes.json");
 
         public async Task SaveScenesAsync()
         {
             await _loaded;
-            await SaveListAsync(Scenes, scenesFilePath);
+            await SaveListAsync(Scenes, ScenesFileName);
         }
 
         public async Task LoadScenesAsync()
         {
-            Scenes = await LoadListAsync<DAScene>(scenesFilePath) ?? Scenes;
+            Scenes = await LoadListAsync<DAScene>(ScenesFileName).ConfigureAwait(false) ?? Scenes;
         }
-
-        private static string presetsFilePath = Path.Combine(FileSystem.AppDataDirectory, "presets.json");
 
         public async Task SavePresetsAsync()
         {
             await _loaded;
-            await SaveListAsync(Presets, presetsFilePath);
+            await SaveListAsync(Presets, PresetsFileName);
         }
 
         public async Task LoadPresetsAsync()
         {
-            Presets = await LoadListAsync<DAPreset>(presetsFilePath) ?? Presets;
+            Presets = await LoadListAsync<DAPreset>(PresetsFileName).ConfigureAwait(false) ?? Presets;
         }
 
         // Shared JSON list persistence helpers
 
-        private static async Task SaveListAsync<T>(List<T> list, string filePath)
+        /// <summary>
+        /// Saves through the store, which takes the snapshot now and writes it
+        /// only when it changed. A file that failed to load is left alone.
+        /// </summary>
+        private async Task SaveListAsync<T>(List<T> list, string fileName)
         {
-            string json = JsonSerializer.Serialize(list, WriteOptions);
-            await File.WriteAllTextAsync(filePath, json);
-            Debug.WriteLine($"Write file to {filePath}");
+            var outcome = await Store.SaveJsonAsync(fileName, list, WriteOptions, OverwriteExternalChange);
+            if (outcome != SaveOutcome.Unchanged)
+                Debug.WriteLine($"Save {fileName}: {outcome}");
         }
 
-        private static async Task<List<T>?> LoadListAsync<T>(string filePath)
+        /// <summary>
+        /// The list in the file, or null when the file is missing or cannot be
+        /// read. In the second case the store blocks the file, so the empty list
+        /// kept in its place is never saved over it.
+        /// </summary>
+        private async Task<List<T>?> LoadListAsync<T>(string fileName)
         {
-            if (!File.Exists(filePath)) return null;
-            try
-            {
-                string json = await File.ReadAllTextAsync(filePath);
-                return JsonSerializer.Deserialize<List<T>>(json, ReadOptions);
-            }
-            catch (Exception ex)
-            {
-                // A malformed/outdated file must never prevent the app from starting.
-                Debug.WriteLine($"Failed to load {filePath}: {ex.Message}");
-                return null;
-            }
+            var result = await Store.LoadJsonAsync<List<T>>(fileName, ReadOptions).ConfigureAwait(false);
+            if (result.Outcome == LoadOutcome.Failed)
+                Debug.WriteLine($"Failed to load {fileName}: {result.Error}");
+            return result.Outcome == LoadOutcome.Loaded ? result.Value : null;
         }
 
         // Generic management

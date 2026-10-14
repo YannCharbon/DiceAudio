@@ -11,6 +11,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Text;
+using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 
 namespace DiceAudio
@@ -55,9 +56,16 @@ namespace DiceAudio
         public string Name { get; set; } = "Default";
         public DAVirtualAudioFolder Folder { get; set; } = new DAVirtualAudioFolder();
         public string SourceURL { get; set; } = string.Empty;
-        public int SourceDownloadProgress { get; set; } = 0;
-        public string SourceDownloadStatusMessage { get; set; } = String.Empty;
-        public bool SourceIsDownloading { get; set; } = false;
+
+        // The progress of a download in this session only. Not saved: a value
+        // left in the file by a download cut short showed a spinner forever.
+        // Older files that still carry these properties read fine.
+        [JsonIgnore] public int SourceDownloadProgress { get; set; } = 0;
+        [JsonIgnore] public string SourceDownloadStatusMessage { get; set; } = String.Empty;
+        [JsonIgnore] public bool SourceIsDownloading { get; set; } = false;
+
+        /// Saved for older versions of the app, but worked out again from the
+        /// audio folder at every load (DiceAudioService.RefreshLocalAvailability).
         public bool IsLocallyAvailable { get; set; } = false;
         public string LocalFileName { get; set; } = String.Empty;
         public List<DAAudioTag> Tags { get; set; } = new List<DAAudioTag>();

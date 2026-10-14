@@ -657,7 +657,7 @@ else if (_breadcrumb.Any())
         await InvokeAsync(StateHasChanged);
     }
 
-    void HandleAudioTagsEditorModalClose(bool saved) { if (saved) DAAudioTagsProvider.Instance.SaveTags(); }
+    async Task HandleAudioTagsEditorModalClose(bool saved) { if (saved) await DAAudioTagsProvider.Instance.SaveTagsAsync(); }
 
     void HandleAudioFilterModalClose(bool _) => StateHasChanged();   // view state only, nothing to persist
 

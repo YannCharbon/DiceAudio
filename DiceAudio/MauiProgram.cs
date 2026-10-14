@@ -6,6 +6,7 @@
  * See the LICENSE file in the repository root for details.
  */
 
+using DiceAudio.Storage;
 using Microsoft.Extensions.Logging;
 using Microsoft.Maui.LifecycleEvents;
 using MudBlazor.Services;
@@ -84,21 +85,15 @@ namespace DiceAudio
                                 var diceService = ServiceProvider.GetRequiredService<DiceAudioService>();
                                 if (diceService != null)
                                 {
-                                    // Block until the writes flush. Previously these were
-                                    // fire-and-forget, so the process could exit before the
-                                    // async save completed, losing recent edits (e.g. a just
-                                    // downloaded/moved item). Task.Run keeps the continuations
-                                    // off the UI context so GetResult can't deadlock.
+                                    // Block until every write is on disk, including saves
+                                    // started elsewhere just before (FlushAsync), but never
+                                    // more than 10 s: a drive that does not answer must not
+                                    // stop the window from closing. Task.Run keeps the
+                                    // continuations off the UI context so Wait can't deadlock.
                                     try
                                     {
-                                        Task.Run(async () =>
-                                        {
-                                            await diceService.SaveAudioItemListAsync();
-                                            await diceService.SaveAudioVirtualFoldersAsync();
-                                            await diceService.SaveScenarioGroupsAsync();
-                                            await diceService.SaveScenesAsync();
-                                            await diceService.SavePresetsAsync();
-                                        }).GetAwaiter().GetResult();
+                                        if (!Task.Run(() => diceService.SaveEverythingAsync()).Wait(TimeSpan.FromSeconds(10)))
+                                            System.Diagnostics.Debug.WriteLine("Save-on-close did not finish within 10 s.");
                                     }
                                     catch (Exception ex)
                                     {
@@ -136,6 +131,7 @@ namespace DiceAudio
             builder.AddAudio();
 
             builder.Services.AddMudServices();
+            builder.Services.AddSingleton(new SafeFileStore(name => Path.Combine(FileSystem.AppDataDirectory, name)));
             builder.Services.AddSingleton<DiceAudioService>();
             builder.Services.AddSingleton<DAPlaybackCoordinator>();
             builder.Services.AddSingleton<DAControlServer>();

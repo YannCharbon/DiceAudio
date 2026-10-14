@@ -6,9 +6,10 @@
  * See the LICENSE file in the repository root for details.
  */
 
-using MudBlazor;
+using DiceAudio.Storage;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
@@ -20,12 +21,19 @@ namespace DiceAudio
     {
         private static readonly DAAudioTagsProvider instance = new DAAudioTagsProvider();
 
-        private List<string> _categoryTypeDefaultList = new List<string>
+        public const string TypeFileName = "TagsCategoryType.json";
+        public const string LocationFileName = "TagsCategoryLocation.json";
+        public const string ExpressionFileName = "TagsCategoryExpression.json";
+
+        /// <summary>The three tag files, in the order they are loaded.</summary>
+        public static readonly IReadOnlyList<string> FileNames = new[] { TypeFileName, LocationFileName, ExpressionFileName };
+
+        private static readonly List<string> _categoryTypeDefaultList = new List<string>
         {
             "Ambience", "Music", "SFX"
         };
 
-        private List<string> _categoryLocationDefaultList = new List<string>
+        private static readonly List<string> _categoryLocationDefaultList = new List<string>
         {
             "Generic", "Forest", "Jungle", "Desert", "Plains", "Swamp",
             "Mountain", "Nature", "Industrial", "Storm", "Village", "City", "Medieval",
@@ -33,7 +41,7 @@ namespace DiceAudio
             "Market", "Council", "Cave", "Sewer"
         };
 
-        private List<string> _categoryExpressionDefaultList = new List<string>
+        private static readonly List<string> _categoryExpressionDefaultList = new List<string>
         {
             "Calm", "Stressed", "Joy", "Energic", "Love", "Emotional",
             "Sad", "Mysterious", "Battle", "Trip", "Dark", "Heroic",
@@ -42,9 +50,23 @@ namespace DiceAudio
             "Desolation", "Desperate", "Hope", "Mystic", "Ethnic", "IntroTheme"
         };
 
+        /// The options the tag files have always been written with, kept as they
+        /// are so an unchanged list writes the same bytes and is not saved again.
+        private static readonly JsonSerializerOptions TagFileOptions = new()
+        {
+            WriteIndented = true,
+            DefaultBufferSize = 15 * 1024 * 1024 // 15MiB
+        };
+
         public List<string> CategoryTypes = new List<string>();
         public List<string> CategoryLocations = new List<string>();
         public List<string> CategoryExpressions = new List<string>();
+
+        private SafeFileStore? _store;
+
+        /// Completes once <see cref="LoadAsync"/> has run. A save waits for it, so
+        /// it can never write the empty lists over files not read yet.
+        private readonly TaskCompletionSource _loaded = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         // Explicit static constructor to tell C# compiler
         // not to mark type as beforefieldinit
@@ -54,80 +76,70 @@ namespace DiceAudio
 
         private DAAudioTagsProvider()
         {
-            if (!File.Exists(Path.Combine(FileSystem.AppDataDirectory, "TagsCategoryType.json")))
-            {
-                foreach (string tag in _categoryTypeDefaultList)
-                {
-                    CategoryTypes.Add(tag);
-                }
-                var option = new JsonSerializerOptions
-                {
-                    WriteIndented = true,
-                    DefaultBufferSize = 15 * 1024 * 1024 // 15MiB
-                };
-                string json = JsonSerializer.Serialize(CategoryTypes, option);
-                File.WriteAllText(Path.Combine(FileSystem.AppDataDirectory, "TagsCategoryType.json"), json);                
-            }
-
-            if (!File.Exists(Path.Combine(FileSystem.AppDataDirectory, "TagsCategoryLocation.json")))
-            {
-                foreach (string tag in _categoryLocationDefaultList)
-                {
-                    CategoryLocations.Add(tag);
-                }
-                var option = new JsonSerializerOptions
-                {
-                    WriteIndented = true,
-                    DefaultBufferSize = 15 * 1024 * 1024 // 15MiB
-                };
-                string json = JsonSerializer.Serialize(CategoryLocations, option);
-                File.WriteAllText(Path.Combine(FileSystem.AppDataDirectory, "TagsCategoryLocation.json"), json);
-            }
-
-            if (!File.Exists(Path.Combine(FileSystem.AppDataDirectory, "TagsCategoryExpression.json")))
-            {
-                foreach (string tag in _categoryExpressionDefaultList)
-                {
-                    CategoryExpressions.Add(tag);
-                }
-                var option = new JsonSerializerOptions
-                {
-                    WriteIndented = true,
-                    DefaultBufferSize = 15 * 1024 * 1024 // 15MiB
-                };
-                string json = JsonSerializer.Serialize(CategoryExpressions, option);
-                File.WriteAllText(Path.Combine(FileSystem.AppDataDirectory, "TagsCategoryExpression.json"), json);
-            }
-            var options = new JsonSerializerOptions
-            {
-                DefaultBufferSize = 15 * 1024 * 1024 // 15MiB
-            };
-
-            var tmp = JsonSerializer.Deserialize<List<string>>(File.ReadAllText(Path.Combine(FileSystem.AppDataDirectory, "TagsCategoryType.json")));
-            CategoryTypes = tmp != null ? tmp : CategoryTypes;
-            tmp = JsonSerializer.Deserialize<List<string>>(File.ReadAllText(Path.Combine(FileSystem.AppDataDirectory, "TagsCategoryLocation.json")));
-            CategoryLocations = tmp != null ? tmp : CategoryLocations;
-            tmp = JsonSerializer.Deserialize<List<string>>(File.ReadAllText(Path.Combine(FileSystem.AppDataDirectory, "TagsCategoryExpression.json")));
-            CategoryExpressions = tmp != null ? tmp : CategoryExpressions;
         }
 
-        public void SaveTags()
+        /// <summary>
+        /// Reads the three tag files, each on its own. A missing file starts from
+        /// the default tags and is written; a file that cannot be read keeps the
+        /// defaults in memory and is never saved over in this session.
+        /// <see cref="DiceAudioService"/> calls this once while it loads.
+        /// </summary>
+        public async Task LoadAsync(SafeFileStore store)
         {
-            var option = new JsonSerializerOptions
+            _store = store;
+            try
             {
-                WriteIndented = true,
-                DefaultBufferSize = 15 * 1024 * 1024 // 15MiB
-            };
+                CategoryTypes = await LoadCategoryAsync(store, TypeFileName, _categoryTypeDefaultList).ConfigureAwait(false);
+                CategoryLocations = await LoadCategoryAsync(store, LocationFileName, _categoryLocationDefaultList).ConfigureAwait(false);
+                CategoryExpressions = await LoadCategoryAsync(store, ExpressionFileName, _categoryExpressionDefaultList).ConfigureAwait(false);
+            }
+            finally
+            {
+                _loaded.TrySetResult();
+            }
+        }
 
-            string json = JsonSerializer.Serialize(CategoryTypes, option);
-			File.WriteAllText(Path.Combine(FileSystem.AppDataDirectory, "TagsCategoryType.json"), json);
+        private static async Task<List<string>> LoadCategoryAsync(SafeFileStore store, string fileName, List<string> defaults)
+        {
+            var result = await store.LoadJsonAsync<List<string>>(fileName, TagFileOptions).ConfigureAwait(false);
+            switch (result.Outcome)
+            {
+                case LoadOutcome.Loaded:
+                    return result.Value!;
 
-            json = JsonSerializer.Serialize(CategoryLocations, option);
-			File.WriteAllText(Path.Combine(FileSystem.AppDataDirectory, "TagsCategoryLocation.json"), json);
+                case LoadOutcome.Missing:
+                    var created = new List<string>(defaults);
+                    try
+                    {
+                        await store.SaveJsonAsync(fileName, created, TagFileOptions).ConfigureAwait(false);
+                    }
+                    catch (Exception ex)
+                    {
+                        // Reported through SaveFailed; the next save tries again.
+                        Debug.WriteLine($"Could not write the default tags to {fileName}: {ex.Message}");
+                    }
+                    return created;
 
-            json = JsonSerializer.Serialize(CategoryExpressions, option);
-			File.WriteAllText(Path.Combine(FileSystem.AppDataDirectory, "TagsCategoryExpression.json"), json);
-		}
+                default:
+                    Debug.WriteLine($"Failed to load {fileName}: {result.Error}");
+                    return new List<string>(defaults);
+            }
+        }
+
+        public async Task SaveTagsAsync()
+        {
+            // No store means the load has not even started, and may never: waiting
+            // for it would hang the caller (the close handler among them).
+            if (_store == null) return;
+            await _loaded.Task;
+
+            // Each list is serialised before the next await, so the three files
+            // are a snapshot of the same moment.
+            var type = _store.SaveJsonAsync(TypeFileName, CategoryTypes, TagFileOptions, overwriteExternalChange: true);
+            var location = _store.SaveJsonAsync(LocationFileName, CategoryLocations, TagFileOptions, overwriteExternalChange: true);
+            var expression = _store.SaveJsonAsync(ExpressionFileName, CategoryExpressions, TagFileOptions, overwriteExternalChange: true);
+            await Task.WhenAll(type, location, expression);
+        }
 
         public static DAAudioTagsProvider Instance
         {

@@ -233,10 +233,16 @@ namespace DiceAudio
         public IReadOnlyCollection<string> UnreadableFiles => Store.BlockedFiles;
 
         /// <summary>
-        /// Set once the main layout has told the user about <see cref="UnreadableFiles"/>,
-        /// so that the notice shows once per session.
+        /// Reads every file again, after a restore. Each list is replaced only
+        /// once its file has been read (a missing file gives an empty list); a
+        /// file that cannot be read keeps the list as it was, and stays blocked.
+        /// The caller stops playback first and rebuilds the pages afterwards.
         /// </summary>
-        public bool UnreadableFilesNoticeShown { get; set; }
+        public async Task ReloadAsync()
+        {
+            await LoadEverythingAsync().ConfigureAwait(false);
+            _loaded.TrySetResult();
+        }
 
         /// <summary>
         /// Saves every list and the tags, then waits until every write, including
@@ -717,16 +723,23 @@ namespace DiceAudio
         }
 
         /// <summary>
-        /// The list in the file, or null when the file is missing or cannot be
-        /// read. In the second case the store blocks the file, so the empty list
-        /// kept in its place is never saved over it.
+        /// The list in the file, an empty list when the file is missing, or null
+        /// when it cannot be read: the list in memory is then kept, and the
+        /// store blocks the file so that it is never saved over. (A missing file
+        /// gives an empty list rather than keeping the old one, so that a
+        /// restore of a backup without that file empties it.)
         /// </summary>
         private async Task<List<T>?> LoadListAsync<T>(string fileName)
         {
             var result = await Store.LoadJsonAsync<List<T>>(fileName, ReadOptions).ConfigureAwait(false);
             if (result.Outcome == LoadOutcome.Failed)
                 Debug.WriteLine($"Failed to load {fileName}: {result.Error}");
-            return result.Outcome == LoadOutcome.Loaded ? result.Value : null;
+            return result.Outcome switch
+            {
+                LoadOutcome.Loaded => result.Value,
+                LoadOutcome.Missing => new List<T>(),
+                _ => null,
+            };
         }
 
         // Generic management

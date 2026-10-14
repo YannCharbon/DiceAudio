@@ -9,6 +9,7 @@
 @inherits LayoutComponentBase
 
 @inject DiceAudioService AudioService
+@inject DAStorageNotices Notices
 @implements IDisposable
 
 @using DiceAudio.Resources.Localization
@@ -17,9 +18,10 @@
 
 <BundleExportDialog />
 
-@* A data file that could not be read at startup, or a save that failed:
-   the user must see it and acknowledge it, so it is a dialog rather than
-   a toast that fades away. Drawn like DaConfirm, with a single button and
+@* A data file that could not be read at startup, a save that failed, or
+   how a restore ended: the user must see it and acknowledge it, so it is a
+   dialog rather than a toast that fades away. The messages live in
+   DAStorageNotices, so they survive the rebuild of the pages after a restore. Drawn like DaConfirm, with a single button and
    no title, as in DiceCombats: there is nothing to decide, only something
    to know. *@
 @if (_storageNotices.Count > 0)
@@ -75,45 +77,27 @@
     };
 
     /// The messages waiting to be read, oldest first. Each one names its own
-    /// file and says whether it could not be read or not be saved, so they
-    /// can be shown together without a title that would fit only some.
-    private readonly List<string> _storageNotices = new();
+    /// file or says what happened, so they can be shown together without a
+    /// title that would fit only some.
+    private IReadOnlyList<string> _storageNotices = Array.Empty<string>();
 
     protected override void OnInitialized()
     {
-        AudioService.Store.SaveFailed += OnSaveFailed;
+        Notices.Changed += OnNoticesChanged;
+        _storageNotices = Notices.Pending;
     }
 
-    protected override async Task OnAfterRenderAsync(bool firstRender)
+    // Raised on whatever thread added the message.
+    private void OnNoticesChanged() => _ = InvokeAsync(() =>
     {
-        if (!firstRender) return;
-
-        await AudioService.WhenLoaded;
-        if (AudioService.UnreadableFilesNoticeShown || AudioService.UnreadableFiles.Count == 0) return;
-
-        AudioService.UnreadableFilesNoticeShown = true;
-        ShowStorageNotice(AudioService.UnreadableFiles.Select(f => string.Format(Portability.ErrorLoadFailed, f)));
-    }
-
-    // Raised on whatever thread the save ran on.
-    private void OnSaveFailed(string fileName, Exception error) =>
-        _ = InvokeAsync(() => ShowStorageNotice(new[] { string.Format(Portability.ErrorSaveFailed, fileName) }));
-
-    private void ShowStorageNotice(IEnumerable<string> lines)
-    {
-        // A message already waiting (the same file failing again) is not repeated.
-        foreach (var line in lines)
-            if (!_storageNotices.Contains(line)) _storageNotices.Add(line);
+        _storageNotices = Notices.Pending;
         StateHasChanged();
-    }
+    });
 
-    private void CloseStorageNotice()
-    {
-        _storageNotices.Clear();
-    }
+    private void CloseStorageNotice() => Notices.DismissAll();
 
     public void Dispose()
     {
-        AudioService.Store.SaveFailed -= OnSaveFailed;
+        Notices.Changed -= OnNoticesChanged;
     }
 }

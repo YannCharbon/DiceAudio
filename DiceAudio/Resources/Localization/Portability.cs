@@ -91,6 +91,55 @@ namespace DiceAudio.Resources.Localization
         /// <summary>New string (not in the spec): the user stopped the export.</summary>
         public const string ExportCancelled = "The export was stopped. Nothing has been saved.";
 
+        // ── Backups (spec §8.1, §8.3, and DiceCombats C3's added keys) ─────
+
+        public const string BackupsTitle = "Backups";
+        public const string BackupsHelp =
+            "DiceAudio backs up your data the first time you open it each day, and before every import, restore or change of data folder. " +
+            "A backup contains your library, folders, tags, scenes, scenario groups, presets and settings, but never the audio files themselves.";
+        public const string BackupNowBtn = "Back up now";
+        public const string BackupRestoreBtn = "Restore";
+        public const string BackupRestoreFromFileBtn = "Restore from a file…";
+        public const string BackupSaveToFileBtn = "Save a backup to a file…";
+        public const string BackupOpenFolderBtn = "Open the backups folder";
+        public const string BackupListEmpty = "No backup yet.";
+        public const string BackupLatestLabel = "Most recent backup";
+        public const string BackupAllBtn = "All backups…";
+        public const string BackupAllTitle = "All backups";
+        public const string BackupColDate = "Date";
+        public const string BackupColComputer = "Computer";
+        public const string BackupColReason = "Reason";
+        public const string BackupColContents = "Contents";
+        public const string BackupReasonAuto = "Automatic";
+        public const string BackupReasonManual = "Made by you";
+        public const string BackupReasonBeforeImport = "Before an import";
+        public const string BackupReasonBeforeRestore = "Before a restore";
+        public const string BackupReasonBeforeMove = "Before a change of data folder";
+        public const string BackupUnreadable = "This backup cannot be read.";
+        public const string BackupFileType = "DiceAudio backup";
+        public const string BackupDone = "The backup has been made.";
+        public const string BackupFailed = "The backup could not be made: {0}. Your data has not been changed.";
+
+        public const string RestoreConfirmTitle = "Restore this backup?";
+        public const string RestoreConfirmText =
+            "Your current data will be replaced by the data saved on {0}. " +
+            "A backup of your current data is made first, so that you can go back if needed.";
+        public const string RestoreConfirmBtn = "Restore";
+        public const string RestoreDone = "The backup has been restored.";
+        public const string RestoreWrongApp = "This backup comes from DiceCombats and cannot be restored in DiceAudio.";
+        public const string RestoreNewerVersion = "This backup was made with a newer version of DiceAudio. Please update DiceAudio to restore it.";
+        public const string RestoreDamaged = "This backup is damaged and cannot be restored. Your data has not been changed.";
+        public const string RestoreFailed = "The restore could not be completed: {0}. Your data has been put back from the backup made just before.";
+        public const string RestoreRollbackFailed =
+            "The restore could not be completed, and your data could not be put back automatically. " +
+            "Your data from just before the restore is in the backup {0}. Please restore it from this page.";
+        public const string RestoreAudioNote =
+            "Audio files are not part of a backup. Audio items whose file is no longer on this computer are listed after the restore.";
+        public const string RestoreMissingFiles = "These audio items no longer have their file on this computer ({0}):";
+
+        /// <summary>New string (not in the spec): the end of a long list of names.</summary>
+        public const string RestoreMissingMore = "and {0} more.";
+
         public const string DataPanelTitle = "Data";
         public const string SharingTitle = "Sharing";
 

@@ -87,7 +87,7 @@ namespace DiceAudio
         /// <summary>
         /// Reads the three tag files, each on its own. A missing file starts from
         /// the default tags and is written; a file that cannot be read keeps the
-        /// defaults in memory and is never saved over in this session.
+        /// list in memory as it was, and is never saved over in this session.
         /// <see cref="DiceAudioService"/> calls this once while it loads.
         /// </summary>
         public async Task LoadAsync(SafeFileStore store)
@@ -95,9 +95,9 @@ namespace DiceAudio
             _store = store;
             try
             {
-                CategoryTypes = await LoadCategoryAsync(store, TypeFileName, _categoryTypeDefaultList).ConfigureAwait(false);
-                CategoryLocations = await LoadCategoryAsync(store, LocationFileName, _categoryLocationDefaultList).ConfigureAwait(false);
-                CategoryExpressions = await LoadCategoryAsync(store, ExpressionFileName, _categoryExpressionDefaultList).ConfigureAwait(false);
+                CategoryTypes = await LoadCategoryAsync(store, TypeFileName, _categoryTypeDefaultList, CategoryTypes).ConfigureAwait(false);
+                CategoryLocations = await LoadCategoryAsync(store, LocationFileName, _categoryLocationDefaultList, CategoryLocations).ConfigureAwait(false);
+                CategoryExpressions = await LoadCategoryAsync(store, ExpressionFileName, _categoryExpressionDefaultList, CategoryExpressions).ConfigureAwait(false);
             }
             finally
             {
@@ -105,7 +105,7 @@ namespace DiceAudio
             }
         }
 
-        private static async Task<List<string>> LoadCategoryAsync(SafeFileStore store, string fileName, List<string> defaults)
+        private static async Task<List<string>> LoadCategoryAsync(SafeFileStore store, string fileName, List<string> defaults, List<string> current)
         {
             var result = await store.LoadJsonAsync<List<string>>(fileName, TagFileOptions).ConfigureAwait(false);
             switch (result.Outcome)
@@ -127,8 +127,11 @@ namespace DiceAudio
                     return created;
 
                 default:
+                    // The file is blocked; the list in memory stays as it was
+                    // (after a restore, the tags from before it). The defaults
+                    // are only for a file that does not exist.
                     Debug.WriteLine($"Failed to load {fileName}: {result.Error}");
-                    return new List<string>(defaults);
+                    return current;
             }
         }
 

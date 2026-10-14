@@ -185,6 +185,9 @@ namespace DiceAudio
             builder.Services.AddSingleton<IDADownloadLibrary, DADownloadLibrary>();
             builder.Services.AddSingleton<DADownloadQueue>();
             builder.Services.AddSingleton<DABundleExportService>();
+            builder.Services.AddSingleton<DAStorageNotices>();
+            builder.Services.AddSingleton<IBackupHost, DABackupHost>();
+            builder.Services.AddSingleton<BackupService>();
 
             var app = builder.Build();
             ServiceProvider = app.Services; // Assign the root service provider
@@ -195,10 +198,38 @@ namespace DiceAudio
             // files are blocked, and the user is told by the main layout until
             // the startup screen exists.
             var diceAudioService = app.Services.GetRequiredService<DiceAudioService>();
+            var notices = app.Services.GetRequiredService<DAStorageNotices>();
             if (dataLocation.State == DataLocationState.Ok)
-                _ = diceAudioService.InitializeAsync();
+            {
+                var store = app.Services.GetRequiredService<SafeFileStore>();
+                var backups = app.Services.GetRequiredService<BackupService>();
+                _ = Task.Run(async () =>
+                {
+                    await diceAudioService.InitializeAsync();
+                    notices.ReportLoadFailures();
+
+                    // The first start of the day on this machine makes a backup,
+                    // in the background, once the saves the load started (the
+                    // first save of the tag defaults) are on disk. Not after a
+                    // file failed to load: the backups kept would slowly be
+                    // replaced by copies of the broken state.
+                    if (store.BlockedFiles.Count > 0) return;
+                    try
+                    {
+                        await store.FlushAsync();
+                        await backups.AutoBackupIfDueAsync();
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Automatic backup failed: {ex}");
+                    }
+                });
+            }
             else
+            {
                 diceAudioService.MarkDataFolderUnusable($"The data folder cannot be used ({dataLocation.State}).");
+                notices.ReportLoadFailures();
+            }
 
             // Start the remote-control server if the user enabled it in Settings.
             app.Services.GetRequiredService<DAControlServer>().ApplySavedSettings();

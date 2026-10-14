@@ -1,0 +1,366 @@
+﻿@*
+ * DiceAudio - Copyright (C) 2025 Yann Charbon
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ *
+ * This file is part of DiceAudio, released under the GNU GPL v3.
+ * See the LICENSE file in the repository root for details.
+*@
+
+@*
+    Settings → Data (spec §7.2): backups, then sharing. The data folder comes
+    with its own work. Mirrors the DiceCombats panel: only the most recent
+    backup shows here, the others are one click away in "All backups…", so
+    that the page stays short.
+*@
+
+@using System.Diagnostics
+@using System.Globalization
+@using DiceAudio.Storage
+@using DiceAudio.Resources.Localization
+@inject BackupService Backups
+@inject IFileHandler FileHandler
+@inject PopupNotificationService Popups
+@inject DAStorageNotices Notices
+@inject DiceAudioService AudioService
+@inject DABundleExportService Exports
+
+<div class="da-panel">
+    <div style="display:flex;">
+        <div class="da-pill">
+            <DaIcon Name="folder-open" Size="26" />
+            <h3>@Portability.DataPanelTitle</h3>
+        </div>
+    </div>
+
+    @* ── Backups ── *@
+    <div class="da-msec">
+        <div style="font-weight:700; margin-bottom:6px;">@Portability.BackupsTitle</div>
+        <p class="da-sub" style="margin-bottom:10px;">@Portability.BackupsHelp</p>
+
+        <div class="da-irow da-irow-wrap" style="gap:8px;">
+            <button type="button" class="da-btn da-btn-fill" disabled="@_busy" @onclick="BackUpNow">
+                <DaIcon Name="save" Size="16" /> @Portability.BackupNowBtn
+            </button>
+            <button type="button" class="da-btn da-btn-out" disabled="@_busy" @onclick="RestoreFromFile">
+                <DaIcon Name="upload-file" Size="16" /> @Portability.BackupRestoreFromFileBtn
+            </button>
+            <button type="button" class="da-btn da-btn-out" disabled="@_busy" @onclick="SaveBackupToFile">
+                <DaIcon Name="download" Size="16" /> @Portability.BackupSaveToFileBtn
+            </button>
+            @if (OperatingSystem.IsWindows())
+            {
+                <button type="button" class="da-btn da-btn-out" @onclick="OpenBackupsFolder">
+                    <DaIcon Name="folder-open" Size="16" /> @Portability.BackupOpenFolderBtn
+                </button>
+            }
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:8px; margin-top:12px;">
+            @if (_backups == null)
+            {
+                <span class="da-meta">…</span>
+            }
+            else if (_backups.Count == 0)
+            {
+                <span class="da-meta">@Portability.BackupListEmpty</span>
+            }
+            else
+            {
+                <span class="da-meta">@Portability.BackupLatestLabel</span>
+                @BackupRow(_backups[0])
+                @if (_backups.Count > 1)
+                {
+                    <div>
+                        <button type="button" class="da-btn da-btn-out da-btn-sm" @onclick="() => _showAll = true">
+                            <DaIcon Name="list" Size="16" /> @Portability.BackupAllBtn (@_backups.Count)
+                        </button>
+                    </div>
+                }
+            }
+        </div>
+    </div>
+
+    @* ── Sharing ── *@
+    <div class="da-msec" style="margin-top:12px;">
+        <div style="font-weight:700; margin-bottom:6px;">@Portability.SharingTitle</div>
+        <p class="da-sub" style="margin-bottom:10px;">@Portability.ExportLibraryHelp</p>
+        <button type="button" class="da-btn da-btn-fill" @onclick="Exports.ExportLibrary">
+            <DaIcon Name="upload" Size="16" />
+            @Portability.ExportLibraryBtn
+        </button>
+    </div>
+</div>
+
+@if (_showAll && _backups != null)
+{
+    <div class="da-confirm-scrim" @onclick="() => _showAll = false">
+        <div class="da-confirm" role="dialog" aria-modal="true" style="width:min(720px,100%); max-height:85vh; display:flex; flex-direction:column;"
+             @onclick:stopPropagation="true">
+            <h3 class="da-confirm-title">@Portability.BackupAllTitle</h3>
+            <div style="display:flex; flex-direction:column; gap:8px; overflow-y:auto; min-height:0; margin-bottom:14px;">
+                @foreach (var backup in _backups)
+                {
+                    @BackupRow(backup)
+                }
+            </div>
+            <div class="da-confirm-foot">
+                <button type="button" class="da-btn da-btn-fill" @onclick="() => _showAll = false">
+                    <DaIcon Name="check" /> @Portability.AlertCloseBtn
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<DaConfirm @ref="_confirm" />
+
+@code {
+    private IReadOnlyList<BackupInfo>? _backups;
+    private bool _busy;
+    private bool _showAll;
+    private DaConfirm? _confirm;
+
+    // A backup row is a strip, not a table: four columns do not fit a narrow
+    // window. The column names stay as hover titles on what they label.
+    private RenderFragment BackupRow(BackupInfo backup) => __builder =>
+    {
+        var b = backup;
+        <div class="da-strip" style="cursor:default;">
+            <div class="da-strip-body">
+                <div class="da-strip-name" title="@Portability.BackupColDate">@b.CreatedAtUtc.ToLocalTime().ToString("g", CultureInfo.CurrentCulture)</div>
+                <div class="da-meta">
+                    <span title="@Portability.BackupColReason">@ReasonLabel(b.Reason)</span>
+                    &middot;
+                    <span title="@Portability.BackupColComputer">@b.Machine</span>
+                </div>
+                <div class="da-meta" title="@Portability.BackupColContents">
+                    @(b.Readable ? SummaryText(b.Summary) : Portability.BackupUnreadable)
+                </div>
+            </div>
+            <button type="button" class="da-btn da-btn-out da-btn-sm" disabled="@(_busy || !b.Readable)" @onclick="() => RestoreFromList(b)">
+                <DaIcon Name="restore" Size="16" /> @Portability.BackupRestoreBtn
+            </button>
+        </div>
+    };
+
+    protected override async Task OnInitializedAsync() => await RefreshAsync();
+
+    private async Task RefreshAsync()
+    {
+        try
+        {
+            _backups = await Backups.ListBackupsAsync();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            Debug.WriteLine($"Listing backups failed: {ex.Message}");
+            _backups = Array.Empty<BackupInfo>();
+        }
+    }
+
+    private static string ReasonLabel(string reason) => reason switch
+    {
+        BackupReason.Auto => Portability.BackupReasonAuto,
+        BackupReason.Manual => Portability.BackupReasonManual,
+        BackupReason.BeforeImport => Portability.BackupReasonBeforeImport,
+        BackupReason.BeforeRestore => Portability.BackupReasonBeforeRestore,
+        BackupReason.BeforeMove => Portability.BackupReasonBeforeMove,
+        _ => reason,
+    };
+
+    private static string SummaryText(IReadOnlyDictionary<string, int>? summary)
+    {
+        if (summary == null) return string.Empty;
+        var parts = new List<string>();
+        void Add(string key, string format)
+        {
+            if (summary.TryGetValue(key, out int count)) parts.Add(string.Format(format, count));
+        }
+        Add("audioItems", Portability.SummaryAudioItems);
+        Add("folders", Portability.SummaryFolders);
+        Add("tags", Portability.SummaryTags);
+        Add("scenes", Portability.SummaryScenes);
+        Add("scenarioGroups", Portability.SummaryScenarioGroups);
+        Add("scenarios", Portability.SummaryScenarios);
+        Add("presets", Portability.SummaryPresets);
+        return string.Join(" · ", parts);
+    }
+
+    private async Task BackUpNow()
+    {
+        if (_busy) return;
+        _busy = true;
+        try
+        {
+            await Backups.CreateBackupAsync(BackupReason.Manual);
+            Popups.Show(Portability.BackupsTitle, Portability.BackupDone, PopupNotificationService.Type.SUCCESS, 3000);
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Backup failed: {ex}");
+            Notices.Report(string.Format(Portability.BackupFailed, ex.Message));
+        }
+        finally
+        {
+            _busy = false;
+            await RefreshAsync();
+        }
+    }
+
+    /// A fresh backup of the data as it is now, handed to the save window.
+    private async Task SaveBackupToFile()
+    {
+        if (_busy) return;
+        _busy = true;
+        try
+        {
+            var backup = await Backups.CreateBackupAsync(BackupReason.Manual);
+            await RefreshAsync();
+            StateHasChanged();
+
+            bool saved = await FileHandler.SaveStreamAsync(backup.FileName, ".zip", Portability.BackupFileType, async target =>
+            {
+                await using var source = File.OpenRead(backup.Path);
+                await source.CopyToAsync(target);
+            });
+            if (saved) Popups.Show(Portability.BackupsTitle, Portability.ExportDone, PopupNotificationService.Type.SUCCESS, 3000);
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Saving a backup to a file failed: {ex}");
+            Notices.Report(string.Format(Portability.ExportFailed, ex.Message));
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task RestoreFromList(BackupInfo backup)
+    {
+        _showAll = false;
+        byte[] bytes;
+        try
+        {
+            bytes = await File.ReadAllBytesAsync(backup.Path);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            Debug.WriteLine($"Reading the backup failed: {ex.Message}");
+            Notices.Report(Portability.RestoreDamaged);
+            return;
+        }
+        await RestoreAsync(bytes);
+    }
+
+    private async Task RestoreFromFile()
+    {
+        if (_busy) return;
+        byte[] bytes;
+        try
+        {
+            await using var picked = await FileHandler.PickFileAsync(".zip", Portability.BackupFileType);
+            if (picked == null) return;
+            using var copy = new MemoryStream();
+            await picked.Stream.CopyToAsync(copy);
+            bytes = copy.ToArray();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            Debug.WriteLine($"Reading the backup file failed: {ex.Message}");
+            Notices.Report(Portability.RestoreDamaged);
+            return;
+        }
+        if (bytes.Length == 0) return;
+        await RestoreAsync(bytes);
+    }
+
+    private async Task RestoreAsync(byte[] zip)
+    {
+        if (_busy || _confirm == null) return;
+        _busy = true;
+        try
+        {
+            var (check, manifest) = await Backups.CheckAsync(zip);
+            if (check != BackupCheck.Ok || manifest == null)
+            {
+                ShowRefusal(check);
+                return;
+            }
+
+            string date = manifest.CreatedAtUtc.ToLocalTime().ToString("g", CultureInfo.CurrentCulture);
+            bool confirmed = await _confirm.AskAsync(Portability.RestoreConfirmTitle,
+                                                     string.Format(Portability.RestoreConfirmText, date) + " " + Portability.RestoreAudioNote,
+                                                     Portability.RestoreConfirmBtn, Portability.WizardCancelBtn);
+            if (!confirmed) return;
+
+            try
+            {
+                await Backups.RestoreAsync(zip);
+                Notices.ReportRestoreDone(ItemsWithoutFile());
+            }
+            catch (BackupRefusedException refused)
+            {
+                ShowRefusal(refused.Check);
+                return;
+            }
+            catch (BackupSafetyFailedException safety)
+            {
+                Notices.Report(string.Format(Portability.BackupFailed, safety.Message));
+                return;
+            }
+            catch (BackupRollbackFailedException rollback)
+            {
+                // The files stay blocked and nothing was read again, so the
+                // pages are left as they are; the safety backup is in the list.
+                Debug.WriteLine($"Restore and rollback failed: {rollback}");
+                Notices.ReportRollbackFailed(rollback.SafetyBackupFileName);
+                await RefreshAsync();
+                return;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Restore failed: {ex}");
+                Notices.ReportRestoreFailed(ex.Message);
+            }
+
+            // Every page held objects of the data that was just replaced.
+            (Application.Current as App)?.ReloadPages();
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    /// The restored audio items whose file is not on this computer (audio is
+    /// never in a backup): those that name a file that is not there. An item
+    /// with only a link never had a file to miss.
+    private List<string> ItemsWithoutFile() =>
+        AudioService.AudioItems.Where(i => !string.IsNullOrEmpty(i.LocalFileName) && !i.IsLocallyAvailable)
+                               .Select(i => i.Name).ToList();
+
+    private void ShowRefusal(BackupCheck check)
+    {
+        string message = check switch
+        {
+            BackupCheck.WrongApp => Portability.RestoreWrongApp,
+            BackupCheck.NewerVersion => Portability.RestoreNewerVersion,
+            _ => Portability.RestoreDamaged,
+        };
+        Notices.Report(message);
+    }
+
+    private void OpenBackupsFolder()
+    {
+        try
+        {
+            Directory.CreateDirectory(Backups.BackupsDir);
+            Process.Start(new ProcessStartInfo("explorer.exe", $"\"{Backups.BackupsDir}\"") { UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Opening the backups folder failed: {ex.Message}");
+        }
+    }
+}

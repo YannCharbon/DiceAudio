@@ -29,5 +29,17 @@ namespace DiceAudio
         {
             return new Microsoft.Maui.Controls.Window(new MainPage()) { Title = "DiceAudio" };
         }
+
+        /// <summary>
+        /// Rebuilds the Blazor-based UI on the single window this app has, so
+        /// that no page keeps an object from before a restore.
+        /// </summary>
+        public void ReloadPages()
+        {
+            if (Windows.Count > 0)
+            {
+                Windows[0].Page = new MainPage();
+            }
+        }
     }
 }

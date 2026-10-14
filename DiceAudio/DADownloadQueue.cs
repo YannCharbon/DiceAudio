@@ -183,6 +183,17 @@ namespace DiceAudio
             RaiseChanged(force: true);
         }
 
+        /// <summary>
+        /// Completes once nothing runs any more: the worker has finished its
+        /// last download, and with it any item that download was adding to the
+        /// library. Used after <see cref="CancelAll"/> before a restore or an
+        /// import, so that no download adds an item in the middle of it.
+        /// </summary>
+        public Task WhenIdleAsync()
+        {
+            lock (_gate) return _worker ?? Task.CompletedTask;
+        }
+
         /// <summary>Takes the finished downloads off the list.</summary>
         public void ClearFinished()
         {

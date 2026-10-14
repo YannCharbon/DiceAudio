@@ -63,10 +63,14 @@ public sealed class SafeFileStore
 
     public bool IsBlocked(string fileName) => _files.TryGetValue(fileName, out var state) && state.Blocked;
 
+    /// <summary>Why a file is blocked (the load error, or the reason given to Block), or null when it is not.</summary>
+    public string? GetBlockReason(string fileName) => _files.TryGetValue(fileName, out var state) && state.Blocked ? state.LoadError : null;
+
     /// <summary>
-    /// Marks a file as one that must not be saved over in this session, for a
-    /// failure the store could not see itself (the caller failed to use what
-    /// was loaded). A save already writing finishes; every later one is Blocked.
+    /// Marks a file as one that must not be saved over, for a failure the store
+    /// could not see itself (the caller failed to use what was loaded) or while
+    /// a restore replaces it. A save already writing finishes; every later one
+    /// is Blocked, until a load of the file succeeds or ForgetFile is called.
     /// </summary>
     public void Block(string fileName, string reason)
     {
@@ -74,6 +78,26 @@ public sealed class SafeFileStore
         Debug.WriteLine($"{fileName} is blocked: {reason}");
         state.LoadError = reason;
         state.Blocked = true;
+    }
+
+    /// <summary>
+    /// Blocks a file once no save of it is writing: when this returns, nothing
+    /// will write the file until a load of it succeeds or ForgetFile is called.
+    /// Used before a restore replaces the files.
+    /// </summary>
+    public async Task BlockAsync(string fileName, string reason, CancellationToken ct = default)
+    {
+        var state = GetState(fileName);
+        await state.Lock.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            state.LoadError = reason;
+            state.Blocked = true;
+        }
+        finally
+        {
+            state.Lock.Release();
+        }
     }
 
     /// <summary>
@@ -125,6 +149,10 @@ public sealed class SafeFileStore
                 ReadOnlySpan<byte> body = bytes.AsSpan().StartsWith(Utf8Bom) ? bytes.AsSpan(Utf8Bom.Length) : bytes;
                 T value = parse(StrictUtf8.GetString(body));
                 state.Hash = HashOf(bytes);
+                // Only a load that worked lifts a block (for example the one a
+                // restore puts on its files until they are read again).
+                state.Blocked = false;
+                state.LoadError = null;
                 return new LoadResult<T>(LoadOutcome.Loaded, value, null);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
@@ -132,6 +160,36 @@ public sealed class SafeFileStore
                 MarkFailed(state, fileName, ex.Message);
                 return new LoadResult<T>(LoadOutcome.Failed, default, ex.Message);
             }
+        }
+        finally
+        {
+            state.Lock.Release();
+        }
+    }
+
+    /// <summary>
+    /// The raw bytes of a file, read under its lock, so never in the middle of
+    /// a save that is replacing it. Null only when the file is truly missing;
+    /// a file found only as name.bak or name.tmp throws InvalidDataException.
+    /// Used by backups; it changes neither the block nor the hash.
+    /// </summary>
+    public async Task<byte[]?> ReadBytesAsync(string fileName, CancellationToken ct = default)
+    {
+        var state = GetState(fileName);
+        await state.Lock.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            string path = _resolvePath(fileName);
+            if (!File.Exists(path))
+            {
+                string? leftover = new[] { path + ".bak", path + ".tmp" }.FirstOrDefault(File.Exists);
+                if (leftover != null)
+                {
+                    throw new InvalidDataException($"Only the previous copy ({Path.GetFileName(leftover)}) was found");
+                }
+                return null;
+            }
+            return await WithRetriesAsync(() => File.ReadAllBytesAsync(path, ct), ct).ConfigureAwait(false);
         }
         finally
         {

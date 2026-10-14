@@ -143,12 +143,19 @@ public sealed class BackupService
     }
 
     /// <summary>Writes a backup of the data files as they are on disk, after every pending save.</summary>
-    public async Task<BackupInfo> CreateBackupAsync(string reason, CancellationToken ct = default)
+    public Task<BackupInfo> CreateBackupAsync(string reason, CancellationToken ct = default) =>
+        CreateBackupAsync(reason, Array.Empty<string>(), ct);
+
+    /// <summary>
+    /// The same, with a file name also unused in <paramref name="alsoUniqueIn"/>:
+    /// a folder whose Backups/ this one is about to be merged with.
+    /// </summary>
+    public async Task<BackupInfo> CreateBackupAsync(string reason, IReadOnlyList<string> alsoUniqueIn, CancellationToken ct = default)
     {
         await _gate.WaitAsync(ct);
         try
         {
-            return await CreateBackupLockedAsync(reason, ct);
+            return await CreateBackupLockedAsync(reason, ct, alsoUniqueIn: alsoUniqueIn);
         }
         finally
         {
@@ -300,7 +307,8 @@ public sealed class BackupService
         }
     }
 
-    private async Task<BackupInfo> CreateBackupLockedAsync(string reason, CancellationToken ct, bool saveFirst = true)
+    private async Task<BackupInfo> CreateBackupLockedAsync(string reason, CancellationToken ct, bool saveFirst = true,
+                                                           IReadOnlyList<string>? alsoUniqueIn = null)
     {
         if (saveFirst)
         {
@@ -312,17 +320,6 @@ public sealed class BackupService
             catch (Exception ex) when (ex is not OperationCanceledException) { Debug.WriteLine($"Flushing before a backup failed: {ex.Message}"); }
         }
 
-        Directory.CreateDirectory(BackupsDir);
-        string machine = MachineForFileName(_location.MachineName);
-        DateTime now = DateTime.Now;
-        string path;
-        do
-        {
-            path = Path.Combine(BackupsDir, $"{AppName}-backup-{now:yyyyMMdd-HHmmss}-{machine}-{reason}.zip");
-            now = now.AddSeconds(1);
-        }
-        while (File.Exists(path));
-
         // Each file is read through the store, under its lock, so that a file
         // being saved (briefly replaced) at this moment is never missed.
         var contents = new Dictionary<string, byte[]?>(StringComparer.Ordinal);
@@ -330,11 +327,58 @@ public sealed class BackupService
         {
             contents[name] = await _store.ReadBytesAsync(name, ct);
         }
+        return await WriteBackupFileAsync(BackupsDir, contents, reason, ct, alsoUniqueIn);
+    }
+
+    /// <summary>
+    /// A backup of a data folder the app does not use (before its data is
+    /// replaced by a move), written into that folder's own Backups/.
+    /// </summary>
+    public async Task<BackupInfo> CreateBackupOfFolderAsync(string folder, string reason, CancellationToken ct = default)
+    {
+        await _gate.WaitAsync(ct);
+        try
+        {
+            return await WriteBackupFileAsync(Path.Combine(folder, "Backups"), ReadFolder(folder), reason, ct);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    /// <summary>What a data folder holds, counted from its files (as in a backup's summary).</summary>
+    public static Dictionary<string, int> SummarizeFolder(string folder) => CountContent(ReadFolder(folder));
+
+    private static Dictionary<string, byte[]?> ReadFolder(string folder)
+    {
+        var contents = new Dictionary<string, byte[]?>(StringComparer.Ordinal);
+        foreach (string name in DataFileNames)
+        {
+            string path = Path.Combine(folder, name);
+            contents[name] = File.Exists(path) ? File.ReadAllBytes(path) : null;
+        }
+        return contents;
+    }
+
+    private async Task<BackupInfo> WriteBackupFileAsync(string backupsDir, IReadOnlyDictionary<string, byte[]?> contents, string reason,
+                                                        CancellationToken ct, IReadOnlyList<string>? alsoUniqueIn = null)
+    {
+        Directory.CreateDirectory(backupsDir);
+        string machine = MachineForFileName(_location.MachineName);
+        DateTime now = DateTime.Now;
+        string path;
+        do
+        {
+            path = Path.Combine(backupsDir, $"{AppName}-backup-{now:yyyyMMdd-HHmmss}-{machine}-{reason}.zip");
+            now = now.AddSeconds(1);
+        }
+        while (File.Exists(path) || (alsoUniqueIn ?? Array.Empty<string>()).Any(d => File.Exists(Path.Combine(d, Path.GetFileName(path)))));
 
         var manifest = new BackupManifest(BackupArchive.FormatName, BackupArchive.CurrentVersion, AppName, _host.AppVersion,
                                           DateTime.UtcNow, _location.MachineName, reason, Array.Empty<BackupFileEntry>(), CountContent(contents));
 
-        string tmp = Path.Combine(BackupsDir, $".tmp-{Guid.NewGuid():N}.zip");
+        string tmp = Path.Combine(backupsDir, $".tmp-{Guid.NewGuid():N}.zip");
         try
         {
             await using (var output = new FileStream(tmp, FileMode.CreateNew, FileAccess.Write, FileShare.None))
@@ -425,17 +469,12 @@ public sealed class BackupService
         }
     }
 
+    // The host reads every file again, settings.json included (AppSettings):
+    // a load that works lifts the restore block of each. Only then are the
+    // files that could not be read reported.
     private async Task ReloadAsync()
     {
         await _host.ReloadAsync();
-
-        // Files no service reads: nothing in memory can be written over them,
-        // so their restore block is simply lifted. (settings.json leaves this
-        // list once AppSettings reads it.)
-        if (_store.GetBlockReason(SettingsFileName) == RestoreBlockReason) _store.ForgetFile(SettingsFileName);
-
-        // Only now: before, settings.json still carried its restore block and
-        // was reported as unreadable.
         _host.ReportLoadFailures();
     }
 

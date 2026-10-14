@@ -11,6 +11,7 @@
 @inject DiceAudioService AudioService
 @inject DAStorageNotices Notices
 @inject NavigationManager Navigation
+@inject DiceAudio.Storage.DataFolderService DataFolder
 @implements IDisposable
 
 @using DiceAudio.Resources.Localization
@@ -24,7 +25,8 @@
 @* A data file that could not be read at startup, a save that failed, or
    how a restore ended: the user must see it and acknowledge it, so it is a
    dialog rather than a toast that fades away. The messages live in
-   DAStorageNotices, so they survive the rebuild of the pages after a restore. Drawn like DaConfirm, with a single button and
+   DAStorageNotices, so they survive the rebuild of the pages after a
+   restore. Drawn like DaConfirm, with a single button and
    no title, as in DiceCombats: there is nothing to decide, only something
    to know. *@
 @if (_storageNotices.Count > 0)
@@ -45,6 +47,18 @@
     </div>
 }
 
+@* When the data folder could not be used at startup, nothing has been read:
+   the startup screen stands in for the whole app until a usable folder is
+   chosen. (While an ordinary start is still reading, the app shows as usual:
+   every save waits for the load.) *@
+@if (ShowGate)
+{
+    <div style="@(OperatingSystem.IsWindows() ? "padding-top:32px;" : "")">
+        <DataFolderGate />
+    </div>
+}
+else
+{
 <div class="page">
     <!--<div class="sidebar">
         <NavMenu />
@@ -64,10 +78,15 @@
         @* main already sits 50px below the top (under the fixed app bar); keep
            only the 20px breathing space here. *@
         <article class="content px-4" style="padding-top:20px;" id="mainpagebody">
+            @if (DataFolder.Location.IsSessionFallback)
+            {
+                <div class="da-msec" style="margin-bottom:12px; border-left:3px solid var(--warn);">@Portability.StartupUsingLocalBanner</div>
+            }
             @Body
         </article>
     </main>
 </div>
+}
 
 @code {
     MudTheme DCTheme = new MudTheme()
@@ -84,8 +103,13 @@
     /// title that would fit only some.
     private IReadOnlyList<string> _storageNotices = Array.Empty<string>();
 
+    private bool ShowGate => !DataFolder.IsLoaded && DataFolder.Location.State != DiceAudio.Storage.DataLocationState.Ok;
+
+    private void OnLoadedChanged() => _ = InvokeAsync(StateHasChanged);
+
     protected override void OnInitialized()
     {
+        DataFolder.LoadedChanged += OnLoadedChanged;
         Notices.Changed += OnNoticesChanged;
         _storageNotices = Notices.Pending;
         App.PagesReloadRequested += ReloadInPlace;
@@ -112,6 +136,7 @@
     public void Dispose()
     {
         Notices.Changed -= OnNoticesChanged;
+        DataFolder.LoadedChanged -= OnLoadedChanged;
         App.PagesReloadRequested -= ReloadInPlace;
     }
 }

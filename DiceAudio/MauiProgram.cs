@@ -88,6 +88,13 @@ namespace DiceAudio
                                 try { ServiceProvider.GetRequiredService<DADownloadQueue>().CancelAll(); }
                                 catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"Stopping the downloads failed: {ex.Message}"); }
 
+                                // The marker says who wrote the folder last (spec §5.4).
+                                var dataFolder = ServiceProvider.GetRequiredService<DataFolderService>();
+                                if (dataFolder.IsLoaded)
+                                {
+                                    _ = dataFolder.WriteMarkerAsync();
+                                }
+
                                 var diceService = ServiceProvider.GetRequiredService<DiceAudioService>();
                                 if (diceService != null)
                                 {
@@ -153,18 +160,23 @@ namespace DiceAudio
                                                 localPreferences, GetMachineName(), debugOverride);
             System.Diagnostics.Debug.WriteLine(
                 $"Data folder: {dataLocation.Root} ({dataLocation.State}{(dataLocation.IsDebugOverride ? ", " + DataLocation.DebugOverrideVariable : "")})");
-#if DEBUG
-            // Until the startup screen exists, a folder that cannot be used
-            // stops a debug run here rather than showing an empty library.
-            if (dataLocation.State != DataLocationState.Ok)
+            var store = new SafeFileStore(dataLocation.GetPath);
+            var settings = new AppSettings(store, "DiceAudio");
+
+            // The preferences that travel with the data (settings.json) are read
+            // now, before any page asks for one; the first time, the values kept
+            // on this computer are copied into it. When the data folder cannot be
+            // used, the startup screen shows (DataFolderGate) and they are read
+            // once a usable folder is chosen.
+            if (dataLocation.State == DataLocationState.Ok)
             {
-                throw new InvalidOperationException(
-                    $"The data folder {dataLocation.Root} cannot be used ({dataLocation.State}). Check {DataLocation.DebugOverrideVariable}.");
+                Task.Run(() => settings.InitializeAsync(localPreferences, DataFolderService.MovedPreferenceKeys)).GetAwaiter().GetResult();
             }
-#endif
+
             builder.Services.AddSingleton<ILocalPreferences>(localPreferences);
             builder.Services.AddSingleton(dataLocation);
-            builder.Services.AddSingleton(new SafeFileStore(dataLocation.GetPath));
+            builder.Services.AddSingleton(store);
+            builder.Services.AddSingleton(settings);
 
             builder.Services.AddMudServices();
             builder.Services.AddSingleton<DiceAudioService>();
@@ -189,51 +201,25 @@ namespace DiceAudio
             builder.Services.AddSingleton<IBackupHost, DABackupHost>();
             builder.Services.AddSingleton<BackupService>();
             builder.Services.AddSingleton<DAImportService>();
+            builder.Services.AddSingleton<DataFolderService>();
 
             var app = builder.Build();
             ServiceProvider = app.Services; // Assign the root service provider
 
-            // Reads the library in the background; every save waits for it.
-            // A folder that cannot be used (only possible in a release build,
-            // a debug build stops above) is never read and never written: its
-            // files are blocked, and the user is told by the main layout until
-            // the startup screen exists.
-            var diceAudioService = app.Services.GetRequiredService<DiceAudioService>();
-            var notices = app.Services.GetRequiredService<DAStorageNotices>();
+            // When the data folder cannot be used, nothing is read: the startup
+            // screen (DataFolderGate) asks what to do, and loads once a usable
+            // folder is chosen. Otherwise the library is read in the background
+            // (every save waits for it), then the remote-control server starts
+            // if it is on and the automatic backup of the day is made.
             if (dataLocation.State == DataLocationState.Ok)
             {
-                var store = app.Services.GetRequiredService<SafeFileStore>();
-                var backups = app.Services.GetRequiredService<BackupService>();
+                var dataFolder = app.Services.GetRequiredService<DataFolderService>();
                 _ = Task.Run(async () =>
                 {
-                    await diceAudioService.InitializeAsync();
-                    notices.ReportLoadFailures();
-
-                    // The first start of the day on this machine makes a backup,
-                    // in the background, once the saves the load started (the
-                    // first save of the tag defaults) are on disk. Not after a
-                    // file failed to load: the backups kept would slowly be
-                    // replaced by copies of the broken state.
-                    if (store.BlockedFiles.Count > 0) return;
-                    try
-                    {
-                        await store.FlushAsync();
-                        await backups.AutoBackupIfDueAsync();
-                    }
-                    catch (Exception ex)
-                    {
-                        System.Diagnostics.Debug.WriteLine($"Automatic backup failed: {ex}");
-                    }
+                    try { await dataFolder.LoadAsync(); }
+                    catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"Loading the data failed: {ex}"); }
                 });
             }
-            else
-            {
-                diceAudioService.MarkDataFolderUnusable($"The data folder cannot be used ({dataLocation.State}).");
-                notices.ReportLoadFailures();
-            }
-
-            // Start the remote-control server if the user enabled it in Settings.
-            app.Services.GetRequiredService<DAControlServer>().ApplySavedSettings();
 
             return app;
         }

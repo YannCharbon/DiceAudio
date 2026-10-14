@@ -24,7 +24,7 @@
 <style>
     .imp-screen {
         position: fixed; left: 0; right: 0; bottom: 0; z-index: 2500;
-        background: var(--s1); overflow-y: auto; padding: 20px 24px 40px;
+        background: var(--s1); color: var(--t1); overflow-y: auto; padding: 20px 24px 40px;
     }
     .imp-body { max-width: 980px; margin: 0 auto; }
     .imp-kind { font-size: 15px; font-weight: 700; color: var(--a3); border-bottom: 1px solid var(--b1); padding: 14px 2px 4px; margin: 6px 0 8px; }
@@ -99,19 +99,47 @@
         DAAssetKind.Scene, DAAssetKind.Preset, DAAssetKind.AudioItem, DAAssetKind.Folder, DAAssetKind.Tag,
     };
 
-    protected override void OnInitialized() => Import.Requested += OnRequested;
+    /// <summary>A merge with another data folder: the texts speak of "this folder", not "this file".</summary>
+    private bool IsFolder => _session?.MergeAudioDir != null;
+
+    /// <summary>Set when the wizard was opened on a bundle by a merge; completed when it closes.</summary>
+    private TaskCompletionSource<bool>? _completion;
+
+    protected override void OnInitialized()
+    {
+        Import.Requested += OnRequested;
+        Import.BundleRequested += OnBundleRequested;
+    }
 
     public void Dispose()
     {
         Import.Requested -= OnRequested;
+        Import.BundleRequested -= OnBundleRequested;
+        _completion?.TrySetResult(false);
         _session?.Dispose();
     }
+
+    private void OnBundleRequested(DAImportSession session, TaskCompletionSource<bool> completion) => _ = InvokeAsync(() =>
+    {
+        if (_stage is Stage.Working) { completion.TrySetResult(false); return; }
+        _completion?.TrySetResult(false);
+        _session?.Dispose();
+        _session = session;
+        _completion = completion;
+        _result = null;
+        _followUp = null;
+        _imported = false;
+        Analyse();
+        StateHasChanged();
+    });
 
     private void OnRequested() => _ = InvokeAsync(StartAsync);
 
     private async Task StartAsync()
     {
         if (_stage is Stage.Working) return;
+        _completion?.TrySetResult(false);
+        _completion = null;
         _session?.Dispose();
         _session = null;
         _result = null;
@@ -164,16 +192,16 @@
 
         if (conflicts)
         {
-            <p class="da-confirm-msg">@Portability.WizardIntro</p>
+            <p class="da-confirm-msg">@(IsFolder ? Portability.WizardIntroFolder : Portability.WizardIntro)</p>
         }
         else if (nothing)
         {
-            <p class="da-confirm-msg">@Portability.ImportNothingToDo</p>
+            <p class="da-confirm-msg">@(IsFolder ? Portability.ImportNothingToDoFolder : Portability.ImportNothingToDo)</p>
         }
         else
         {
             <div style="font-weight:700; margin-bottom:6px;">@Portability.ImportSummaryTitle</div>
-            <p class="da-confirm-msg" style="margin-bottom:4px;">@Portability.ImportSummaryText</p>
+            <p class="da-confirm-msg" style="margin-bottom:4px;">@(IsFolder ? Portability.ImportSummaryTextFolder : Portability.ImportSummaryText)</p>
             <ul class="da-confirm-msg" style="padding-left:20px;">
                 @foreach (var kind in KindOrder)
                 {
@@ -188,7 +216,7 @@
 
         @if (_session.BrokenReferences > 0)
         {
-            <p class="imp-warn">@string.Format(Portability.WarningBrokenReferences, _session.BrokenReferences)</p>
+            <p class="imp-warn">@string.Format(IsFolder ? Portability.WarningBrokenReferencesFolder : Portability.WarningBrokenReferences, _session.BrokenReferences)</p>
         }
         @if (!string.IsNullOrEmpty(_session.PackProblem))
         {
@@ -496,6 +524,17 @@
         _session?.Dispose();
         _session = null;
         _stage = Stage.Hidden;
+
+        // A merge goes on with the move, then the app restarts: the pages are
+        // not rebuilt here, which would end the page that waits for this.
+        if (_completion != null)
+        {
+            var completion = _completion;
+            _completion = null;
+            completion.TrySetResult(_imported);
+            return;
+        }
+
         // Every page held its view of the library from before the import.
         if (_imported) (Application.Current as App)?.ReloadPages();
     }

@@ -22,13 +22,15 @@ namespace DiceAudio
         private readonly DADownloadQueue _downloads;
         private readonly DAControlServer _controlServer;
         private readonly DAStorageNotices _notices;
+        private readonly AppSettings _settings;
 
         /// <summary>The port the remote-control server ran on before a restore paused it; null when it was not running.</summary>
         private int? _pausedServerPort;
 
         public DABackupHost(DiceAudioService service, DAPlaybackCoordinator playback, DADownloadQueue downloads,
-                            DAControlServer controlServer, DAStorageNotices notices)
+                            DAControlServer controlServer, DAStorageNotices notices, AppSettings settings)
         {
+            _settings = settings;
             _service = service;
             _playback = playback;
             _downloads = downloads;
@@ -76,6 +78,8 @@ namespace DiceAudio
         public async Task ReloadAsync()
         {
             await _service.ReloadAsync();
+            // settings.json too: a load that works lifts its restore block.
+            await _settings.ReloadAsync();
         }
 
         public void ReportLoadFailures() => _notices.ReportLoadFailures();

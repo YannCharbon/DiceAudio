@@ -247,6 +247,29 @@ namespace DiceAudio
             return matches.Length;
         }
 
+        /// <summary>
+        /// Stops and disposes every live player reading a file inside
+        /// <paramref name="folder"/>, so that the audio folder can be moved.
+        /// Returns how many were torn down.
+        /// </summary>
+        public static int DisposePlayersUnder(string folder)
+        {
+            if (string.IsNullOrEmpty(folder)) return 0;
+            string prefix = Path.TrimEndingDirectorySeparator(Path.GetFullPath(folder)) + Path.DirectorySeparatorChar;
+
+            DAAudioPlayer[] matches;
+            lock (_liveLock)
+                matches = _live
+                    .Where(p => p.FilePath != null && Path.GetFullPath(p.FilePath).StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                    .ToArray();
+
+            foreach (var player in matches)
+            {
+                try { player.Dispose(); } catch { /* already torn down */ }
+            }
+            return matches.Length;
+        }
+
         // ── Factory ──────────────────────────────────────────────────────────
 
         /// <summary>Creates a player from an absolute file path.</summary>

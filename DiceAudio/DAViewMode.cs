@@ -31,8 +31,9 @@ namespace DiceAudio
     {
         // A static class used straight from the pages, so it reaches the local
         // preferences through the root services rather than through injection.
-        private static ILocalPreferences Preferences =>
-            MauiProgram.ServiceProvider.GetRequiredService<ILocalPreferences>();
+        // They travel with the data, in settings.json (spec §6).
+        private static AppSettings Preferences =>
+            MauiProgram.ServiceProvider.GetRequiredService<AppSettings>();
 
         public const string PrefFolderView = "ExplorerFolderView";
         public const string PrefItemView   = "ExplorerItemView";

@@ -54,7 +54,8 @@ namespace DiceAudio
         private const string PrefLastCheckFailed = "YtDlpLastUpdateCheckFailed";
 
         /// <summary>Whether the startup check may run at all (Settings).</summary>
-        private const string PrefAutoUpdate = "YtDlpAutoUpdateEnabled";
+        /// <summary>A user choice: it travels with the data, in settings.json (spec §6).</summary>
+        public const string PrefAutoUpdate = "YtDlpAutoUpdateEnabled";
 
         /// <summary>At most two checks per day.</summary>
         public static readonly TimeSpan CheckInterval = TimeSpan.FromHours(12);
@@ -103,9 +104,13 @@ namespace DiceAudio
 
         private readonly YtDlpService _ytDlp;
         private readonly ILocalPreferences _localPreferences;
+        private readonly AppSettings _settings;
 
-        public YtDlpUpdateService(YtDlpService ytDlp, ILocalPreferences localPreferences)
+        // The last check describes the yt-dlp of this computer, so it stays in
+        // the local preferences; the choice to update is the user's, in settings.json.
+        public YtDlpUpdateService(YtDlpService ytDlp, ILocalPreferences localPreferences, AppSettings settings)
         {
+            _settings = settings;
             _ytDlp = ytDlp;
             _localPreferences = localPreferences;
         }
@@ -120,8 +125,8 @@ namespace DiceAudio
         /// </summary>
         public bool AutoUpdateEnabled
         {
-            get => _localPreferences.Get(PrefAutoUpdate, true);
-            set => _localPreferences.Set(PrefAutoUpdate, value);
+            get => _settings.Get(PrefAutoUpdate, true);
+            set => _settings.Set(PrefAutoUpdate, value);
         }
 
         /// <summary>

@@ -40,20 +40,21 @@ namespace DiceAudio
             false;
 #endif
 
-        private readonly ILocalPreferences _localPreferences;
+        // Its settings travel with the data, in settings.json (spec §6).
+        private readonly AppSettings _settings;
 
-        public DAControlServer(DiceAudioService service, DAPlaybackCoordinator coordinator, ILocalPreferences localPreferences)
+        public DAControlServer(DiceAudioService service, DAPlaybackCoordinator coordinator, AppSettings settings)
         {
             _service = service;
             _coordinator = coordinator;
-            _localPreferences = localPreferences;
+            _settings = settings;
         }
 
         /// <summary>Starts the server if the user enabled it in Settings.</summary>
         public void ApplySavedSettings()
         {
-            if (_localPreferences.Get(PrefEnabled, false))
-                Start(_localPreferences.Get(PrefPort, DefaultPort));
+            if (_settings.Get(PrefEnabled, false))
+                Start(_settings.Get(PrefPort, DefaultPort));
         }
 
 #if WINDOWS

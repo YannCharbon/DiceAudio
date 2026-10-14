@@ -51,6 +51,9 @@ namespace DiceAudio.Resources.Localization
         public const string ExportLibraryHelp =
             "Saves your whole library in a single file: audio items, folders, tags, scenes, scenario groups and presets. " +
             "The audio files themselves are only included if you tick the option below.";
+        public const string SharingHelp =
+            "Saves your whole library in a single file: audio items, folders, tags, scenes, scenario groups and presets. " +
+            "The audio files themselves are only included if you tick \"Also save the audio files\" in the export window.";
 
         public const string ExportNoSourceWarning =
             "{0} audio items have no download link, and their file is not included. " +
@@ -95,7 +98,7 @@ namespace DiceAudio.Resources.Localization
 
         public const string BackupsTitle = "Backups";
         public const string BackupsHelp =
-            "DiceAudio backs up your data the first time you open it each day, and before every import, restore or change of data folder. " +
+            "DiceAudio backs up your data the first time you open it each day, and before every import, every restore, and before your data is copied to another folder. " +
             "A backup contains your library, folders, tags, scenes, scenario groups, presets and settings, but never the audio files themselves.";
         public const string BackupNowBtn = "Back up now";
         public const string BackupRestoreBtn = "Restore";
@@ -173,6 +176,9 @@ namespace DiceAudio.Resources.Localization
         public const string WizardIntro =
             "Part of the content of this file already exists in your library. " +
             "Please choose what to do in each case; the suggested choice is already selected.";
+        public const string WizardIntroFolder =
+            "Part of the content of this folder already exists in your library. " +
+            "Please choose what to do in each case; the suggested choice is already selected.";
         public const string WizardInFile = "In the file";
         public const string WizardInLibrary = "In your library";
         public const string WizardNewName = "New name";
@@ -185,6 +191,8 @@ namespace DiceAudio.Resources.Localization
         public const string ImportSummaryTitle = "Ready to import";
         public const string ImportSummaryText = "Nothing in this file conflicts with your library. The following will be added:";
         public const string ImportNothingToDo = "Everything in this file is already in your library, so there is nothing to import.";
+        public const string ImportSummaryTextFolder = "Nothing in this folder conflicts with your library. The following will be added:";
+        public const string ImportNothingToDoFolder = "Everything in this folder is already in your library, so there is nothing to add.";
         public const string ImportBackupNote = "A backup of your current data is made before anything is changed.";
         public const string ImportReportTitle = "Import finished";
         public const string ReportAdded = "Added: {0}";
@@ -202,6 +210,8 @@ namespace DiceAudio.Resources.Localization
         public const string ErrorFileTooLarge = "This file is too large: {0} MB, while DiceAudio accepts up to {1} MB.";
         public const string WarningBrokenReferences =
             "Some of the content of this file refers to things that are not in it ({0} references). It is imported without them.";
+        public const string WarningBrokenReferencesFolder =
+            "Some of the content of this folder refers to things that are not in it ({0} references). It is added without them.";
 
         public const string KindTag = "Tags";
         public const string KindFolder = "Folders";
@@ -251,6 +261,81 @@ namespace DiceAudio.Resources.Localization
 
         /// <summary>New string (not in the spec): the label of the import's file type in the open window.</summary>
         public const string MediaPackFileType = "DiceAudio audio file pack";
+
+        // ── The data folder (spec §8.1, §8.3, and C6's StartupInvalidTitle) ──
+
+        public const string DataFolderTitle = "Data folder";
+        public const string DataFolderHelp =
+            "This is where DiceAudio keeps your data and your audio files. You can choose another folder, for example one that " +
+            "OneDrive or Dropbox keeps in sync, to use the same library on several computers. Please open DiceAudio on one computer at a time.";
+        public const string DataFolderDefault = "The default folder";
+        public const string DataFolderChangeBtn = "Choose another folder…";
+        public const string DataFolderOpenBtn = "Open the folder";
+        public const string DataFolderResetBtn = "Back to the default folder";
+        public const string DataFolderDebugSuffix = "(DICE_DATA_DIR)";
+
+        public const string MoveConfirmTitle = "Move your data to this folder?";
+        public const string MoveConfirmText =
+            "DiceAudio copies your data to {0}, checks the copy, then restarts and uses the new folder. " +
+            "Your current data stays where it is until you delete it from this page.";
+        public const string MoveConfirmBtn = "Move my data";
+        public const string MoveCloudTip =
+            "If OneDrive or another service keeps this folder in sync, please set it to always keep the files on this device. " +
+            "Otherwise DiceAudio may have to wait for files to download.";
+        public const string MoveSubfolderNote = "This folder already contains other files, so DiceAudio will keep its data in the subfolder {0}.";
+        public const string MoveInProgress = "Copying your data… {0} of {1}";
+        public const string MoveErrorNotWritable = "DiceAudio cannot write in this folder. Please choose another one.";
+        public const string MoveErrorInsideCurrent = "This folder is the current data folder, or is inside it. Please choose a folder elsewhere.";
+        public const string MoveErrorAppData =
+            "Folders inside AppData cannot be used. Please choose a folder elsewhere, for example in your Documents or in a synchronised folder.";
+        public const string MoveErrorOtherApp = "This folder holds DiceCombats data. Please choose a separate folder for DiceAudio.";
+        public const string MoveFailed = "Your data could not be copied: {0}. Nothing has been changed, and DiceAudio still uses {1}.";
+        public const string MoveRestartNotice = "DiceAudio will now restart to use the new folder.";
+        public const string MoveAudioSize = "Your audio files take {0}. The target drive has {1} free.";
+        public const string MoveRestartBtn = "Restart now";
+        public const string MergeNothingNewText = "There is nothing to add from this folder. Do you want to use this folder with your data?";
+        public const string MergeNothingNewBtn = "Use this folder";
+        public const string ReplaceConfirmText = "This replaces the data in {0} with yours. The data that was there is backed up first in {0}\\Backups.";
+        public const string StartupTryAgainHelp = "Checks the folder again, for example once the drive or the network is connected.";
+        public const string StartupChooseFolderHelp = "Opens a folder that holds your DiceAudio data, if it is now somewhere else.";
+        public const string StartupQuitHelp = "Closes DiceAudio without changing anything.";
+        public const string MoveStopsPlayback = "Playback and downloads are stopped while your data is moved.";
+
+        public const string OldCopyNotice =
+            "Your previous data is still in {0}. Once you have checked that everything is in the new folder, you can delete it.";
+        public const string OldCopyDeleteBtn = "Delete the old copy";
+        public const string OldCopyDeleteConfirm = "This deletes your previous data in {0}. It cannot be undone.";
+
+        public const string ExistingFolderTitle = "This folder already contains DiceAudio data";
+        public const string ExistingThisComputer = "This computer: {0}";
+        public const string ExistingThisFolder = "This folder: {0}";
+        public const string ExistingFolderQuestion = "What would you like to do?";
+        public const string ExistingUseFolderBtn = "Use the folder's data";
+        public const string ExistingUseFolderHelp = "DiceAudio switches to the folder as it is. Your current data stays where it is.";
+        public const string ExistingReplaceBtn = "Replace it with mine";
+        public const string ExistingReplaceHelp = "The folder's data is backed up first, then replaced by yours.";
+        public const string ExistingMergeBtn = "Merge";
+        public const string ExistingMergeHelp =
+            "Your data is added to the folder's data, and you choose what to do when an item exists on both sides.";
+
+        public const string StartupMissingTitle = "The data folder cannot be reached";
+        public const string StartupInvalidTitle = "The data folder cannot be used";
+        public const string StartupMissingText =
+            "DiceAudio keeps your data in {0}, but this folder cannot be reached at the moment. If it is on an external drive or on the network, " +
+            "please connect it and try again. DiceAudio will not create an empty library there.";
+        public const string StartupInvalidText =
+            "The folder {0} cannot be used: it does not hold DiceAudio data, DiceAudio cannot write in it, or it was set up by a newer version of DiceAudio.";
+        public const string StartupTryAgainBtn = "Try again";
+        public const string StartupChooseFolderBtn = "Choose another folder…";
+        public const string StartupUseLocalBtn = "Open the default folder instead";
+        public const string StartupUseLocalHelp =
+            "Opens the data in the default folder of DiceAudio instead, for this session only. This data may be older than the data " +
+            "in your chosen folder, or there may be none. Changes you make now stay in the default folder. " +
+            "Next time, DiceAudio will look for your chosen folder again.";
+        public const string StartupUsingLocalBanner =
+            "Your data folder could not be reached, so DiceAudio is showing the data in its default folder. " +
+            "Changes you make now are saved there, not in your data folder.";
+        public const string StartupQuitBtn = "Quit";
 
         public const string DataPanelTitle = "Data";
         public const string SharingTitle = "Sharing";

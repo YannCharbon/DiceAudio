@@ -43,6 +43,13 @@ namespace DiceAudio
         public ConflictPlanner? Planner { get; set; }
         public DAImportPlan? Plan { get; set; }
 
+        /// <summary>
+        /// A merge with another data folder: its Audio/ holds the files of the
+        /// imported items, under their original names. Those items keep them
+        /// (the move then merges the audio folders), and nothing is downloaded.
+        /// </summary>
+        public string? MergeAudioDir { get; init; }
+
         public void Dispose()
         {
             Pack?.Dispose();
@@ -81,6 +88,25 @@ namespace DiceAudio
         public event Action? Requested;
 
         public void RequestImport() => Requested?.Invoke();
+
+        /// <summary>Raised to import a bundle that is not a file (a merge with another data folder); the wizard opens on it.</summary>
+        public event Action<DAImportSession, TaskCompletionSource<bool>>? BundleRequested;
+
+        /// <summary>
+        /// Opens the wizard on a bundle (the library of another data folder),
+        /// and completes when it closes: true when the import was applied.
+        /// </summary>
+        public Task<bool> ImportBundleAsync(DABundle bundle, string? mergeAudioDir)
+        {
+            var listener = BundleRequested;
+            if (listener == null) return Task.FromResult(false);
+            var completion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            listener(new DAImportSession
+            {
+                Bundle = bundle, FileName = "", BrokenReferences = DABundleReader.CountBrokenReferences(bundle), MergeAudioDir = mergeAudioDir,
+            }, completion);
+            return completion.Task;
+        }
 
         /// <summary>
         /// Asks for a .dicea file and reads it. Null when the user cancels;
@@ -183,6 +209,18 @@ namespace DiceAudio
         }
 
         /// <summary>
+        /// Whether importing a bundle would change anything with the default
+        /// choices (a merge with a folder that holds nothing new asks instead).
+        /// Writes nothing. Call on the UI thread.
+        /// </summary>
+        public bool HasSomethingToAdd(DABundle bundle)
+        {
+            using var session = new DAImportSession { Bundle = bundle, FileName = "" };
+            Analyse(session);
+            return session.Plan!.AllItems.Any(i => i.Inserts);
+        }
+
+        /// <summary>
         /// Applies the plan. Call on the UI thread: the lists change there.
         /// </summary>
         /// <exception cref="DAImportBlockedException">A data file could not be read at startup; nothing has been changed.</exception>
@@ -232,11 +270,34 @@ namespace DiceAudio
                 }
             }
 
+            if (session.MergeAudioDir is string mergeAudio)
+            {
+                // The files are in the other folder's Audio/, which the move
+                // merges with this one: the items keep their names.
+                foreach (var (item, record, _) in needed.ToList())
+                {
+                    string? name = string.IsNullOrEmpty(record.OriginalFileName) ? null : Path.GetFileName(record.OriginalFileName);
+                    if (name == null || !File.Exists(Path.Combine(mergeAudio, name))) continue;
+                    item.LocalFileName = name;
+                    report.Matched++;
+                    needed.RemoveAll(n => ReferenceEquals(n.Item, item));
+                }
+            }
+
             DAImportFollowUp.MatchExistingFiles(needed, _service.AudioItems, audioDir, DAImportHelper.AudioExtensions, report);
 
+            // A merge moves the data right after: nothing is downloaded meanwhile.
             var withLink = needed.Where(n => !string.IsNullOrWhiteSpace(n.Item.SourceURL)).Select(n => n.Item).ToList();
-            report.Queued = _downloads.EnqueueLibraryItems(withLink);
-            report.Missing.AddRange(needed.Where(n => string.IsNullOrWhiteSpace(n.Item.SourceURL)).Select(n => n.Item));
+            if (session.MergeAudioDir == null) report.Queued = _downloads.EnqueueLibraryItems(withLink);
+            var stillMissing = needed.Where(n => string.IsNullOrWhiteSpace(n.Item.SourceURL));
+            if (session.MergeAudioDir is string otherAudio)
+            {
+                // A merge lists only what it makes missing: an item whose file
+                // was not in the other folder either was missing before.
+                stillMissing = stillMissing.Where(n => !string.IsNullOrEmpty(n.Record.OriginalFileName)
+                                                       && File.Exists(Path.Combine(otherAudio, Path.GetFileName(n.Record.OriginalFileName))));
+            }
+            report.Missing.AddRange(stillMissing.Select(n => n.Item));
 
             try { await _service.SaveAudioItemListAsync(); }
             catch (Exception ex) { Debug.WriteLine($"Saving after the follow-up failed: {ex.Message}"); }

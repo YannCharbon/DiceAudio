@@ -133,28 +133,9 @@ namespace DiceAudio
         }
 
         /// <summary>
-        /// The data folder cannot be used (missing, not writable, another app's):
-        /// nothing is read, every data file is blocked so that nothing is ever
-        /// written there, and the load is marked as done so that the main layout
-        /// tells the user instead of showing an empty library without a word.
-        /// </summary>
-        public void MarkDataFolderUnusable(string reason)
-        {
-            foreach (var fileName in AllDataFileNames)
-                Store.Block(fileName, reason);
-            _loaded.TrySetResult();
-        }
-
-        /// <summary>Every data file of the library, the tag files included.</summary>
-        public static IReadOnlyList<string> AllDataFileNames { get; } = new[]
-        {
-            AudioItemsFileName, AudioVirtualFoldersFileName, ScenarioGroupsFileName,
-            ScenesFileName, PresetsFileName, PinnedScenarioGroupsFileName,
-        }.Concat(DAAudioTagsProvider.FileNames).ToList();
-
-        /// <summary>
         /// False when the data folder cannot be used: then nothing, audio files
-        /// included, may be written into it.
+        /// included, may be written into it. (The startup screen stands in for
+        /// the app until a usable folder is chosen; nothing is read before.)
         /// </summary>
         public bool CanWriteData => Location.State == DataLocationState.Ok;
 
@@ -697,6 +678,20 @@ namespace DiceAudio
                 if (group != null) groups.Add(group);
             }
             return groups;
+        }
+
+        /// <summary>
+        /// A merge with another data folder: its pinned groups join these, in
+        /// their order after the ones already pinned. Pins of groups that do not
+        /// exist (any more) are dropped.
+        /// </summary>
+        public async Task MergePinnedScenarioGroupsAsync(IEnumerable<Guid> otherPins)
+        {
+            var existing = ScenarioGroups.Select(g => g.Id).ToHashSet();
+            var merged = _pinnedScenarioGroups.Concat(otherPins).Where(existing.Contains).Distinct().ToList();
+            if (merged.SequenceEqual(_pinnedScenarioGroups)) return;
+            _pinnedScenarioGroups = merged;
+            await SavePinnedScenarioGroupsAsync();
         }
 
         public async Task SavePinnedScenarioGroupsAsync()

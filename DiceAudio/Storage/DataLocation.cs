@@ -100,6 +100,27 @@ public sealed class DataLocation
         _localPreferences.Set(PointerKey, string.IsNullOrWhiteSpace(path) ? string.Empty : Path.GetFullPath(path));
     }
 
+    /// <summary>The folder the pointer names now (or the default folder), checked again.</summary>
+    public string PointerRoot
+    {
+        get
+        {
+            string pointer = _localPreferences.Get(PointerKey, string.Empty) ?? string.Empty;
+            return string.IsNullOrWhiteSpace(pointer) ? DefaultRoot : Path.GetFullPath(pointer);
+        }
+    }
+
+    /// <summary>
+    /// Follows the pointer at once, before any data has been read: the startup
+    /// screen uses it after another folder was chosen. Never after loading.
+    /// </summary>
+    public DataLocationState UsePointerNow()
+    {
+        Root = PointerRoot;
+        IsSessionFallback = false;
+        return Evaluate();
+    }
+
     /// <summary>"Use the data on this computer": the default folder, for this session only. The pointer is kept.</summary>
     public void UseDefaultForThisSession()
     {
@@ -142,8 +163,22 @@ public sealed class DataLocation
             return DataLocationState.Invalid;
         }
 
-        // The marker (dice-data.json) and the lock (dice.lock) are checked
-        // here once they exist.
+        // A folder holding another app's data, or set up by a newer version,
+        // is not used. A marker that cannot be read is not guessed at either.
+        // The lock (dice.lock) is checked here once it exists.
+        try
+        {
+            var marker = DataFolderMarker.Read(Root);
+            if (marker != null && (marker.App != AppName || marker.Version > DataFolderMarker.CurrentVersion))
+            {
+                return DataLocationState.Invalid;
+            }
+        }
+        catch (InvalidDataException ex)
+        {
+            Debug.WriteLine($"Data folder {Root}: {ex.Message}");
+            return DataLocationState.Invalid;
+        }
         return DataLocationState.Ok;
     }
 

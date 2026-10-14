@@ -31,6 +31,24 @@ namespace DiceAudio
         }
 
         /// <summary>
+        /// Starts the app again, after the data folder changed. In a debug run on
+        /// a sandbox (DICE_DATA_DIR) it only quits: a restarted process might not
+        /// get that variable, and would then open the real data.
+        /// </summary>
+        public void Restart()
+        {
+#if WINDOWS
+            var location = MauiProgram.ServiceProvider.GetRequiredService<DiceAudio.Storage.DataLocation>();
+            if (!location.IsDebugOverride)
+            {
+                var failure = Microsoft.Windows.AppLifecycle.AppInstance.Restart(string.Empty);
+                System.Diagnostics.Debug.WriteLine($"Restart failed: {failure}");
+            }
+#endif
+            Quit();
+        }
+
+        /// <summary>
         /// Raised when the pages must be built again. The main layout answers by
         /// reloading the web page in place.
         /// </summary>

@@ -13,7 +13,7 @@
 @inject DiceAudioService AudioService
 @inject DAControlServer ControlServer
 @inject YtDlpUpdateService YtDlpUpdates
-@inject DiceAudio.Storage.ILocalPreferences LocalPreferences
+@inject DiceAudio.Storage.AppSettings AppSettings
 
 @* Laid out like DiceCombats' settings page, so the two apps' settings read as
    one screen in two colours: a da-h1 title over a da-sub, each section
@@ -249,8 +249,8 @@
 
     protected override void OnInitialized()
     {
-        _serverEnabled = LocalPreferences.Get(DAControlServer.PrefEnabled, false);
-        _serverPort = LocalPreferences.Get(DAControlServer.PrefPort, DAControlServer.DefaultPort);
+        _serverEnabled = AppSettings.Get(DAControlServer.PrefEnabled, false);
+        _serverPort = AppSettings.Get(DAControlServer.PrefPort, DAControlServer.DefaultPort);
         _ytDlpAutoUpdate = YtDlpUpdates.AutoUpdateEnabled;
     }
 
@@ -317,7 +317,7 @@
     void OnServerToggled(bool enabled)
     {
         _serverEnabled = enabled;
-        LocalPreferences.Set(DAControlServer.PrefEnabled, enabled);
+        AppSettings.Set(DAControlServer.PrefEnabled, enabled);
         if (enabled) ControlServer.Start(_serverPort);
         else ControlServer.Stop();
     }
@@ -325,7 +325,7 @@
     void OnPortChanged(int port)
     {
         _serverPort = port;
-        LocalPreferences.Set(DAControlServer.PrefPort, port);
+        AppSettings.Set(DAControlServer.PrefPort, port);
         if (_serverEnabled) ControlServer.Start(port);   // restart on the new port
     }
 

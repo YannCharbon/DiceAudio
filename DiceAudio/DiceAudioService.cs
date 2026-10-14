@@ -54,11 +54,14 @@ namespace DiceAudio
         public const string PresetsFileName = "presets.json";
 
         /// <summary>
-        /// Changes made to a file outside the app are not looked for yet (that
-        /// comes with the use from several computers), so every save overwrites
-        /// the file, as it always has.
+        /// A file changed on disk since the app read it (another computer, through
+        /// a synchronisation service) is not saved over: the save returns
+        /// ChangedOnDisk and this event asks the user to reload or overwrite it.
         /// </summary>
-        private const bool OverwriteExternalChange = true;
+        public event Action<string>? ChangedOnDisk;
+
+        // The files the user chose to overwrite: their next save does not check.
+        private readonly HashSet<string> _overwriteNext = new(StringComparer.OrdinalIgnoreCase);
 
         /// <summary>
         /// Enums are written by name rather than by their position, so adding a
@@ -507,8 +510,10 @@ namespace DiceAudio
             string audioDir = AudioDir;
             foreach (var item in AudioItems)
             {
-                item.IsLocallyAvailable = !string.IsNullOrEmpty(item.LocalFileName)
-                                          && File.Exists(Path.Combine(audioDir, item.LocalFileName));
+                string path = string.IsNullOrEmpty(item.LocalFileName) ? "" : Path.Combine(audioDir, item.LocalFileName);
+                item.IsLocallyAvailable = path.Length > 0 && File.Exists(path);
+                // Only the attributes are read: the file is not downloaded.
+                item.IsCloudOnly = item.IsLocallyAvailable && OperatingSystem.IsWindows() && CloudFiles.IsCloudOnly(path);
             }
         }
 
@@ -735,9 +740,59 @@ namespace DiceAudio
         /// </summary>
         private async Task SaveListAsync<T>(List<T> list, string fileName)
         {
-            var outcome = await Store.SaveJsonAsync(fileName, list, WriteOptions, OverwriteExternalChange);
+            bool overwrite;
+            lock (_overwriteNext) overwrite = _overwriteNext.Remove(fileName);
+            var outcome = await Store.SaveJsonAsync(fileName, list, WriteOptions, overwrite);
             if (outcome != SaveOutcome.Unchanged)
                 Debug.WriteLine($"Save {fileName}: {outcome}");
+            if (outcome == SaveOutcome.ChangedOnDisk)
+                ChangedOnDisk?.Invoke(fileName);
+        }
+
+        /// <summary>"Overwrite": saves a file over the version changed elsewhere.</summary>
+        public async Task OverwriteFileAsync(string fileName)
+        {
+            if (DAAudioTagsProvider.FileNames.Contains(fileName))
+            {
+                await DAAudioTagsProvider.Instance.SaveTagsAsync(overwrite: true);
+                return;
+            }
+            lock (_overwriteNext) _overwriteNext.Add(fileName);
+            Task save = fileName switch
+            {
+                AudioItemsFileName => SaveAudioItemListAsync(),
+                AudioVirtualFoldersFileName => SaveAudioVirtualFoldersAsync(),
+                ScenarioGroupsFileName => SaveScenarioGroupsAsync(),
+                ScenesFileName => SaveScenesAsync(),
+                PresetsFileName => SavePresetsAsync(),
+                PinnedScenarioGroupsFileName => SavePinnedScenarioGroupsAsync(),
+                _ => Task.CompletedTask,
+            };
+            await save;
+        }
+
+        /// <summary>
+        /// "Reload": reads the files named again, as after a restore; the others
+        /// keep what is in memory. The caller stops the playback they affect
+        /// first and rebuilds the pages afterwards.
+        /// </summary>
+        public async Task ReloadFilesAsync(IReadOnlyCollection<string> fileNames)
+        {
+            bool Has(string name) => fileNames.Contains(name, StringComparer.OrdinalIgnoreCase);
+            if (DAAudioTagsProvider.FileNames.Any(Has))
+                await LoadStepAsync(DAAudioTagsProvider.FileNames, () => DAAudioTagsProvider.Instance.LoadAsync(Store)).ConfigureAwait(false);
+            if (Has(AudioItemsFileName))
+                await LoadStepAsync(new[] { AudioItemsFileName }, LoadAudioItemListAsync).ConfigureAwait(false);
+            if (Has(AudioVirtualFoldersFileName))
+                await LoadStepAsync(new[] { AudioVirtualFoldersFileName }, LoadAudioVirtualFoldersListAsync).ConfigureAwait(false);
+            if (Has(ScenarioGroupsFileName))
+                await LoadStepAsync(new[] { ScenarioGroupsFileName }, LoadScenarioGroupsAsync).ConfigureAwait(false);
+            if (Has(ScenesFileName))
+                await LoadStepAsync(new[] { ScenesFileName }, LoadScenesAsync).ConfigureAwait(false);
+            if (Has(PresetsFileName))
+                await LoadStepAsync(new[] { PresetsFileName }, LoadPresetsAsync).ConfigureAwait(false);
+            if (Has(PinnedScenarioGroupsFileName))
+                await LoadStepAsync(new[] { PinnedScenarioGroupsFileName }, LoadPinnedScenarioGroupsAsync).ConfigureAwait(false);
         }
 
         /// <summary>

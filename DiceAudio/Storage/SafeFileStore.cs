@@ -149,6 +149,7 @@ public sealed class SafeFileStore
                 ReadOnlySpan<byte> body = bytes.AsSpan().StartsWith(Utf8Bom) ? bytes.AsSpan(Utf8Bom.Length) : bytes;
                 T value = parse(StrictUtf8.GetString(body));
                 state.Hash = HashOf(bytes);
+                state.Refused = null;   // reloaded: the refused version is given up
                 // Only a load that worked lifts a block (for example the one a
                 // restore puts on its files until they are read again).
                 state.Blocked = false;
@@ -238,10 +239,69 @@ public sealed class SafeFileStore
         return pending.Length == 0 ? Task.CompletedTask : Task.WhenAll(pending).WaitAsync(ct);
     }
 
+    /// <summary>
+    /// Whether the file on disk is no longer what was last read or written
+    /// here: another computer changed it (C7/A9, the watcher's banner). Read
+    /// under the file's lock, so never in the middle of a save. A blocked file
+    /// is never reported, nor one that cannot be read at this moment (a
+    /// synchronisation service writing it): the next change event asks again.
+    /// </summary>
+    public async Task<bool> HasChangedOnDiskAsync(string fileName, CancellationToken ct = default)
+    {
+        var state = GetState(fileName);
+        await state.Lock.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            if (state.Blocked) return false;
+            return DiskHash(_resolvePath(fileName)) != state.Hash;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
+        finally
+        {
+            state.Lock.Release();
+        }
+    }
+
+    /// <summary>The files whose last save was refused because they changed on disk, and that no write or load has settled since.</summary>
+    public IReadOnlyList<string> RefusedFiles =>
+        _files.Where(f => f.Value.Refused != null).Select(f => f.Key).OrderBy(f => f, StringComparer.OrdinalIgnoreCase).ToList();
+
+    /// <summary>
+    /// When the app closes: the content of every save refused because its file
+    /// changed on disk is written next to the file (see <see cref="UnsavedCopies"/>),
+    /// so that the user's changes are not lost without a word. Returns the
+    /// copies written. Never throws: it runs while the window closes.
+    /// </summary>
+    public IReadOnlyList<string> WriteUnsavedCopies(string machine, DateTime localTime)
+    {
+        var written = new List<string>();
+        foreach (var (name, state) in _files.ToArray())
+        {
+            string? content = state.Refused;
+            if (content == null) continue;
+            try
+            {
+                string copy = UnsavedCopies.NameFor(name, machine, localTime);
+                File.WriteAllBytes(_resolvePath(copy), Utf8NoBom.GetBytes(content));
+                state.Refused = null;
+                written.Add(copy);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"The unsaved version of {name} could not be written: {ex.Message}");
+            }
+        }
+        return written;
+    }
+
     /// <summary>After a restore or a reload: forgets what was read or written, and the block.</summary>
     public void ForgetFile(string fileName)
     {
         var state = GetState(fileName);
+        state.Refused = null;
         state.Hash = null;
         state.Blocked = false;
         state.LoadError = null;
@@ -292,6 +352,11 @@ public sealed class SafeFileStore
             if (outcome == SaveOutcome.Written)
             {
                 state.Hash = hash;
+                state.Refused = null;
+            }
+            else if (outcome == SaveOutcome.ChangedOnDisk)
+            {
+                state.Refused = content;
             }
             return outcome;
         }
@@ -359,5 +424,52 @@ public sealed class SafeFileStore
         public volatile string? Hash;
         public volatile bool Blocked;
         public volatile string? LoadError;
+
+        /// <summary>The content of the last save refused because the file changed on disk, until a write or a load settles it.</summary>
+        public volatile string? Refused;
+    }
+}
+
+/// <summary>
+/// The app's version of a data file that could not be saved because the file
+/// had been changed on another computer, written next to it when the app
+/// closes (C7/A9): "scenes.YANN-PC-20261014-221503.unsaved.json". Never read
+/// by the app, never in a backup, never moved: the user compares and deletes.
+/// </summary>
+public static class UnsavedCopies
+{
+    public const string Suffix = ".unsaved.json";
+
+    /// <summary>The copy's name: the stem of the data file, the machine and the local time.</summary>
+    public static string NameFor(string fileName, string machine, DateTime localTime)
+    {
+        string stem = Path.GetFileNameWithoutExtension(fileName);
+        var chars = (machine ?? string.Empty).Select(c => char.IsAsciiLetterOrDigit(c) ? c : '-').ToArray();
+        string safeMachine = chars.Length == 0 ? "unknown" : new string(chars[..Math.Min(chars.Length, 32)]);
+        return $"{stem}.{safeMachine}-{localTime.ToString("yyyyMMdd-HHmmss", System.Globalization.CultureInfo.InvariantCulture)}{Suffix}";
+    }
+
+    /// <summary>Whether a name is a copy of one of the data files: its name without ".json", a ".", and the suffix.</summary>
+    public static bool IsUnsavedCopy(string fileName, IEnumerable<string> dataFileNames) =>
+        fileName.EndsWith(Suffix, StringComparison.OrdinalIgnoreCase)
+        && dataFileNames.Any(known => fileName.StartsWith(Path.GetFileNameWithoutExtension(known) + ".", StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>The copies of the data files in a folder (its top level), by name. Never throws.</summary>
+    public static IReadOnlyList<string> Find(string folder, IEnumerable<string> dataFileNames)
+    {
+        try
+        {
+            var known = dataFileNames.ToList();
+            return Directory.EnumerateFiles(folder, "*" + Suffix)
+                            .Select(f => Path.GetFileName(f)!)
+                            .Where(n => IsUnsavedCopy(n, known))
+                            .OrderBy(n => n, StringComparer.OrdinalIgnoreCase)
+                            .ToList();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            Debug.WriteLine($"Listing {folder}: {ex.Message}");
+            return Array.Empty<string>();
+        }
     }
 }

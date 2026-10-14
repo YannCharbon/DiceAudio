@@ -38,6 +38,7 @@ namespace DiceAudio
         public void Restart()
         {
 #if WINDOWS
+            MauiProgram.ServiceProvider.GetRequiredService<DiceAudio.Storage.DataFolderService>().ReleaseLock();
             var location = MauiProgram.ServiceProvider.GetRequiredService<DiceAudio.Storage.DataLocation>();
             if (!location.IsDebugOverride)
             {

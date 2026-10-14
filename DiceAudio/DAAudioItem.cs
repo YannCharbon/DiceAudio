@@ -67,6 +67,11 @@ namespace DiceAudio
         /// Saved for older versions of the app, but worked out again from the
         /// audio folder at every load (DiceAudioService.RefreshLocalAvailability).
         public bool IsLocallyAvailable { get; set; } = false;
+
+        /// The file is in the audio folder but only in the cloud (OneDrive Files
+        /// On-Demand): playing it first waits for the download. Worked out at
+        /// every load, never saved (spec §5.7).
+        [JsonIgnore] public bool IsCloudOnly { get; set; }
         public string LocalFileName { get; set; } = String.Empty;
         public List<DAAudioTag> Tags { get; set; } = new List<DAAudioTag>();
         public AudioKind Kind { get; set; } = AudioKind.Music;

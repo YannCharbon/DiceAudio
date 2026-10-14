@@ -30,6 +30,9 @@ public sealed class DataLocation
 
     private readonly ILocalPreferences _localPreferences;
 
+    // "Open anyway" was chosen for this folder: its lock is not looked at again this session.
+    private string? _lockAcceptedFor;
+
     /// <param name="appName">"DiceCombats" or "DiceAudio".</param>
     /// <param name="localRoot">FileSystem.AppDataDirectory. Ignored when <paramref name="debugOverride"/> is set.</param>
     /// <param name="debugOverride">The value of DICE_DATA_DIR in a debug build; always null in a release build.</param>
@@ -94,6 +97,17 @@ public sealed class DataLocation
         return State;
     }
 
+    /// <summary>
+    /// "Open anyway" on the lock screen: the folder is used although another
+    /// session seems to have it open. Only from OpenElsewhere.
+    /// </summary>
+    public DataLocationState AcceptOtherLock()
+    {
+        if (State != DataLocationState.OpenElsewhere) return State;
+        _lockAcceptedFor = Root;
+        return Evaluate();
+    }
+
     /// <summary>Null or "" means the default folder. Takes effect at the next start.</summary>
     public void SetPointer(string? path)
     {
@@ -145,8 +159,10 @@ public sealed class DataLocation
                 entries.MoveNext();
             }
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
         {
+            // ArgumentException, NotSupportedException: a pointer to a path
+            // Windows does not accept. Never a crash at startup.
             Debug.WriteLine($"Data folder {Root} cannot be reached: {ex.Message}");
             return DataLocationState.Missing;
         }
@@ -157,7 +173,7 @@ public sealed class DataLocation
             File.WriteAllText(testPath, string.Empty);
             File.Delete(testPath);
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
         {
             Debug.WriteLine($"Data folder {Root} is not writable: {ex.Message}");
             return DataLocationState.Invalid;
@@ -165,7 +181,6 @@ public sealed class DataLocation
 
         // A folder holding another app's data, or set up by a newer version,
         // is not used. A marker that cannot be read is not guessed at either.
-        // The lock (dice.lock) is checked here once it exists.
         try
         {
             var marker = DataFolderMarker.Read(Root);
@@ -178,6 +193,19 @@ public sealed class DataLocation
         {
             Debug.WriteLine($"Data folder {Root}: {ex.Message}");
             return DataLocationState.Invalid;
+        }
+
+        // Open on another computer, or in another window of this one (Windows
+        // only: on Android the data folder is the app's own). The check never
+        // throws: a lock that cannot be judged gives no warning.
+        if (OperatingSystem.IsWindows() && !PathsEqual(_lockAcceptedFor ?? string.Empty, Root))
+        {
+            var other = DataFolderLock.FindOtherLiveLock(Root, AppName, MachineName, DateTime.UtcNow);
+            if (other != null)
+            {
+                OtherLock = other;
+                return DataLocationState.OpenElsewhere;
+            }
         }
         return DataLocationState.Ok;
     }

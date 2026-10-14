@@ -113,6 +113,14 @@ namespace DiceAudio
                                         System.Diagnostics.Debug.WriteLine($"Save-on-close failed: {ex.Message}");
                                     }
                                 }
+
+                                // A save refused because the file changed on another
+                                // computer: the user's version is kept next to it.
+                                try { ServiceProvider.GetRequiredService<DAExternalChanges>().KeepUnsavedVersions(); }
+                                catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"Keeping the unsaved versions failed: {ex.Message}"); }
+
+                                // Last: the lock says the folder is open until everything is written.
+                                dataFolder.ReleaseLock();
                             };
                         });
                     });
@@ -202,6 +210,9 @@ namespace DiceAudio
             builder.Services.AddSingleton<BackupService>();
             builder.Services.AddSingleton<DAImportService>();
             builder.Services.AddSingleton<DataFolderService>();
+            builder.Services.AddSingleton<DAExternalChanges>();
+            builder.Services.AddSingleton(sp => new DataFolderLock(store, () => dataLocation.Root, "DiceAudio", dataLocation.MachineName,
+                                                                   sp.GetRequiredService<DiceAudioService>().GetVersion()));
 
             var app = builder.Build();
             ServiceProvider = app.Services; // Assign the root service provider

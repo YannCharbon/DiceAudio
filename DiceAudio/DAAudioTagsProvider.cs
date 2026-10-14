@@ -135,7 +135,10 @@ namespace DiceAudio
             }
         }
 
-        public async Task SaveTagsAsync()
+        /// <summary>A tag file changed on disk since it was read: not saved over (see DiceAudioService.ChangedOnDisk).</summary>
+        public event Action<string>? ChangedOnDisk;
+
+        public async Task SaveTagsAsync(bool overwrite = false)
         {
             // No store means the load has not even started, and may never: waiting
             // for it would hang the caller (the close handler among them).
@@ -144,10 +147,15 @@ namespace DiceAudio
 
             // Each list is serialised before the next await, so the three files
             // are a snapshot of the same moment.
-            var type = _store.SaveJsonAsync(TypeFileName, CategoryTypes, TagFileOptions, overwriteExternalChange: true);
-            var location = _store.SaveJsonAsync(LocationFileName, CategoryLocations, TagFileOptions, overwriteExternalChange: true);
-            var expression = _store.SaveJsonAsync(ExpressionFileName, CategoryExpressions, TagFileOptions, overwriteExternalChange: true);
-            await Task.WhenAll(type, location, expression);
+            var type = _store.SaveJsonAsync(TypeFileName, CategoryTypes, TagFileOptions, overwrite);
+            var location = _store.SaveJsonAsync(LocationFileName, CategoryLocations, TagFileOptions, overwrite);
+            var expression = _store.SaveJsonAsync(ExpressionFileName, CategoryExpressions, TagFileOptions, overwrite);
+            var outcomes = await Task.WhenAll(type, location, expression);
+            string[] names = { TypeFileName, LocationFileName, ExpressionFileName };
+            for (int i = 0; i < names.Length; i++)
+            {
+                if (outcomes[i] == SaveOutcome.ChangedOnDisk) ChangedOnDisk?.Invoke(names[i]);
+            }
         }
 
         public static DAAudioTagsProvider Instance

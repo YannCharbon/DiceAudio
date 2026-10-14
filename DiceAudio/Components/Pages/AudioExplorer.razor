@@ -481,6 +481,10 @@ else if (_breadcrumb.Any())
                     {
                         <span class="da-chip @tag.CategoryClass()"><span class="da-dot"></span>@tag.Name</span>
                     }
+                    @if (item.IsCloudOnly)
+                    {
+                        <span class="da-chip" title="@Portability.CloudOnlyBadge"><DaIcon Name="cloud-download" Size="12" /> @Portability.CloudOnlyBadge</span>
+                    }
                 </div>
                 @if (item.IsLocallyAvailable)
                 {
@@ -541,6 +545,10 @@ else if (_breadcrumb.Any())
                 @foreach (var tag in item.Tags)
                 {
                     <span class="da-chip @tag.CategoryClass()"><span class="da-dot"></span>@tag.Name</span>
+                }
+                @if (item.IsCloudOnly)
+                {
+                    <span class="da-chip" title="@Portability.CloudOnlyBadge"><DaIcon Name="cloud-download" Size="12" /> @Portability.CloudOnlyBadge</span>
                 }
             </div>
             <div class="da-row-player" @onclick="@(() => { })" @onclick:stopPropagation="true">

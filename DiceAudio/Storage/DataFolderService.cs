@@ -49,11 +49,16 @@ public sealed class DataFolderService
     private readonly DAPlaybackCoordinator _playback;
     private readonly DADownloadQueue _downloads;
     private readonly DAControlServer _controlServer;
+    private readonly DataFolderLock _lock;
+    private readonly DAExternalChanges _external;
 
     public DataFolderService(DataLocation location, SafeFileStore store, DiceAudioService service, BackupService backups,
                              AppSettings settings, ILocalPreferences localPreferences, DAStorageNotices notices,
-                             DAPlaybackCoordinator playback, DADownloadQueue downloads, DAControlServer controlServer)
+                             DAPlaybackCoordinator playback, DADownloadQueue downloads, DAControlServer controlServer,
+                             DataFolderLock folderLock, DAExternalChanges external)
     {
+        _lock = folderLock;
+        _external = external;
         _location = location;
         _store = store;
         _service = service;
@@ -83,6 +88,17 @@ public sealed class DataFolderService
     public async Task LoadAsync()
     {
         if (IsLoaded) return;
+
+        // Several computers (A9, Windows): this one says it has the folder
+        // open, and is told about what a synchronisation service left behind,
+        // before anything is read.
+        if (OperatingSystem.IsWindows())
+        {
+            try { await _lock.AcquireAsync(); }
+            catch (Exception ex) { Debug.WriteLine($"The lock could not be written: {ex.Message}"); }
+            _external.ReportCloudProblems();
+        }
+
         if (!_settings.IsInitialized)
         {
             await _settings.InitializeAsync(_localPreferences, MovedPreferenceKeys);
@@ -90,6 +106,7 @@ public sealed class DataFolderService
         await _service.InitializeAsync();
         _notices.ReportLoadFailures();
         await WriteMarkerAsync();
+        _external.StartWatching();
         IsLoaded = true;
         LoadedChanged?.Invoke();
 
@@ -392,6 +409,9 @@ public sealed class DataFolderService
         _localPreferences.Set(PreviousRootKey, string.Empty);
     }
 
+    /// <summary>At exit or restart: the lock is deleted if it is still this session's.</summary>
+    public void ReleaseLock() => _lock.Release();
+
     public bool IsDefault(string folder) =>
         string.Equals(Path.TrimEndingDirectorySeparator(Path.GetFullPath(folder)), Path.TrimEndingDirectorySeparator(_location.DefaultRoot),
                       OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
@@ -407,6 +427,9 @@ public sealed class DataFolderService
     /// </summary>
     private async Task StopAndFlushAsync()
     {
+        // The app's own copy is not a change made elsewhere.
+        _external.StopWatching();
+
         _downloads.CancelAll();
         var idle = _downloads.WhenIdleAsync();
         if (await Task.WhenAny(idle, Task.Delay(DownloadStopTimeout)) != idle)
@@ -428,6 +451,7 @@ public sealed class DataFolderService
     /// <summary>After a move that failed: the remote-control server comes back.</summary>
     private void ResumeActivity()
     {
+        _external.StartWatching();
         if (_pausedServerPort is int port)
         {
             _pausedServerPort = null;

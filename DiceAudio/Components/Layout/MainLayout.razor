@@ -12,6 +12,8 @@
 @inject DAStorageNotices Notices
 @inject NavigationManager Navigation
 @inject DiceAudio.Storage.DataFolderService DataFolder
+@inject DAExternalChanges ExternalChanges
+@inject DAPlaybackCoordinator Playback
 @implements IDisposable
 
 @using DiceAudio.Resources.Localization
@@ -59,6 +61,30 @@
 }
 else
 {
+@* A save found its file changed on another computer (A9): nothing was
+   written. The user chooses which version to keep. *@
+@if (!ShowGate && ExternalChanges.PendingConflict is string conflict)
+{
+    <div class="da-confirm-scrim">
+        <div class="da-confirm" role="alertdialog" aria-modal="true">
+            <h3 class="da-confirm-title">@Portability.ChangedOnDiskTitle</h3>
+            <p class="da-confirm-msg">@string.Format(Portability.ChangedOnDiskText, conflict)</p>
+            @if (Playback.ActiveScenarioPlayers.Count > 0)
+            {
+                <p class="da-confirm-msg">@Portability.ChangedReloadStopsPlayback</p>
+            }
+            <div class="da-confirm-foot">
+                <button type="button" class="da-btn da-btn-out" disabled="@_externalBusy" @onclick="OverwriteExternal">
+                    <DaIcon Name="save" /> @Portability.ChangedOverwriteBtn
+                </button>
+                <button type="button" class="da-btn da-btn-fill" disabled="@_externalBusy" @onclick="ReloadExternal">
+                    <DaIcon Name="sync" /> @Portability.ChangedReloadBtn
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
 <div class="page">
     <!--<div class="sidebar">
         <NavMenu />
@@ -81,6 +107,22 @@ else
             @if (DataFolder.Location.IsSessionFallback)
             {
                 <div class="da-msec" style="margin-bottom:12px; border-left:3px solid var(--warn);">@Portability.StartupUsingLocalBanner</div>
+            }
+            @* Changed on another computer: never reloaded without the user. *@
+            @if (ExternalChanges.ChangedElsewhere.Count > 0)
+            {
+                <div class="da-msec da-irow da-irow-wrap" style="margin-bottom:12px; border-left:3px solid var(--warn); gap:10px; align-items:center;">
+                    <span style="flex:1 1 240px;">
+                        @Portability.ChangedBanner
+                        @if (Playback.ActiveScenarioPlayers.Count > 0)
+                        {
+                            @(" ")@Portability.ChangedReloadStopsPlayback
+                        }
+                    </span>
+                    <button type="button" class="da-btn da-btn-out da-btn-sm" disabled="@_externalBusy" @onclick="ReloadExternal">
+                        <DaIcon Name="sync" Size="16" /> @Portability.ChangedReloadBtn
+                    </button>
+                </div>
             }
             @Body
         </article>
@@ -107,9 +149,26 @@ else
 
     private void OnLoadedChanged() => _ = InvokeAsync(StateHasChanged);
 
+    private bool _externalBusy;
+
+    private async Task ReloadExternal()
+    {
+        _externalBusy = true;
+        try { await ExternalChanges.ReloadAsync(); }
+        finally { _externalBusy = false; }
+    }
+
+    private async Task OverwriteExternal()
+    {
+        _externalBusy = true;
+        try { await ExternalChanges.OverwriteAsync(); }
+        finally { _externalBusy = false; }
+    }
+
     protected override void OnInitialized()
     {
         DataFolder.LoadedChanged += OnLoadedChanged;
+        ExternalChanges.Changed += OnLoadedChanged;
         Notices.Changed += OnNoticesChanged;
         _storageNotices = Notices.Pending;
         App.PagesReloadRequested += ReloadInPlace;
@@ -137,6 +196,7 @@ else
     {
         Notices.Changed -= OnNoticesChanged;
         DataFolder.LoadedChanged -= OnLoadedChanged;
+        ExternalChanges.Changed -= OnLoadedChanged;
         App.PagesReloadRequested -= ReloadInPlace;
     }
 }

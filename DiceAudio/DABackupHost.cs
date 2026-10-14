@@ -23,13 +23,16 @@ namespace DiceAudio
         private readonly DAControlServer _controlServer;
         private readonly DAStorageNotices _notices;
         private readonly AppSettings _settings;
+        private readonly DAExternalChanges _external;
+        private IDisposable? _watchPause;
 
         /// <summary>The port the remote-control server ran on before a restore paused it; null when it was not running.</summary>
         private int? _pausedServerPort;
 
         public DABackupHost(DiceAudioService service, DAPlaybackCoordinator playback, DADownloadQueue downloads,
-                            DAControlServer controlServer, DAStorageNotices notices, AppSettings settings)
+                            DAControlServer controlServer, DAStorageNotices notices, AppSettings settings, DAExternalChanges external)
         {
+            _external = external;
             _settings = settings;
             _service = service;
             _playback = playback;
@@ -50,6 +53,9 @@ namespace DiceAudio
         /// </summary>
         public async Task StopActivityAsync()
         {
+            // The restore replaces the files: that is not a change made elsewhere.
+            _watchPause ??= _external.PauseWatching();
+
             _downloads.CancelAll();
             var idle = _downloads.WhenIdleAsync();
             if (await Task.WhenAny(idle, Task.Delay(DownloadStopTimeout)) != idle)
@@ -67,6 +73,8 @@ namespace DiceAudio
         /// <summary>The remote-control server starts again if the restore paused it.</summary>
         public Task ResumeActivityAsync()
         {
+            _watchPause?.Dispose();
+            _watchPause = null;
             if (_pausedServerPort is int port)
             {
                 _pausedServerPort = null;

@@ -9,8 +9,8 @@
 @*
     Shown instead of the app when the data folder cannot be used at startup
     (spec §3.4, §7.2), as in DiceCombats: missing (a drive or a share that is
-    not there) or not usable. Nothing has been read; nothing is ever created
-    in a missing folder.
+    not there), not usable, or open on another computer (dice.lock). Nothing
+    has been read; nothing is ever created in a missing folder.
 *@
 
 @using DiceAudio.Storage
@@ -19,54 +19,80 @@
 
 <div style="min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px 16px; color:var(--t1);">
     <div class="da-panel" style="width:min(640px,100%);">
-        <h2 style="font-size:22px; margin:0 0 10px; color:var(--t1);">
-            @(Location.State == DataLocationState.Missing ? Portability.StartupMissingTitle : Portability.StartupInvalidTitle)
-        </h2>
-        <p class="da-meta" style="font-size:14px; line-height:1.55;">
-            @(Location.State == DataLocationState.Missing
-                ? string.Format(Portability.StartupMissingText, Location.Root)
-                : string.Format(Portability.StartupInvalidText, Location.Root))
-        </p>
-
-        @if (_chosenProblem != null)
+        @if (Location.State == DataLocationState.OpenElsewhere && Location.OtherLock is DataFolderLockInfo other)
         {
-            <p class="da-msec" style="margin:10px 0; border-left:3px solid var(--warn);">@_chosenProblem</p>
+            <h2 style="font-size:22px; margin:0 0 10px; color:var(--t1);">@Portability.LockTitle</h2>
+            <p class="da-meta" style="font-size:14px; line-height:1.55;">
+                @(string.Equals(other.Machine, Location.MachineName, StringComparison.OrdinalIgnoreCase)
+                    ? string.Format(Portability.LockSameComputerText, Since(other))
+                    : string.Format(Portability.LockText, other.Machine, Since(other)))
+            </p>
+            <div style="display:flex; flex-direction:column; gap:12px; margin-top:14px;">
+                <div>
+                    <button type="button" class="da-btn da-btn-fill" disabled="@_busy" @onclick="OpenAnyway">
+                        <DaIcon Name="launch" /> @Portability.LockOpenAnywayBtn
+                    </button>
+                    <div class="da-meta" style="margin-top:4px;">@Portability.LockOpenAnywayHelp</div>
+                </div>
+                <div>
+                    <button type="button" class="da-btn da-btn-out" @onclick="Quit">
+                        <DaIcon Name="close" /> @Portability.StartupQuitBtn
+                    </button>
+                    <div class="da-meta" style="margin-top:4px;">@Portability.StartupQuitHelp</div>
+                </div>
+            </div>
         }
+        else
+        {
+            <h2 style="font-size:22px; margin:0 0 10px; color:var(--t1);">
+                @(Location.State == DataLocationState.Missing ? Portability.StartupMissingTitle : Portability.StartupInvalidTitle)
+            </h2>
+            <p class="da-meta" style="font-size:14px; line-height:1.55;">
+                @(Location.State == DataLocationState.Missing
+                    ? string.Format(Portability.StartupMissingText, Location.Root)
+                    : string.Format(Portability.StartupInvalidText, Location.Root))
+            </p>
 
-        <div style="display:flex; flex-direction:column; gap:12px; margin-top:14px;">
-            <div>
-                <button type="button" class="da-btn da-btn-fill" disabled="@_busy" @onclick="TryAgain">
-                    <DaIcon Name="sync" /> @Portability.StartupTryAgainBtn
-                </button>
-                <div class="da-meta" style="margin-top:4px;">@Portability.StartupTryAgainHelp</div>
-            </div>
-            @if (DAImportHelper.CanPickFolder)
+            @if (_chosenProblem != null)
             {
-                <div>
-                    <button type="button" class="da-btn da-btn-out" disabled="@_busy" @onclick="ChooseFolder">
-                        <DaIcon Name="folder-open" /> @Portability.StartupChooseFolderBtn
-                    </button>
-                    <div class="da-meta" style="margin-top:4px;">@Portability.StartupChooseFolderHelp</div>
-                </div>
+                <p class="da-msec" style="margin:10px 0; border-left:3px solid var(--warn);">@_chosenProblem</p>
             }
-            @* Under DICE_DATA_DIR the default folder is the override itself: when
-               that is the missing one, the option would only bring this screen back. *@
-            @if (!(Location.IsDebugOverride && Location.IsDefault))
-            {
+
+            <div style="display:flex; flex-direction:column; gap:12px; margin-top:14px;">
                 <div>
-                    <button type="button" class="da-btn da-btn-out" disabled="@_busy" @onclick="UseLocal">
-                        <DaIcon Name="save" /> @Portability.StartupUseLocalBtn
+                    <button type="button" class="da-btn da-btn-fill" disabled="@_busy" @onclick="TryAgain">
+                        <DaIcon Name="sync" /> @Portability.StartupTryAgainBtn
                     </button>
-                    <div class="da-meta" style="margin-top:4px;">@Portability.StartupUseLocalHelp</div>
+                    <div class="da-meta" style="margin-top:4px;">@Portability.StartupTryAgainHelp</div>
                 </div>
-            }
-            <div>
-                <button type="button" class="da-btn da-btn-out" @onclick="Quit">
-                    <DaIcon Name="close" /> @Portability.StartupQuitBtn
-                </button>
-                <div class="da-meta" style="margin-top:4px;">@Portability.StartupQuitHelp</div>
+                @if (DAImportHelper.CanPickFolder)
+                {
+                    <div>
+                        <button type="button" class="da-btn da-btn-out" disabled="@_busy" @onclick="ChooseFolder">
+                            <DaIcon Name="folder-open" /> @Portability.StartupChooseFolderBtn
+                        </button>
+                        <div class="da-meta" style="margin-top:4px;">@Portability.StartupChooseFolderHelp</div>
+                    </div>
+                }
+                @* Under DICE_DATA_DIR the default folder is the override itself: when
+                   that is the missing one, the option would only bring this screen back. *@
+                @if (!(Location.IsDebugOverride && Location.IsDefault))
+                {
+                    <div>
+                        <button type="button" class="da-btn da-btn-out" disabled="@_busy" @onclick="UseLocal">
+                            <DaIcon Name="save" /> @Portability.StartupUseLocalBtn
+                        </button>
+                        <div class="da-meta" style="margin-top:4px;">@Portability.StartupUseLocalHelp</div>
+                    </div>
+                }
+                <div>
+                    <button type="button" class="da-btn da-btn-out" @onclick="Quit">
+                        <DaIcon Name="close" /> @Portability.StartupQuitBtn
+                    </button>
+                    <div class="da-meta" style="margin-top:4px;">@Portability.StartupQuitHelp</div>
+                </div>
             </div>
-        </div>
+        }
     </div>
 </div>
 
@@ -75,6 +101,8 @@
     private string? _chosenProblem;
 
     private DataLocation Location => DataFolder.Location;
+
+    private static string Since(DataFolderLockInfo info) => info.StartedUtc.ToLocalTime().ToString("g");
 
     private async Task TryAgain()
     {
@@ -103,11 +131,12 @@
         }
 
         Location.SetPointer(DataFolder.IsDefault(folder) ? null : folder);
-        if (Location.UsePointerNow() == DataLocationState.Ok)
+        var state = Location.UsePointerNow();
+        if (state == DataLocationState.Ok)
         {
             await LoadAsync();
         }
-        else
+        else if (state != DataLocationState.OpenElsewhere)   // the lock screen shows instead
         {
             _chosenProblem = string.Format(Portability.StartupInvalidText, folder);
         }
@@ -118,6 +147,15 @@
         _chosenProblem = null;
         Location.UseDefaultForThisSession();
         if (Location.State == DataLocationState.Ok)
+        {
+            await LoadAsync();
+        }
+    }
+
+    // "Open anyway": this session writes its own lock over the other one.
+    private async Task OpenAnyway()
+    {
+        if (Location.AcceptOtherLock() == DataLocationState.Ok)
         {
             await LoadAsync();
         }

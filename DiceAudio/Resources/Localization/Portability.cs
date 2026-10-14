@@ -337,6 +337,34 @@ namespace DiceAudio.Resources.Localization
             "Changes you make now are saved there, not in your data folder.";
         public const string StartupQuitBtn = "Quit";
 
+        // ── Several computers (spec §8.1, A9) ──
+
+        public const string LockTitle = "DiceAudio is already open on another computer";
+        public const string LockText =
+            "The data folder has been in use on {0} since {1}. If you also open it here, changes made on one computer may overwrite those made on the other.";
+        public const string LockSameComputerText =
+            "DiceAudio already seems to be open on this computer, since {0}. If you open it a second time, the two windows may overwrite each other's changes.";
+        public const string LockOpenAnywayBtn = "Open anyway";
+        public const string LockOpenAnywayHelp =
+            "Opens the data folder here as well. If DiceAudio is still open on the other computer, please close it there first.";
+        public const string ChangedOnDiskTitle = "This data was changed on another computer";
+        public const string ChangedOnDiskText =
+            "The file {0} was changed in the data folder after DiceAudio read it. Reload it to get those changes, or overwrite it with what you have here.";
+        public const string ChangedReloadBtn = "Reload";
+        public const string ChangedOverwriteBtn = "Overwrite";
+        public const string ChangedBanner = "Your data was changed on another computer. Reload it when you are ready.";
+        public const string ChangedReloadStopsPlayback = "Reloading stops the scenarios that are playing.";
+        public const string CloudConflictCopies =
+            "Your synchronisation service has made copies of some files, because two computers changed them at the same time: {0}. " +
+            "DiceAudio uses the original files. Please compare them and delete the copies you do not need.";
+        public const string CloudOnlyWarning =
+            "Some files of the data folder are only in the cloud: {0}. Please set the folder to always keep its files on this device.";
+        public const string CloudOnlyBadge = "Only in the cloud";
+        public const string UnsavedCopiesManual =
+            "Some changes could not be saved because the same data was changed on another computer. They are kept in the data folder: {0}. " +
+            "These files cannot be imported. To use one of them, please make a backup first and close DiceAudio. " +
+            "Then give the file the name of the data file it belongs to, for example presets.json, in place of that file.";
+
         public const string DataPanelTitle = "Data";
         public const string SharingTitle = "Sharing";
 

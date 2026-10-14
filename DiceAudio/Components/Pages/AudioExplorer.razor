@@ -11,6 +11,7 @@
 @inject PopupNotificationService Notifications
 @inject DADownloadQueue DownloadQueue
 @inject DABundleExportService Exports
+@inject DAImportService Imports
 @using DiceAudio.Resources.Localization
 @implements IDisposable
 
@@ -73,6 +74,9 @@
     </button>
     <button type="button" class="da-btn da-btn-fill" @onclick="@(() => _audioImporterRef?.Show())">
         <DaIcon Name="folder-upload" Size="18" />Import from disk
+    </button>
+    <button type="button" class="da-btn da-btn-out" @onclick="Imports.RequestImport">
+        <DaIcon Name="upload-file" Size="18" />@Portability.ImportFromFileBtn
     </button>
     @* Until the tag files are read, the editor would show empty lists, and
        saving them would replace the real ones. *@
@@ -150,6 +154,13 @@
             <DaIcon Name="@KindIcon(k)" Size="16" />@k.Label()
         </button>
     }
+    @* Items whose file is not on this computer, in every folder: after an
+       import, the ones still waiting for a download or for "Pick file…". *@
+    <button type="button" class="da-btn @(_missingOnly ? "da-btn-fill" : "da-btn-out") da-btn-sm"
+            aria-pressed="@(_missingOnly ? "true" : "false")"
+            @onclick="() => _missingOnly = !_missingOnly">
+        <DaIcon Name="folder-off" Size="16" />@Portability.MissingFilesFilter
+    </button>
 </div>
 
 <!-- ─────────────────────  SELECTION  ───────────────────── -->
@@ -209,6 +220,11 @@
         <DaIcon Name="search" Size="18" style="color:var(--a2);" />
         <span style="color:var(--a2);">Search results for "<b>@_search</b>" across all folders</span>
 }
+else if (_missingOnly)
+{
+        <DaIcon Name="folder-off" Size="18" style="color:var(--a2);" />
+        <span style="color:var(--a2);"><b>@Portability.MissingFilesFilter</b> across all folders</span>
+}
 else if (_breadcrumb.Any())
 {
         <button type="button" class="da-ib" title="Back" aria-label="Back"
@@ -243,7 +259,7 @@ else if (_breadcrumb.Any())
 
 
 <!-- ─────────────────────  FOLDERS  ───────────────────── -->
-@if (string.IsNullOrWhiteSpace(_search))
+@if (!AcrossAllFolders)
 {
     var folders = SortFolders(IsRoot ? _folderTree : _currentFolder.VirtualAudioSubFolders).ToList();
 
@@ -782,6 +798,12 @@ else if (_breadcrumb.Any())
     private AudioKind? _kindFilter = null;
     private string _search = "";
 
+    /// <summary>Only the items whose file is not on this computer, in every folder.</summary>
+    private bool _missingOnly;
+
+    /// <summary>The search and the missing-files filter show items from every folder, without the folder tiles.</summary>
+    private bool AcrossAllFolders => !string.IsNullOrWhiteSpace(_search) || _missingOnly;
+
     // Cap how many cards are rendered at once. Each card mounts a MusicPlayer, so
     // rendering an unbounded result set froze the UI on large libraries.
     private const int MaxRenderedItems = 200;
@@ -995,6 +1017,10 @@ else if (_breadcrumb.Any())
         if (!string.IsNullOrWhiteSpace(_search))
             // Search is global across every folder; folder view is bypassed.
             items = items.Where(ai => ai.Name.Contains(_search.Trim(), StringComparison.OrdinalIgnoreCase));
+        else if (_missingOnly)
+        {
+            // Every folder, like the search; the filter itself comes below.
+        }
         else if (ShowsHoistedItems)
         {
             // Filtering across sub-folders: every match below the current folder
@@ -1005,6 +1031,7 @@ else if (_breadcrumb.Any())
         else
             items = items.Where(ai => ai.Folder.Name == _currentFolder.Name);
 
+        if (_missingOnly) items = items.Where(ai => !ai.IsLocallyAvailable);
         if (_kindFilter is AudioKind k) items = items.Where(ai => ai.Kind == k);
         if (_filter.IsActive) items = _filter.Apply(items);
         return SortItems(items);

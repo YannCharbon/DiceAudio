@@ -284,6 +284,29 @@ namespace DiceAudio
             }
         }
 
+        /// <summary>
+        /// Saves every list and the tags and waits until all of it is on disk,
+        /// throwing if any of it could not be written — or was not written
+        /// because the file is blocked. An import needs to know, to put the
+        /// library back as it was.
+        /// </summary>
+        public async Task SaveAllOrThrowAsync()
+        {
+            if (!await ReadyToSaveAsync()) throw new InvalidOperationException("The data folder cannot be used.");
+            if (Store.BlockedFiles.Count > 0)
+                throw new InvalidOperationException("A data file could not be read at startup: " + string.Join(", ", Store.BlockedFiles));
+
+            await Task.WhenAll(
+                SaveAudioItemListAsync(),
+                SaveAudioVirtualFoldersAsync(),
+                SaveScenarioGroupsAsync(),
+                SaveScenesAsync(),
+                SavePresetsAsync(),
+                SavePinnedScenarioGroupsAsync(),
+                DAAudioTagsProvider.Instance.SaveTagsAsync());
+            await Store.FlushAsync();
+        }
+
         /// <summary>Waits for every save already started. See <see cref="SafeFileStore.FlushAsync"/>.</summary>
         public Task FlushAsync(CancellationToken ct = default) => Store.FlushAsync(ct);
 

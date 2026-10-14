@@ -1,0 +1,553 @@
+﻿@*
+ * DiceAudio - Copyright (C) 2025 Yann Charbon
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ *
+ * This file is part of DiceAudio, released under the GNU GPL v3.
+ * See the LICENSE file in the repository root for details.
+*@
+
+@*
+    The import, full screen (spec §3.2 and §7.2). It sits in the main layout
+    and opens when a page asks DAImportService for an import:
+    the file → its audio files (when they are not next to it) → the choices
+    (only when something conflicts; otherwise a summary and one button) →
+    the import → the report and the audio files still to find.
+*@
+
+@using System.Diagnostics
+@using DiceAudio.Portability
+@using DiceAudio.Resources.Localization
+@implements IDisposable
+@inject DAImportService Import
+@inject DiceAudioService AudioService
+
+<style>
+    .imp-screen {
+        position: fixed; left: 0; right: 0; bottom: 0; z-index: 2500;
+        background: var(--s1); overflow-y: auto; padding: 20px 24px 40px;
+    }
+    .imp-body { max-width: 980px; margin: 0 auto; }
+    .imp-kind { font-size: 15px; font-weight: 700; color: var(--a3); border-bottom: 1px solid var(--b1); padding: 14px 2px 4px; margin: 6px 0 8px; }
+    .imp-row { background: var(--s3); border: 1px solid var(--b1); border-radius: var(--r-card); padding: 10px 12px; margin-bottom: 8px; }
+    .imp-child { margin-left: 22px; }
+    .imp-name { font-weight: 600; }
+    .imp-status { font-size: 12px; padding: 1px 8px; border-radius: 10px; border: 1px solid var(--b2); margin-left: 8px; color: var(--t2); }
+    .imp-status-Differs, .imp-status-NameUsed { color: var(--warn); border-color: var(--warn); }
+    .imp-choices { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 8px; }
+    .imp-help { font-size: 12.5px; color: var(--t3); margin-top: 4px; }
+    .imp-warn { font-size: 13px; color: var(--warn); margin-top: 6px; }
+    .imp-foot { display: flex; justify-content: flex-end; gap: 9px; margin-top: 18px; position: sticky; bottom: 0; background: var(--s1); padding: 10px 0; }
+</style>
+
+@if (_stage != Stage.Hidden)
+{
+    <div class="imp-screen" style="top:@(OperatingSystem.IsWindows() ? "82px" : "50px");">
+        <div class="imp-body">
+            <h3>@Portability.WizardTitle</h3>
+
+            @switch (_stage)
+            {
+                case Stage.Error:
+                    <p class="da-confirm-msg" style="color:var(--danger);">@_error</p>
+                    <div class="imp-foot">
+                        <button type="button" class="da-btn da-btn-fill" @onclick="Close"><DaIcon Name="check" /> @Portability.AlertCloseBtn</button>
+                    </div>
+                    break;
+
+                case Stage.AskPack:
+                    <p class="da-confirm-msg">@Portability.MediaPackAsk</p>
+                    @if (!string.IsNullOrEmpty(_session?.PackProblem))
+                    {
+                        <p class="imp-warn">@_session.PackProblem</p>
+                    }
+                    <div class="imp-foot">
+                        <button type="button" class="da-btn" @onclick="Close">@Portability.WizardCancelBtn</button>
+                        <button type="button" class="da-btn da-btn-out" @onclick="ContinueWithoutPack">@Portability.MediaPackSkipBtn</button>
+                        <button type="button" class="da-btn da-btn-fill" @onclick="PickPack"><DaIcon Name="folder-open" /> @Portability.MediaPackOpenBtn</button>
+                    </div>
+                    break;
+
+                case Stage.Review:
+                    @RenderReview()
+                    break;
+
+                case Stage.Working:
+                    <p class="da-confirm-msg">@Portability.ImportWorking</p>
+                    break;
+
+                case Stage.Report:
+                    @RenderReport()
+                    break;
+            }
+        </div>
+    </div>
+}
+
+@code {
+    private enum Stage { Hidden, Error, AskPack, Review, Working, Report }
+
+    private Stage _stage = Stage.Hidden;
+    private string _error = "";
+    private DAImportSession? _session;
+    private DAImportResult? _result;
+    private DAFollowUpReport? _followUp;
+    private bool _imported;
+
+    private static readonly DAAssetKind[] KindOrder =
+    {
+        DAAssetKind.ScenarioGroup, DAAssetKind.Scenario, DAAssetKind.ScenarioItem, DAAssetKind.LocalScene,
+        DAAssetKind.Scene, DAAssetKind.Preset, DAAssetKind.AudioItem, DAAssetKind.Folder, DAAssetKind.Tag,
+    };
+
+    protected override void OnInitialized() => Import.Requested += OnRequested;
+
+    public void Dispose()
+    {
+        Import.Requested -= OnRequested;
+        _session?.Dispose();
+    }
+
+    private void OnRequested() => _ = InvokeAsync(StartAsync);
+
+    private async Task StartAsync()
+    {
+        if (_stage is Stage.Working) return;
+        _session?.Dispose();
+        _session = null;
+        _result = null;
+        _followUp = null;
+        _imported = false;
+
+        var (session, error, cancelled) = await Import.PickAndReadAsync();
+        if (cancelled) return;
+        if (session == null)
+        {
+            _error = error ?? Portability.ErrorUnreadableFile;
+            _stage = Stage.Error;
+            StateHasChanged();
+            return;
+        }
+
+        _session = session;
+        if (session.Bundle.MediaPack != null && session.Pack == null) _stage = Stage.AskPack;
+        else Analyse();
+        StateHasChanged();
+    }
+
+    private async Task PickPack()
+    {
+        if (_session == null) return;
+        if (await Import.PickPackAsync(_session) || _session.PackProblem == null) Analyse();
+        // A pack that cannot be used: the question stays, with the reason.
+    }
+
+    private void ContinueWithoutPack()
+    {
+        if (_session == null) return;
+        _session.PackProblem = null;
+        Analyse();
+    }
+
+    private void Analyse()
+    {
+        Import.Analyse(_session!);
+        _stage = Stage.Review;
+    }
+
+    // ── The review: the wizard, or a summary when nothing conflicts ─────
+
+    private RenderFragment RenderReview() => __builder =>
+    {
+        var plan = _session!.Plan!;
+        bool conflicts = plan.HasConflicts;
+        bool nothing = plan.AllItems.All(i => i.Choice == ImportChoice.Nothing);
+
+        if (conflicts)
+        {
+            <p class="da-confirm-msg">@Portability.WizardIntro</p>
+        }
+        else if (nothing)
+        {
+            <p class="da-confirm-msg">@Portability.ImportNothingToDo</p>
+        }
+        else
+        {
+            <div style="font-weight:700; margin-bottom:6px;">@Portability.ImportSummaryTitle</div>
+            <p class="da-confirm-msg" style="margin-bottom:4px;">@Portability.ImportSummaryText</p>
+            <ul class="da-confirm-msg" style="padding-left:20px;">
+                @foreach (var kind in KindOrder)
+                {
+                    int count = plan.Items.Count(i => i.Kind == kind && i.Inserts);
+                    if (count > 0)
+                    {
+                        <li>@KindLabel(kind): @count</li>
+                    }
+                }
+            </ul>
+        }
+
+        @if (_session.BrokenReferences > 0)
+        {
+            <p class="imp-warn">@string.Format(Portability.WarningBrokenReferences, _session.BrokenReferences)</p>
+        }
+        @if (!string.IsNullOrEmpty(_session.PackProblem))
+        {
+            <p class="imp-warn">@_session.PackProblem</p>
+        }
+
+        @if (conflicts)
+        {
+            @foreach (var kind in KindOrder)
+            {
+                var items = plan.Items.Where(i => i.Kind == kind).ToList();
+                if (items.Count == 0) continue;
+                var shown = items.Where(i => i.Status != ImportStatus.UpToDate || i.Children.Count > 0).ToList();
+                int upToDate = items.Count - shown.Count;
+
+                <div class="imp-kind">@KindLabel(kind)</div>
+                @foreach (var item in shown)
+                {
+                    @RenderItem(item, false)
+                }
+                @if (upToDate > 0)
+                {
+                    <div class="da-meta" style="margin:0 0 8px 2px;">@string.Format(Portability.ReportUpToDate, upToDate)</div>
+                }
+            }
+        }
+
+        @if (!nothing)
+        {
+            <p class="da-meta" style="margin-top:12px;">@Portability.ImportBackupNote</p>
+        }
+
+        <div class="imp-foot">
+            <button type="button" class="da-btn" @onclick="Close">@(nothing ? Portability.AlertCloseBtn : Portability.WizardCancelBtn)</button>
+            @if (!nothing)
+            {
+                <button type="button" class="da-btn da-btn-fill" disabled="@(!NamesValid())" @onclick="ApplyAsync">
+                    <DaIcon Name="check" /> @Portability.WizardConfirmBtn
+                </button>
+            }
+        </div>
+    };
+
+    private RenderFragment RenderItem(DAImportItem item, bool child) => __builder =>
+    {
+        var plan = _session!.Plan!;
+        var planner = _session.Planner!;
+        <div class="imp-row @(child ? "imp-child" : "")">
+            <div>
+                <span class="imp-name">@item.IncomingName</span>
+                <span class="imp-status imp-status-@item.Status">@StatusLabel(item.Status)</span>
+            </div>
+            @if (item.Status is ImportStatus.Differs or ImportStatus.NameUsed && LocalName(item) is { } localName)
+            {
+                <div class="da-meta">@Portability.WizardInLibrary: @localName</div>
+            }
+
+            @if (item.NeedsTarget && !planner.Follows(item, out _))
+            {
+                @RenderTarget(item)
+            }
+
+            @if (item.AllowedChoices.Count > 1)
+            {
+                <div class="imp-choices">
+                    @foreach (var choice in item.AllowedChoices)
+                    {
+                        var c = choice;
+                        <label class="da-chk">
+                            <input type="radio" name="@($"imp-{item.GetHashCode()}")" checked="@(item.Choice == c)"
+                                   @onchange="@(() => planner.SetChoice(plan, item, c))" />
+                            @ChoiceLabel(c)
+                        </label>
+                    }
+                </div>
+                <div class="imp-help">@ChoiceHelp(item.Choice)</div>
+            }
+
+            @if (item.NeedsNewName)
+            {
+                <div class="da-field" style="margin-top:8px; max-width:420px;">
+                    <span class="da-flabel">@Portability.WizardNewName</span>
+                    <input class="da-inp" type="text" value="@item.NewName"
+                           @oninput="@((ChangeEventArgs e) => item.NewName = e.Value?.ToString())" />
+                    @if (NameProblem(item) is { } problem)
+                    {
+                        <span class="imp-warn">@problem</span>
+                    }
+                </div>
+            }
+
+            @if (item.Choice == ImportChoice.Skip && planner.DependentsOf(plan, item) is { Count: > 0 } users)
+            {
+                <div class="imp-warn">
+                    <b>@Portability.WizardSkipWarningTitle.</b>
+                    @string.Format(Portability.WizardSkipWarning, item.IncomingName, string.Join(", ", users.Select(u => u.IncomingName)))
+                </div>
+            }
+
+            @if (!child && plan.Items.Count(i => i.Kind == item.Kind && i.Status == item.Status) > 1 && item.AllowedChoices.Count > 1)
+            {
+                <button type="button" class="da-btn da-btn-text da-btn-sm" style="margin-top:6px;"
+                        @onclick="() => planner.ApplyToAllOfKind(plan, item.Kind, item.Status, item.Choice)">
+                    @Portability.ChoiceApplyToAll
+                </button>
+            }
+
+            @foreach (var c in item.Children)
+            {
+                @RenderItem(c, true)
+            }
+        </div>
+    };
+
+    /// The container a group part goes into: a local group, or a new one (scenario items: a scenario).
+    private RenderFragment RenderTarget(DAImportItem item) => __builder =>
+    {
+        var plan = _session!.Plan!;
+        var planner = _session.Planner!;
+        bool scenarioTarget = item.Kind == DAAssetKind.ScenarioItem;
+        string current = item.TargetContainerId is Guid t && t != Guid.Empty ? t.ToString() : "new";
+        string newLabel = scenarioTarget
+            ? string.Format(Portability.TargetNewScenario, item.TargetContainerNewName ?? NewScenarioName(item))
+            : string.Format(Portability.TargetNewGroup, item.TargetContainerNewName ?? NewGroupName(item));
+
+        <div class="da-field" style="margin-top:8px; max-width:520px;">
+            <span class="da-flabel">@(scenarioTarget ? Portability.TargetScenarioLabel : Portability.TargetGroupLabel)</span>
+            <select class="da-inp" value="@current"
+                    @onchange="@((ChangeEventArgs e) => SetTarget(item, e.Value?.ToString()))">
+                @if (scenarioTarget)
+                {
+                    @foreach (var g in AudioService.ScenarioGroups)
+                    {
+                        @foreach (var s in g.Scenarios)
+                        {
+                            <option value="@s.Id">@g.Name / @s.Name</option>
+                        }
+                    }
+                }
+                else
+                {
+                    @foreach (var g in AudioService.ScenarioGroups)
+                    {
+                        <option value="@g.Id">@g.Name</option>
+                    }
+                }
+                <option value="new">@newLabel</option>
+            </select>
+        </div>
+    };
+
+    private void SetTarget(DAImportItem item, string? value)
+    {
+        var plan = _session!.Plan!;
+        if (Guid.TryParse(value, out var id)) _session.Planner!.SetTarget(plan, item, id, null);
+        else _session.Planner!.SetTarget(plan, item, Guid.Empty, null);
+    }
+
+    private string NewGroupName(DAImportItem item) => item.Incoming switch
+    {
+        DALocalSceneRecord r => _session!.Planner!.NewGroupName(_session.Plan!, r.SourceGroupName),
+        DAScenarioRecord r => _session!.Planner!.NewGroupName(_session.Plan!, r.SourceGroupName),
+        _ => "",
+    };
+
+    private static string NewScenarioName(DAImportItem item) => item.Incoming is DAScenarioItemRecord r ? r.SourceScenarioName : "";
+
+    private string? NameProblem(DAImportItem item)
+    {
+        if (string.IsNullOrWhiteSpace(item.NewName)) return Portability.WizardNameEmpty;
+        return _session!.Planner!.IsNameAvailable(_session.Plan!, item, item.NewName!) ? null : Portability.WizardNameTaken;
+    }
+
+    private bool NamesValid() => _session?.Plan?.AllItems.Where(i => i.NeedsNewName).All(i => NameProblem(i) == null) ?? false;
+
+    private static string? LocalName(DAImportItem item) => item.Local switch
+    {
+        DAAudioItem a => a.Name,
+        DAScene s => s.Name,
+        DAPreset p => p.Name,
+        DAScenarioGroup g => g.Name,
+        DAScenario s => s.Name,
+        DAScenarioItem i => i.Name,
+        DAVirtualAudioFolder f => f.Name,
+        _ => null,
+    };
+
+    // ── Apply, then the report ─────────────────────────────────────────
+
+    private async Task ApplyAsync()
+    {
+        if (_session?.Plan == null) return;
+        // A name may have been made invalid since the button was drawn: stay on the choices.
+        if (!NamesValid())
+        {
+            _stage = Stage.Review;
+            return;
+        }
+        _stage = Stage.Working;
+        StateHasChanged();
+        try
+        {
+            _result = await Import.ApplyAsync(_session);
+            _imported = true;
+            _followUp = await Import.FollowUpAsync(_session, _result);
+            _stage = Stage.Report;
+        }
+        catch (DAImportBlockedException ex)
+        {
+            // Nothing was changed: a file that could not be read is never saved over.
+            _error = string.Format(Portability.ErrorLoadFailed, ex.FileName);
+            _stage = Stage.Error;
+        }
+        catch (DAImportRollbackFailedException ex)
+        {
+            Debug.WriteLine($"Import and rollback failed: {ex}");
+            _error = string.Format(Portability.ImportRollbackFailed, ex.BackupFileName ?? "");
+            _stage = Stage.Error;
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Import failed: {ex}");
+            _error = string.Format(Portability.ImportFailed, ex is DAImportFailedException f ? f.Message : ex.Message);
+            _stage = Stage.Error;
+        }
+    }
+
+    private RenderFragment RenderReport() => __builder =>
+    {
+        var r = _result!.Report;
+        <div style="font-weight:700; margin-bottom:6px;">@Portability.ImportReportTitle</div>
+        <ul class="da-confirm-msg" style="padding-left:20px;">
+            @if (r.Added > 0) { <li>@string.Format(Portability.ReportAdded, r.Added)</li> }
+            @if (r.Replaced > 0) { <li>@string.Format(Portability.ReportReplaced, r.Replaced)</li> }
+            @if (r.KeptLocal > 0) { <li>@string.Format(Portability.ReportKeptLocal, r.KeptLocal)</li> }
+            @if (r.Merged > 0) { <li>@string.Format(Portability.ReportMerged, r.Merged)</li> }
+            @if (r.Skipped > 0) { <li>@string.Format(Portability.ReportSkipped, r.Skipped)</li> }
+            @if (r.UpToDate > 0) { <li>@string.Format(Portability.ReportUpToDate, r.UpToDate)</li> }
+        </ul>
+        @foreach (var problem in r.Problems)
+        {
+            <p class="imp-warn">@problem</p>
+        }
+
+        @if (_followUp is { } f && (f.FromPack + f.Matched + f.Queued + f.Missing.Count + f.Rejected.Count > 0 || f.NotEnoughSpace != null))
+        {
+            <div class="imp-kind">@Portability.FollowUpTitle</div>
+            <ul class="da-confirm-msg" style="padding-left:20px;">
+                @if (f.FromPack > 0) { <li>@string.Format(Portability.FollowUpFromPack, f.FromPack)</li> }
+                @if (f.Matched > 0) { <li>@string.Format(Portability.FollowUpMatched, f.Matched)</li> }
+                @if (f.Queued > 0) { <li>@string.Format(Portability.FollowUpQueued, f.Queued)</li> }
+            </ul>
+            @if (f.NotEnoughSpace is { } space)
+            {
+                <p class="imp-warn">@string.Format(Portability.MoveErrorNoSpace, DABundleExportService.FormatSize(space.Needed), DABundleExportService.FormatSize(space.Available))</p>
+            }
+            @foreach (var name in f.Rejected)
+            {
+                <p class="imp-warn">@string.Format(Portability.MediaPackFileRejected, name)</p>
+            }
+
+            @if (f.Missing.Count > 0)
+            {
+                <div style="font-weight:700; margin:10px 0 4px;">@Portability.FollowUpMissingTitle</div>
+                <p class="imp-help">@Portability.FollowUpMissingHelp</p>
+                @foreach (var item in f.Missing)
+                {
+                    var it = item;
+                    <div class="imp-row" style="display:flex; align-items:center; gap:10px;">
+                        <span class="imp-name" style="flex:1;">@it.Name</span>
+                        @if (it.IsLocallyAvailable)
+                        {
+                            <DaIcon Name="check-circle" Size="20" style="color:var(--ok);" />
+                        }
+                        else
+                        {
+                            <button type="button" class="da-btn da-btn-out da-btn-sm" @onclick="() => PickFile(it)">
+                                <DaIcon Name="folder-open" Size="16" /> @Portability.PickFileBtn
+                            </button>
+                        }
+                    </div>
+                }
+            }
+        }
+
+        <div class="imp-foot">
+            <button type="button" class="da-btn da-btn-fill" @onclick="Close"><DaIcon Name="check" /> @Portability.AlertCloseBtn</button>
+        </div>
+    };
+
+    private async Task PickFile(DAAudioItem item)
+    {
+        try
+        {
+            await Import.PickFileForAsync(item);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            Debug.WriteLine($"Copying the picked file failed: {ex.Message}");
+        }
+    }
+
+    private void Close()
+    {
+        _session?.Dispose();
+        _session = null;
+        _stage = Stage.Hidden;
+        // Every page held its view of the library from before the import.
+        if (_imported) (Application.Current as App)?.ReloadPages();
+    }
+
+    // ── Labels (spec §8) ───────────────────────────────────────────────
+
+    private static string KindLabel(DAAssetKind kind) => kind switch
+    {
+        DAAssetKind.Tag => Portability.KindTag,
+        DAAssetKind.Folder => Portability.KindFolder,
+        DAAssetKind.AudioItem => Portability.KindAudioItem,
+        DAAssetKind.Scene => Portability.KindScene,
+        DAAssetKind.LocalScene => Portability.KindLocalScene,
+        DAAssetKind.ScenarioItem => Portability.KindScenarioItem,
+        DAAssetKind.Scenario => Portability.KindScenario,
+        DAAssetKind.ScenarioGroup => Portability.KindScenarioGroup,
+        _ => Portability.KindPreset,
+    };
+
+    private static string StatusLabel(ImportStatus status) => status switch
+    {
+        ImportStatus.New => Portability.StatusNew,
+        ImportStatus.UpToDate => Portability.StatusUpToDate,
+        ImportStatus.Differs => Portability.StatusDiffers,
+        _ => Portability.StatusNameUsed,
+    };
+
+    private static string ChoiceLabel(ImportChoice choice) => choice switch
+    {
+        ImportChoice.Nothing => Portability.ChoiceNothing,
+        ImportChoice.Import => Portability.ChoiceImport,
+        ImportChoice.Skip => Portability.ChoiceSkip,
+        ImportChoice.ImportAsCopy => Portability.ChoiceImportAsCopy,
+        ImportChoice.ReplaceLocal => Portability.ChoiceReplaceLocal,
+        ImportChoice.KeepLocal => Portability.ChoiceKeepLocal,
+        ImportChoice.Merge => Portability.ChoiceMerge,
+        ImportChoice.ImportWithNewName => Portability.ChoiceImportWithNewName,
+        ImportChoice.KeepBothSameName => Portability.ChoiceKeepBothSameName,
+        _ => Portability.ChoiceUseLocal,
+    };
+
+    private static string ChoiceHelp(ImportChoice choice) => choice switch
+    {
+        ImportChoice.Import => Portability.ChoiceImportHelp,
+        ImportChoice.Skip => Portability.ChoiceSkipHelp,
+        ImportChoice.ImportAsCopy => Portability.ChoiceImportAsCopyHelp,
+        ImportChoice.ReplaceLocal => Portability.ChoiceReplaceLocalHelp,
+        ImportChoice.KeepLocal => Portability.ChoiceKeepLocalHelp,
+        ImportChoice.Merge => Portability.ChoiceMergeHelp,
+        ImportChoice.ImportWithNewName => Portability.ChoiceImportWithNewNameHelp,
+        ImportChoice.KeepBothSameName => Portability.ChoiceKeepBothSameNameHelp,
+        ImportChoice.UseLocal => Portability.ChoiceUseLocalHelp,
+        _ => "",
+    };
+}

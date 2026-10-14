@@ -163,4 +163,138 @@ namespace DiceAudio.Portability
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return 0; }
         }
     }
+
+    /// <summary>Why a media pack, or one file of it, cannot be used.</summary>
+    public enum DAMediaPackError { None, Unreadable, Mismatch, NewerFormat }
+
+    /// <summary>
+    /// Reads a .diceamedia file for an import (spec §2.4), zip-slip safe: only
+    /// the entries the manifest lists are ever read, each entry path must be
+    /// exactly <c>audio/&lt;guid&gt;.&lt;ext&gt;</c> with the guid of its item, and
+    /// nothing is ever written under a name taken from the zip — the caller
+    /// chooses the file name, from the original name the manifest gives.
+    /// </summary>
+    public sealed class DAMediaPackReader : IDisposable
+    {
+        private static readonly Regex EntryPattern = new(
+            "^audio/(?<id>[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12})\\.(?<ext>[a-z0-9]{1,5})$", RegexOptions.CultureInvariant);
+
+        public const long MaxEntryBytes = 4L * 1024 * 1024 * 1024;
+
+        private readonly ZipArchive _zip;
+
+        private DAMediaPackReader(ZipArchive zip, DAMediaManifest manifest, Dictionary<Guid, DAMediaManifestEntry> usable, List<string> rejected)
+        {
+            _zip = zip;
+            Manifest = manifest;
+            Usable = usable;
+            Rejected = rejected;
+        }
+
+        public DAMediaManifest Manifest { get; }
+
+        /// <summary>The entries that passed every check, by the item they belong to (the item's id in the bundle).</summary>
+        public IReadOnlyDictionary<Guid, DAMediaManifestEntry> Usable { get; }
+
+        /// <summary>Manifest entries that were refused, by their original file name.</summary>
+        public IReadOnlyList<string> Rejected { get; }
+
+        /// <summary>
+        /// Opens a pack against its bundle. <paramref name="allowedExtensions"/>
+        /// are the audio types the app accepts (".mp3"…). The stream stays
+        /// open as long as the reader.
+        /// </summary>
+        public static (DAMediaPackReader? Reader, DAMediaPackError Error) Open(
+            Stream stream, DABundle bundle, IReadOnlyCollection<string> allowedExtensions)
+        {
+            ZipArchive zip;
+            DAMediaManifest? manifest;
+            try
+            {
+                zip = new ZipArchive(stream, ZipArchiveMode.Read, leaveOpen: true);
+                var entry = zip.GetEntry(DAMediaManifest.EntryName);
+                if (entry == null || entry.Length > 10 * 1024 * 1024) { zip.Dispose(); return (null, DAMediaPackError.Unreadable); }
+                using var ms = entry.Open();
+                manifest = JsonSerializer.Deserialize<DAMediaManifest>(ms, DABundleReader.ReadOptions);
+            }
+            catch (Exception ex) when (ex is InvalidDataException or JsonException or IOException or NotSupportedException)
+            {
+                return (null, DAMediaPackError.Unreadable);
+            }
+
+            if (manifest == null || manifest.Format != DAMediaManifest.FormatName) { zip.Dispose(); return (null, DAMediaPackError.Unreadable); }
+            if (manifest.FormatVersion > DAMediaManifest.CurrentVersion) { zip.Dispose(); return (null, DAMediaPackError.NewerFormat); }
+            if (manifest.BundleId != bundle.BundleId) { zip.Dispose(); return (null, DAMediaPackError.Mismatch); }
+
+            var items = bundle.AudioItems.Select(i => i.Id).ToHashSet();
+            var allowed = allowedExtensions.Select(e => e.TrimStart('.').ToLowerInvariant()).ToHashSet();
+            var usable = new Dictionary<Guid, DAMediaManifestEntry>();
+            var rejected = new List<string>();
+
+            foreach (var e in manifest.Entries ?? new())
+            {
+                if (e == null) continue;
+                var m = EntryPattern.Match(e.Path ?? "");
+                bool ok = m.Success
+                          && Guid.TryParse(m.Groups["id"].Value, out var id) && id == e.ItemId
+                          && items.Contains(e.ItemId)
+                          && allowed.Contains(m.Groups["ext"].Value)
+                          && e.SizeBytes >= 0 && e.SizeBytes <= MaxEntryBytes
+                          && zip.GetEntry(e.Path!) is { } z && z.Length == e.SizeBytes
+                          && !usable.ContainsKey(e.ItemId);
+                if (ok) usable[e.ItemId] = e;
+                else rejected.Add(string.IsNullOrEmpty(e.OriginalFileName) ? e.Path ?? "?" : System.IO.Path.GetFileName(e.OriginalFileName));
+            }
+
+            return (new DAMediaPackReader(zip, manifest, usable, rejected), DAMediaPackError.None);
+        }
+
+        /// <summary>
+        /// Copies the file of <paramref name="itemId"/> to <paramref name="targetPath"/>
+        /// (a path the caller built), checking the size and, when present, the
+        /// hash. Writes a ".part" file first and never replaces an existing
+        /// file. False when the entry is unusable or damaged; nothing is left behind then.
+        /// </summary>
+        public async Task<bool> ExtractAsync(Guid itemId, string targetPath, CancellationToken ct = default)
+        {
+            if (!Usable.TryGetValue(itemId, out var e) || File.Exists(targetPath)) return false;
+            var entry = _zip.GetEntry(e.Path);
+            if (entry == null) return false;
+
+            string part = targetPath + ".part";
+            try
+            {
+                using var hash = e.Sha256 != null ? IncrementalHash.CreateHash(HashAlgorithmName.SHA256) : null;
+                long size = 0;
+                await using (var source = entry.Open())
+                await using (var target = new FileStream(part, FileMode.CreateNew, FileAccess.Write, FileShare.None, 1 << 16, useAsync: true))
+                {
+                    var buffer = new byte[1 << 20];
+                    int read;
+                    while ((read = await source.ReadAsync(buffer, ct)) > 0)
+                    {
+                        size += read;
+                        if (size > e.SizeBytes) break;   // more than announced: damaged
+                        await target.WriteAsync(buffer.AsMemory(0, read), ct);
+                        hash?.AppendData(buffer, 0, read);
+                    }
+                }
+
+                bool good = size == e.SizeBytes
+                            && (hash == null || string.Equals(Convert.ToHexStringLower(hash.GetHashAndReset()), e.Sha256, StringComparison.OrdinalIgnoreCase));
+                if (!good) { File.Delete(part); return false; }
+
+                File.Move(part, targetPath, overwrite: false);
+                return true;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or OperationCanceledException)
+            {
+                try { if (File.Exists(part)) File.Delete(part); } catch (IOException) { }
+                if (ex is OperationCanceledException) throw;
+                return false;
+            }
+        }
+
+        public void Dispose() => _zip.Dispose();
+    }
 }

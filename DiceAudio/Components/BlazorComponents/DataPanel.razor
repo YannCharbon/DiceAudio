@@ -23,6 +23,7 @@
 @inject DAStorageNotices Notices
 @inject DiceAudioService AudioService
 @inject DABundleExportService Exports
+@inject DAImportService Imports
 
 <div class="da-panel">
     <div style="display:flex;">
@@ -84,10 +85,16 @@
     <div class="da-msec" style="margin-top:12px;">
         <div style="font-weight:700; margin-bottom:6px;">@Portability.SharingTitle</div>
         <p class="da-sub" style="margin-bottom:10px;">@Portability.ExportLibraryHelp</p>
-        <button type="button" class="da-btn da-btn-fill" @onclick="Exports.ExportLibrary">
-            <DaIcon Name="upload" Size="16" />
-            @Portability.ExportLibraryBtn
-        </button>
+        <div class="da-irow da-irow-wrap" style="gap:8px;">
+            <button type="button" class="da-btn da-btn-fill" @onclick="Exports.ExportLibrary">
+                <DaIcon Name="upload" Size="16" />
+                @Portability.ExportLibraryBtn
+            </button>
+            <button type="button" class="da-btn da-btn-out" @onclick="Imports.RequestImport">
+                <DaIcon Name="upload-file" Size="16" />
+                @Portability.ImportFromFileBtn
+            </button>
+        </div>
     </div>
 </div>
 

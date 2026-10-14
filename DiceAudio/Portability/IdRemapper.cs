@@ -35,6 +35,85 @@ namespace DiceAudio.Portability
         public Guid? Resolve(Guid? id) => id is Guid g ? Resolve(g) : null;
 
         /// <summary>
+        /// The map an import plan calls for (spec §4.3):
+        /// <list type="bullet">
+        /// <item>Import as a copy: a new GUID, and for a group or a scenario a new
+        /// GUID for everything inside it too (scene internals are kept);</item>
+        /// <item>Use the local one instead: the local asset's GUID;</item>
+        /// <item>a folder that is up to date or merged: the local folder's GUID;
+        /// a folder imported whose GUID is already used here, or imported as a
+        /// copy: a new GUID;</item>
+        /// <item>every other choice keeps the GUID.</item>
+        /// </list>
+        /// </summary>
+        /// <param name="localFolderIds">Folder GUIDs already used in the library.</param>
+        public static IdRemapper BuildFrom(DAImportPlan plan, Func<Guid>? newGuid = null, IReadOnlySet<Guid>? localFolderIds = null)
+        {
+            newGuid ??= Guid.NewGuid;
+            var map = new IdRemapper();
+            foreach (var item in plan.AllItems)
+            {
+                if (item.IncomingId is not Guid id) continue;
+
+                if (item.Kind == DAAssetKind.Folder)
+                {
+                    switch (item.Choice)
+                    {
+                        case ImportChoice.Nothing or ImportChoice.Merge when item.Local is DAVirtualAudioFolder local:
+                            map.Add(id, local.Id);
+                            break;
+                        case ImportChoice.ImportAsCopy:
+                            map.Add(id, newGuid());
+                            break;
+                        case ImportChoice.Import or ImportChoice.ImportWithNewName when localFolderIds?.Contains(id) == true:
+                            map.Add(id, newGuid());
+                            break;
+                    }
+                    continue;
+                }
+
+                switch (item.Choice)
+                {
+                    case ImportChoice.ImportAsCopy:
+                        map.Add(id, newGuid());
+                        switch (item.Incoming)
+                        {
+                            case DAScenarioGroup g: RenewAll(map, g, newGuid); break;
+                            case DAScenario s: RenewAll(map, s, newGuid); break;
+                            case DAScenarioRecord r: RenewAll(map, r.Scenario, newGuid); break;
+                        }
+                        break;
+                    case ImportChoice.UseLocal when LocalId(item) is Guid localId:
+                        map.Add(id, localId);
+                        break;
+                }
+            }
+            return map;
+        }
+
+        private static void RenewAll(IdRemapper map, DAScenarioGroup group, Func<Guid> newGuid)
+        {
+            foreach (var s in group.Scenarios) { map.Add(s.Id, newGuid()); RenewAll(map, s, newGuid); }
+            foreach (var scene in group.LocalScenes) map.Add(scene.Id, newGuid());
+        }
+
+        private static void RenewAll(IdRemapper map, DAScenario scenario, Func<Guid> newGuid)
+        {
+            foreach (var i in scenario.Items) map.Add(i.Id, newGuid());
+        }
+
+        private static Guid? LocalId(DAImportItem item) => item.Local switch
+        {
+            DAAudioItem a => a.Id,
+            DAScene s => s.Id,
+            DAPreset p => p.Id,
+            DAScenarioGroup g => g.Id,
+            DAScenario s => s.Id,
+            DAScenarioItem i => i.Id,
+            _ => null,
+        };
+
+        /// <summary>
         /// Rewrites, in place, every GUID of the bundle that the map covers: the
         /// ids of the assets themselves and every reference between them —
         /// <see cref="DAAudioUsage.AudioItemId"/> everywhere (catalogue scenes,

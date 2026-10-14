@@ -140,6 +140,118 @@ namespace DiceAudio.Resources.Localization
         /// <summary>New string (not in the spec): the end of a long list of names.</summary>
         public const string RestoreMissingMore = "and {0} more.";
 
+        // ── Import (spec §8.1 and §8.3) ───────────────────────────────────
+
+        public const string StatusNew = "New";
+        public const string StatusUpToDate = "Up to date";
+        public const string StatusDiffers = "Differs";
+        public const string StatusNameUsed = "Name already used";
+
+        public const string ChoiceNothing = "Nothing to do";
+        public const string ChoiceImport = "Import";
+        public const string ChoiceSkip = "Skip";
+        public const string ChoiceImportAsCopy = "Import as a copy";
+        public const string ChoiceReplaceLocal = "Replace the local one";
+        public const string ChoiceKeepLocal = "Keep the local one";
+        public const string ChoiceMerge = "Merge";
+        public const string ChoiceImportWithNewName = "Import with a new name";
+        public const string ChoiceKeepBothSameName = "Keep both with the same name";
+        public const string ChoiceUseLocal = "Use the local one instead";
+        public const string ChoiceApplyToAll = "Apply to all of this kind";
+
+        public const string ChoiceImportHelp = "Adds it to your library.";
+        public const string ChoiceSkipHelp = "Leaves it out of the import.";
+        public const string ChoiceImportAsCopyHelp = "Adds the imported version next to yours, under the name below. Yours is not changed.";
+        public const string ChoiceReplaceLocalHelp = "Your version is overwritten by the imported one, and everything that uses it then uses the imported version.";
+        public const string ChoiceKeepLocalHelp = "The imported version is left out. Anything imported that uses it will use yours.";
+        public const string ChoiceMergeHelp = "Keeps yours and adds what the imported one contains. Each part is then checked on its own.";
+        public const string ChoiceImportWithNewNameHelp = "Imports it under the name below, so that you can tell the two apart.";
+        public const string ChoiceKeepBothSameNameHelp = "Imports it with the same name. You will then have two with this name.";
+        public const string ChoiceUseLocalHelp = "The imported one is left out, and anything imported that uses it will use yours instead.";
+
+        public const string WizardTitle = "Import";
+        public const string WizardIntro =
+            "Part of the content of this file already exists in your library. " +
+            "Please choose what to do in each case; the suggested choice is already selected.";
+        public const string WizardInFile = "In the file";
+        public const string WizardInLibrary = "In your library";
+        public const string WizardNewName = "New name";
+        public const string WizardNameEmpty = "Please enter a name.";
+        public const string WizardNameTaken = "This name is already used. Please choose another one.";
+        public const string WizardSkipWarningTitle = "Other content uses this one";
+        public const string WizardSkipWarning = "If you do not import \"{0}\", the following will be imported without it: {1}";
+        public const string WizardConfirmBtn = "Import";
+
+        public const string ImportSummaryTitle = "Ready to import";
+        public const string ImportSummaryText = "Nothing in this file conflicts with your library. The following will be added:";
+        public const string ImportNothingToDo = "Everything in this file is already in your library, so there is nothing to import.";
+        public const string ImportBackupNote = "A backup of your current data is made before anything is changed.";
+        public const string ImportReportTitle = "Import finished";
+        public const string ReportAdded = "Added: {0}";
+        public const string ReportReplaced = "Replaced: {0}";
+        public const string ReportKeptLocal = "Kept your version: {0}";
+        public const string ReportMerged = "Merged: {0}";
+        public const string ReportSkipped = "Not imported: {0}";
+        public const string ReportUpToDate = "Already up to date: {0}";
+        public const string ImportFailed = "The import could not be completed, so your data has been put back as it was before. Details: {0}";
+        public const string ImportFromFileBtn = "Import a DiceAudio file…";
+
+        public const string ErrorUnreadableFile = "This file could not be read. It may be damaged, or it may not be a DiceAudio file.";
+        public const string ErrorOtherAppFile = "This file comes from DiceCombats. Please open it in DiceCombats.";
+        public const string ErrorNewerFormat = "This file was made with a newer version of DiceAudio. Please update DiceAudio to open it.";
+        public const string ErrorFileTooLarge = "This file is too large: {0} MB, while DiceAudio accepts up to {1} MB.";
+        public const string WarningBrokenReferences =
+            "Some of the content of this file refers to things that are not in it ({0} references). It is imported without them.";
+
+        public const string KindTag = "Tags";
+        public const string KindFolder = "Folders";
+        public const string KindAudioItem = "Audio items";
+        public const string KindScene = "Scenes";
+        public const string KindLocalScene = "Scenes of a scenario group";
+        public const string KindScenarioItem = "Scenario items";
+        public const string KindScenario = "Scenarios";
+        public const string KindScenarioGroup = "Scenario groups";
+        public const string KindPreset = "Presets";
+
+        public const string TargetGroupLabel = "Add to the scenario group";
+        public const string TargetScenarioLabel = "Add to the scenario";
+        public const string TargetNewGroup = "A new scenario group named \"{0}\"";
+        public const string TargetNewScenario = "A new scenario named \"{0}\"";
+
+        public const string MediaPackAsk = "This export comes with a second file holding the audio files (.diceamedia). Would you like to open it?";
+        public const string MediaPackOpenBtn = "Open the audio files…";
+        public const string MediaPackSkipBtn = "Continue without them";
+        public const string MediaPackMismatch = "This audio file pack belongs to another export and cannot be used with this file.";
+        public const string MediaPackFileRejected = "The file for \"{0}\" in the audio file pack is damaged and was not used.";
+
+        public const string FollowUpTitle = "Audio files";
+        public const string FollowUpFromPack = "Taken from the audio file pack: {0}";
+        public const string FollowUpMatched = "Found on this computer by name or size: {0}";
+        public const string FollowUpQueued = "Added to the download list: {0}";
+        public const string FollowUpMissingTitle = "Files still missing";
+        public const string FollowUpMissingHelp =
+            "These audio items have no file yet. Pick a file from your computer for each of them, or leave them for later: " +
+            "the Explorer can show them with the \"Missing files\" filter.";
+        public const string PickFileBtn = "Pick file…";
+
+        /// <summary>Spec §8.1 (the move wizard's text), used too when the audio file pack does not fit.</summary>
+        public const string MoveErrorNoSpace = "There is not enough free space on this drive: {0} needed, {1} available.";
+        public const string MissingFilesFilter = "Missing files";
+
+        /// <summary>New string (not in the spec): the import and its putting back both failed.</summary>
+        public const string ImportRollbackFailed =
+            "The import could not be completed, and your data could not be put back automatically. " +
+            "Your data from just before the import is in the backup {0}. Please restore it from Settings, in the Data section.";
+
+        /// <summary>New string (not in the spec): shown while the import runs.</summary>
+        public const string ImportWorking = "Importing…";
+
+        /// <summary>New string (not in the spec): the audio file pack could not be read.</summary>
+        public const string MediaPackUnreadable = "The audio file pack could not be read, so the import goes on without it.";
+
+        /// <summary>New string (not in the spec): the label of the import's file type in the open window.</summary>
+        public const string MediaPackFileType = "DiceAudio audio file pack";
+
         public const string DataPanelTitle = "Data";
         public const string SharingTitle = "Sharing";
 

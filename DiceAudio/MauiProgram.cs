@@ -188,6 +188,7 @@ namespace DiceAudio
             builder.Services.AddSingleton<DAStorageNotices>();
             builder.Services.AddSingleton<IBackupHost, DABackupHost>();
             builder.Services.AddSingleton<BackupService>();
+            builder.Services.AddSingleton<DAImportService>();
 
             var app = builder.Build();
             ServiceProvider = app.Services; // Assign the root service provider

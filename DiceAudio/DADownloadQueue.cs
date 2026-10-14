@@ -57,6 +57,13 @@ namespace DiceAudio
         /// Set by <see cref="DADownloadQueue.CancelAll"/>; checked between the steps of the download.
         internal volatile bool CancelRequested;
 
+        /// <summary>
+        /// The item is already in the library (an imported item without its
+        /// file): it is only downloaded, never added again, and never given the
+        /// file of another item with the same link.
+        /// </summary>
+        public bool InLibrary { get; init; }
+
         public bool IsFinished => State is DADownloadState.Done or DADownloadState.AlreadyThere
                                          or DADownloadState.Failed or DADownloadState.Cancelled;
     }
@@ -141,6 +148,31 @@ namespace DiceAudio
         /// Sends every staged link to the download list, all into
         /// <paramref name="targetFolder"/>, and starts the worker if it is idle.
         /// </summary>
+        /// <summary>
+        /// Downloads the files of items already in the library (after an
+        /// import), in the folder they are in. Returns how many were queued.
+        /// </summary>
+        public int EnqueueLibraryItems(IEnumerable<DAAudioItem> items)
+        {
+            int count = 0;
+            lock (_gate)
+            {
+                foreach (var item in items)
+                {
+                    if (string.IsNullOrWhiteSpace(item.SourceURL)) continue;
+                    if (_jobs.Any(j => ReferenceEquals(j.Item, item) && !j.IsFinished)) continue;
+                    item.SourceDownloadStatusMessage = "Waiting";
+                    item.SourceDownloadProgress = 0;
+                    _jobs.Add(new DADownloadJob(item, null) { InLibrary = true });
+                    count++;
+                }
+                if (count > 0 && (_worker == null || _worker.IsCompleted))
+                    _worker = Task.Run(RunAsync);
+            }
+            if (count > 0) RaiseChanged(force: true);
+            return count;
+        }
+
         public void StartStaged(DAVirtualAudioFolder? targetFolder)
         {
             lock (_gate)
@@ -248,8 +280,10 @@ namespace DiceAudio
                 return;
             }
 
-            // Already in the library with its file: nothing to download.
-            var known = await OnUiAsync(() => FindLibraryFileFor(item)).ConfigureAwait(false);
+            // Already in the library with its file: nothing to download. (Not
+            // for an item that is itself in the library: another item's file
+            // is never shared with it.)
+            var known = job.InLibrary ? null : await OnUiAsync(() => FindLibraryFileFor(item)).ConfigureAwait(false);
             if (known != null)
             {
                 Finish(job, known, DADownloadState.AlreadyThere, "Already in your library, not downloaded again");

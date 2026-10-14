@@ -10,6 +10,7 @@
 
 @inject DiceAudioService AudioService
 @inject DAStorageNotices Notices
+@inject NavigationManager Navigation
 @implements IDisposable
 
 @using DiceAudio.Resources.Localization
@@ -87,6 +88,16 @@
     {
         Notices.Changed += OnNoticesChanged;
         _storageNotices = Notices.Pending;
+        App.PagesReloadRequested += ReloadInPlace;
+    }
+
+    // A full reload of the web page in the same web view: every component and
+    // every scoped service starts again, as with a new page, but the native
+    // window around it is left alone (see App.ReloadPages). The notices live
+    // in DAStorageNotices, so a restore's message is still there afterwards.
+    private void ReloadInPlace()
+    {
+        _ = InvokeAsync(() => Navigation.NavigateTo(Navigation.Uri, forceLoad: true));
     }
 
     // Raised on whatever thread added the message.
@@ -101,5 +112,6 @@
     public void Dispose()
     {
         Notices.Changed -= OnNoticesChanged;
+        App.PagesReloadRequested -= ReloadInPlace;
     }
 }

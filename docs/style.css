@@ -833,6 +833,121 @@ footer .wrap {
     justify-content: space-between;
 }
 
+/* ═══ detailed pages ═══════════════════════════════════════════════════════
+   A page meant to be read from top to bottom: a short head instead of the
+   hero, then sections of headings, short paragraphs and numbered steps, in
+   a column narrow enough to read comfortably. */
+
+.card .card-more {
+    margin: 12px 0 0;
+    font-size: .95rem;
+}
+
+.page-head {
+    border-bottom: 1px solid var(--b1);
+    background: var(--hero-glow), var(--s0);
+}
+
+.page-head .wrap {
+    padding-top: 48px;
+    padding-bottom: 36px;
+}
+
+.page-back {
+    display: inline-block;
+    margin-bottom: 14px;
+    font-size: .95rem;
+}
+
+.page-head h1 {
+    margin: 0 0 10px;
+    color: var(--t1);
+    font-size: clamp(1.9rem, 5vw, 2.6rem);
+    font-weight: 700;
+    letter-spacing: -.01em;
+    line-height: 1.2;
+}
+
+.page-head p {
+    margin: 0;
+    max-width: 760px;
+    color: var(--t3);
+    font-size: 1.08rem;
+}
+
+.toc {
+    margin: 22px 0 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.toc a {
+    display: inline-block;
+    padding: 4px 12px;
+    border: 1px solid var(--b2);
+    border-radius: var(--r-pill);
+    background: var(--s3);
+    color: var(--t2);
+    font-size: .92rem;
+}
+
+.toc a:hover {
+    border-color: var(--b4);
+    text-decoration: none;
+}
+
+section.doc {
+    padding: 44px 0;
+}
+
+.doc .wrap > * {
+    max-width: 780px;
+}
+
+.doc h3 {
+    margin: 28px 0 6px;
+    color: var(--t1);
+    font-size: 1.08rem;
+}
+
+.doc p {
+    margin: 0 0 12px;
+}
+
+.doc strong {
+    color: var(--t1);
+}
+
+.doc ul {
+    margin: 0 0 14px;
+    padding-left: 22px;
+    color: var(--t3);
+}
+
+.doc ul li {
+    margin-bottom: 6px;
+}
+
+.doc .field-steps {
+    margin-top: 14px;
+}
+
+/* A remark set apart from the text: the accent rule of a card, on its side. */
+.note {
+    margin: 16px 0;
+    padding: 12px 16px;
+    background: var(--s3);
+    border: 1px solid var(--b1);
+    border-left: 3px solid var(--a1);
+    border-radius: var(--r-panel);
+}
+
+.note p {
+    margin: 0;
+}
 /* ═══ narrow windows ═══════════════════════════════════════════════════════ */
 
 /* Below this the sections leave the bar; the page itself is the menu. */

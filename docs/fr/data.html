@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Vos données dans DiceAudio - partage, sauvegardes et dossier de données</title>
+    <meta name="description" content="Comment DiceAudio partage votre bibliothèque avec d'autres MJ, importe leurs fichiers, sauvegarde vos données et les conserve dans un dossier utilisable depuis plusieurs ordinateurs." />
+    <link rel="stylesheet" href="../style.css" />
+    <link rel="icon" href="../logo.svg" type="image/svg+xml" />
+
+    <meta name="robots" content="index, follow" />
+    <meta property="og:title" content="Vos données dans DiceAudio" />
+    <meta property="og:description" content="Comment DiceAudio partage votre bibliothèque avec d'autres MJ, importe leurs fichiers, sauvegarde vos données et les conserve dans un dossier utilisable depuis plusieurs ordinateurs." />
+    <meta property="og:image" content="https://yanncharbon.github.io/DiceAudio/logo.svg" />
+    <meta property="og:url" content="https://yanncharbon.github.io/DiceAudio/fr/data.html" />
+    <meta property="og:type" content="article" />
+
+    <link rel="alternate" href="https://yanncharbon.github.io/DiceAudio/data.html" hreflang="en" />
+    <link rel="alternate" href="https://yanncharbon.github.io/DiceAudio/fr/data.html" hreflang="fr" />
+</head>
+<body>
+
+    <header class="topbar">
+        <div class="topbar-inner">
+            <div class="crumb">
+                <a class="crumb-family" href="https://yanncharbon.github.io/DiceAtrium/fr/" title="Famille Dice Atrium" aria-label="Famille Dice Atrium"><img src="../atrium-logo.svg" alt="" /></a>
+                <span class="crumb-sep" aria-hidden="true">/</span>
+                <a class="brand" href="./"><img src="../logo.svg" alt="" />DiceAudio</a>
+            </div>
+            <nav class="nav-sections" aria-label="Sections de la page">
+                <a href="#sharing">Partage</a>
+                <a href="#importing">Importation</a>
+                <a href="#audio-files">Fichiers audio</a>
+                <a href="#backups">Sauvegardes</a>
+                <a href="#data-folder">Dossier de données</a>
+                <a href="#several-computers">Plusieurs ordinateurs</a>
+            </nav>
+            <div class="nav-util">
+                <a class="nav-key" href="https://github.com/YannCharbon/DiceAudio/" title="GitHub" aria-label="GitHub"><img src="../github-mark-white.svg" alt="" /></a>
+                <a class="nav-key nav-lang" href="../data.html" hreflang="en" title="English version" aria-label="English version">EN</a>
+                <a class="btn primary nav-cta" href="https://github.com/YannCharbon/DiceAudio/releases/latest/">Télécharger</a>
+            </div>
+        </div>
+    </header>
+
+    <header class="page-head">
+        <div class="wrap">
+            <a class="page-back" href="./#data">&larr; Retour à la page de DiceAudio</a>
+            <h1>Vos données</h1>
+            <p>Votre bibliothèque, vos scènes, vos scénarios et vos réglages restent sur votre ordinateur, dans un dossier que vous pouvez choisir. Cette page décrit comment les partager avec d'autres MJ, comment DiceAudio les sauvegarde et comment utiliser la même bibliothèque sur plusieurs ordinateurs.</p>
+            <p style="margin-top:10px;">L'interface de DiceAudio n'existe qu'en anglais&nbsp;: les noms des boutons sont donc cités tels que l'application les affiche.</p>
+            <ul class="toc">
+                <li><a href="#sharing">Partage</a></li>
+                <li><a href="#importing">Importer un fichier</a></li>
+                <li><a href="#audio-files">Fichiers audio manquants</a></li>
+                <li><a href="#backups">Sauvegardes</a></li>
+                <li><a href="#data-folder">Le dossier de données</a></li>
+                <li><a href="#several-computers">Plusieurs ordinateurs</a></li>
+            </ul>
+        </div>
+    </header>
+
+    <main>
+
+    <section id="sharing" class="doc">
+        <div class="wrap">
+            <h2>Partage</h2>
+            <p>Les pistes, dossiers, scènes, scénarios, groupes de scénarios, collections et presets peuvent être exportés à l'aide des boutons <strong>Export</strong> placés à côté d'eux. Dans les réglages (Settings), section Data, <strong>Export the whole library…</strong> enregistre l'ensemble en une seule fois.</p>
+            <p>Le fichier contient également tout ce qu'utilise le contenu exporté. Un groupe de scénarios est ainsi accompagné de ses scènes, des pistes qu'elles jouent, ainsi que des dossiers et des étiquettes de ces pistes. La personne qui l'importe dispose d'un groupe de scénarios prêt à être joué.</p>
+
+            <h3>Contenu du fichier</h3>
+            <p>L'export prend la forme d'un fichier <span class="code-style">.dicea</span>. Celui-ci contient la description de votre contenu et les liens de téléchargement des pistes, mais jamais l'audio lui-même. Lorsque certaines pistes n'ont pas de lien de téléchargement et que leur fichier n'est pas inclus, la fenêtre d'export vous le signale&nbsp;: la personne qui importera le fichier devra leur attribuer elle-même un fichier.</p>
+
+            <h3>Inclure les fichiers audio</h3>
+            <p>Si vous cochez <strong>Also save the audio files, in a second file (.diceamedia)</strong>, les fichiers audio présents sur votre ordinateur sont enregistrés dans un second fichier, à côté du premier. DiceAudio indique le nombre de fichiers concernés et la place qu'ils occupent.</p>
+            <div class="note">
+                <p>La première fois que vous le faites au cours d'une session, DiceAudio vous rappelle que les fichiers audio sont souvent protégés par le droit d'auteur. Vous pouvez utiliser ce second fichier pour votre usage personnel, par exemple pour transférer votre bibliothèque sur un autre ordinateur. En revanche, il n'est pas permis de partager ces fichiers publiquement, ni avec des personnes qui n'en détiennent pas les droits.</p>
+            </div>
+        </div>
+    </section>
+
+    <section id="importing" class="doc">
+        <div class="wrap">
+            <h2>Importer un fichier</h2>
+            <p>Le bouton <strong>Import a DiceAudio file…</strong> se trouve dans l'explorateur, sur la page des scènes, sur celle des scénarios, dans l'onglet Local scenes d'un groupe de scénarios, ainsi que dans les réglages, section Data.</p>
+            <ol class="field-steps">
+                <li>Cliquez sur <strong>Import a DiceAudio file…</strong> et choisissez le fichier <span class="code-style">.dicea</span>.</li>
+                <li>Si l'export est accompagné d'un fichier audio (<span class="code-style">.diceamedia</span>), DiceAudio l'utilise lorsqu'il se trouve dans le même dossier. Dans le cas contraire, il vous le demande&nbsp;: choisissez <strong>Open the audio files…</strong> pour l'indiquer, ou <strong>Continue without them</strong> pour vous en passer.</li>
+                <li>Lorsque rien dans le fichier ne figure déjà dans votre bibliothèque, un récapitulatif présente ce qui sera ajouté. Sinon, vous décidez du sort de chaque élément, comme expliqué ci-dessous.</li>
+                <li>Cliquez sur <strong>Import</strong>. DiceAudio sauvegarde d'abord vos données, puis importe le fichier et indique ce qui a été ajouté, remplacé ou laissé de côté.</li>
+            </ol>
+
+            <h3>Selon la page d'où vous importez</h3>
+            <p>Chaque page s'attend à un certain type de contenu&nbsp;: des pistes et des dossiers dans l'explorateur, des scènes sur la page des scènes, des groupes de scénarios et des scénarios sur celle des scénarios. Si le fichier n'en contient aucun, DiceAudio vous en avertit en haut de la fenêtre d'importation, et vous pouvez tout de même importer le reste du fichier.</p>
+            <p>Depuis l'onglet Local scenes d'un groupe de scénarios, les scènes du fichier deviennent des scènes locales de ce groupe. Le reste du fichier est importé normalement.</p>
+
+            <h3>Décider du sort de chaque élément</h3>
+            <p>Lorsqu'une partie du fichier figure déjà dans votre bibliothèque, chaque élément est marqué <strong>New</strong>, <strong>Up to date</strong>, <strong>Differs</strong> ou <strong>Name already used</strong>. À côté, une liste propose les choix possibles pour cet élément, avec sous elle une courte explication du choix retenu. Le choix proposé est déjà sélectionné.</p>
+            <ul>
+                <li><strong>Import as a copy</strong> ajoute la version importée à côté de la vôtre, sous un nouveau nom. La vôtre reste inchangée.</li>
+                <li><strong>Replace the local one</strong> remplace votre version par celle du fichier.</li>
+                <li><strong>Keep the local one</strong> laisse de côté la version importée&nbsp;; ce qui l'utilise dans le fichier utilisera la vôtre.</li>
+                <li><strong>Merge</strong>, pour un groupe de scénarios ou un dossier, conserve le vôtre et y ajoute le contenu de la version importée.</li>
+                <li><strong>Import with a new name</strong> ou <strong>Keep both with the same name</strong>, lorsque seul le nom est déjà utilisé.</li>
+                <li><strong>Use the local one instead</strong> laisse de côté l'élément importé et utilise le vôtre partout où le fichier en a besoin.</li>
+            </ul>
+            <p>Pour donner la même réponse à de nombreux éléments à la fois, utilisez le bouton situé à côté de la liste, par exemple <strong>Same choice for all 12 audio items marked “Differs”</strong>.</p>
+            <p>Les parties d'un groupe de scénarios, comme un scénario ou un élément de scénario, rejoignent le groupe ou le scénario que vous indiquez sous <strong>Add to the scenario group</strong> et <strong>Add to the scenario</strong>.</p>
+
+            <h3>Le nom des copies</h3>
+            <p>Lorsqu'au moins un élément doit recevoir un nouveau nom, une barre intitulée <strong>Names of copies</strong> apparaît en haut de la fenêtre d'importation. Elle permet de choisir un texte placé avant le nom et un texte placé après. Par défaut, la copie de «&nbsp;Forêt&nbsp;» s'appelle «&nbsp;Forêt&nbsp;(2)&nbsp;». Si vous modifiez ces textes, les noms proposés sont mis à jour, sauf ceux que vous avez saisis vous-même. DiceAudio ajoute toujours un numéro lorsqu'un nom est déjà utilisé. Le bouton <strong>Import</strong> reste indisponible tant qu'un nom est vide ou déjà utilisé.</p>
+
+            <h3>Récupérer l'audio</h3>
+            <p>Après l'importation, DiceAudio cherche un fichier pour chaque nouvelle piste&nbsp;:</p>
+            <ul>
+                <li>dans le fichier audio <span class="code-style">.diceamedia</span>, si vous l'avez ouvert&nbsp;;</li>
+                <li>sur votre ordinateur, parmi les fichiers qui portent le même nom ou qui ont la même taille&nbsp;;</li>
+                <li>à défaut, en téléchargeant la piste depuis son lien, par la liste des téléchargements.</li>
+            </ul>
+            <p>Les pistes encore dépourvues de fichier sont ensuite listées, chacune avec un bouton <strong>Pick file…</strong>. Vous pouvez aussi vous en occuper plus tard&nbsp;: l'explorateur les signale, comme le décrit la section suivante.</p>
+        </div>
+    </section>
+
+    <section id="audio-files" class="doc">
+        <div class="wrap">
+            <h2>Fichiers audio manquants</h2>
+            <p>Dans l'explorateur, la carte d'une piste dont le fichier ne se trouve pas sur cet ordinateur l'indique, avec un bouton pour y remédier&nbsp;:</p>
+            <ul>
+                <li><strong>Not downloaded yet</strong>&nbsp;: la piste possède un lien de téléchargement, mais n'a jamais été téléchargée. <strong>Download</strong> l'ajoute à la liste des téléchargements.</li>
+                <li><strong>Not found on disk</strong>&nbsp;: la piste avait un fichier, qui ne se trouve plus dans le dossier Audio. <strong>Pick file…</strong> permet de choisir de nouveau ce fichier, que DiceAudio copie alors dans le dossier Audio. Si la piste possède un lien, <strong>Download</strong> est également proposé.</li>
+                <li><strong>No audio file</strong>&nbsp;: la piste n'a ni fichier ni lien. <strong>Pick file…</strong> permet de lui en attribuer un.</li>
+                <li><strong>Only in the cloud</strong>&nbsp;: le fichier se trouve dans votre dossier de données, mais votre service de synchronisation ne l'a pas encore téléchargé sur cet ordinateur.</li>
+            </ul>
+            <p>Dans un dossier, <strong>Download all</strong> ajoute à la liste des téléchargements toutes les pistes de ce dossier qui n'ont pas encore été téléchargées. Le bouton indique le nombre de pistes concernées et n'apparaît que s'il y en a au moins une.</p>
+            <p>Le filtre <strong>Missing files</strong> de l'explorateur rassemble les pistes sans fichier de tous les dossiers.</p>
+        </div>
+    </section>
+
+    <section id="backups" class="doc">
+        <div class="wrap">
+            <h2>Sauvegardes</h2>
+            <p>DiceAudio sauvegarde vos données à la première ouverture de chaque journée, ainsi qu'avant chaque importation, chaque restauration et chaque copie de vos données vers un autre dossier. Une sauvegarde contient votre bibliothèque, vos dossiers, étiquettes, scènes, groupes de scénarios, presets et réglages, mais jamais les fichiers audio eux-mêmes.</p>
+            <p>Les dix sauvegardes automatiques les plus récentes sont conservées. Celles que vous effectuez avec <strong>Back up now</strong> ne sont jamais supprimées par l'application, pas plus que celles qui précèdent une importation, une restauration ou un changement de dossier.</p>
+
+            <h3>Restaurer une sauvegarde</h3>
+            <ol class="field-steps">
+                <li>Ouvrez les réglages (Settings), section Data. La sauvegarde la plus récente y est affichée.</li>
+                <li>Cliquez sur <strong>Restore</strong> à côté d'elle, ou sur <strong>All backups…</strong> pour voir les autres, avec leur date, l'ordinateur concerné et leur motif.</li>
+                <li>Confirmez. DiceAudio sauvegarde d'abord vos données actuelles, afin que vous puissiez revenir en arrière si nécessaire, puis restaure la sauvegarde choisie.</li>
+            </ol>
+            <p>Une fois la sauvegarde restaurée, DiceAudio liste les pistes dont le fichier ne se trouve plus sur cet ordinateur.</p>
+
+            <h3>Les sauvegardes sous forme de fichier</h3>
+            <p><strong>Save a backup to a file…</strong> copie une sauvegarde à l'emplacement de votre choix, et <strong>Restore from a file…</strong> permet de la récupérer. <strong>Open the backups folder</strong> affiche l'emplacement où DiceAudio les conserve.</p>
+        </div>
+    </section>
+
+    <section id="data-folder" class="doc">
+        <div class="wrap">
+            <h2>Le dossier de données</h2>
+            <p>DiceAudio conserve votre bibliothèque, ses sauvegardes et vos fichiers audio dans un même dossier de données. Les réglages (Settings), section Data, indiquent son emplacement et permettent d'en choisir un autre.</p>
+            <ol class="field-steps">
+                <li>Cliquez sur <strong>Choose another folder…</strong> et sélectionnez le nouveau dossier.</li>
+                <li>DiceAudio indique la place occupée par vos fichiers audio et l'espace libre sur le disque de destination. Confirmez avec <strong>Move my data</strong>.</li>
+                <li>DiceAudio arrête la lecture et les téléchargements, copie l'ensemble, vérifie la copie, puis redémarre avec le nouveau dossier.</li>
+                <li>Vos anciennes données restent en place. Une fois que vous avez vérifié que tout se trouve dans le nouveau dossier, vous pouvez les supprimer avec <strong>Delete the old copy</strong>.</li>
+            </ol>
+            <p><strong>Back to the default folder</strong> ramène vos données à leur emplacement d'origine. Un dossier situé dans AppData ne peut pas être utilisé, et si le dossier choisi contient déjà d'autres fichiers, DiceAudio place ses données dans un sous-dossier.</p>
+
+            <h3>Un dossier qui contient déjà des données de DiceAudio</h3>
+            <p>Il arrive que le dossier choisi contienne déjà des données de DiceAudio, provenant par exemple d'un autre ordinateur. DiceAudio présente alors le contenu des deux côtés et propose trois possibilités&nbsp;:</p>
+            <ul>
+                <li><strong>Use the folder's data</strong> utilise le dossier tel quel. Vos données actuelles restent à leur emplacement.</li>
+                <li><strong>Replace it with mine</strong> sauvegarde d'abord les données du dossier dans ses propres sauvegardes, puis les remplace par les vôtres.</li>
+                <li><strong>Merge</strong> ajoute vos données à celles du dossier&nbsp;; lorsqu'un élément existe des deux côtés, vous décidez de la suite, comme lors d'une importation.</li>
+            </ul>
+        </div>
+    </section>
+
+    <section id="several-computers" class="doc">
+        <div class="wrap">
+            <h2>Utiliser plusieurs ordinateurs</h2>
+            <p>Un dossier de données synchronisé par OneDrive, Dropbox ou un service similaire permet d'utiliser la même bibliothèque sur plusieurs ordinateurs. Je vous conseille de régler le service pour qu'il conserve toujours les fichiers de ce dossier sur l'appareil&nbsp;; à défaut, DiceAudio pourrait devoir attendre leur téléchargement.</p>
+
+            <h3>Un ordinateur à la fois</h3>
+            <p>Veuillez n'ouvrir DiceAudio que sur un seul ordinateur à la fois. Lorsque le dossier de données est déjà utilisé sur un autre ordinateur, DiceAudio vous le signale au démarrage, en indiquant le nom de cet ordinateur et l'heure à laquelle le dossier y a été ouvert.</p>
+            <ul>
+                <li><strong>Open anyway</strong> ouvre malgré tout le dossier de données sur cet ordinateur-ci. Si DiceAudio est encore ouvert sur l'autre ordinateur, veuillez d'abord l'y fermer.</li>
+                <li><strong>Quit</strong> ferme DiceAudio sans rien modifier.</li>
+            </ul>
+
+            <h3>Modifications faites sur un autre ordinateur</h3>
+            <p>Lorsqu'un autre ordinateur modifie les données pendant que DiceAudio est ouvert, un message vous en informe et propose un bouton <strong>Reload</strong>. DiceAudio ne recharge jamais rien de lui-même&nbsp;: vous pouvez attendre un moment calme de la séance. Le rechargement arrête les scénarios en cours de lecture.</p>
+            <p>Si vous enregistrez une modification sur des données changées entre-temps ailleurs, DiceAudio vous demande quelle version conserver&nbsp;: <strong>Reload</strong> reprend la version de l'autre ordinateur, tandis que <strong>Overwrite</strong> conserve la vôtre.</p>
+            <p>Si DiceAudio est fermé avant que vous ayez fait ce choix, votre version est conservée dans le dossier de données, dans un fichier dont le nom se termine par <span class="code-style">.unsaved.json</span>, et DiceAudio vous le signale au démarrage suivant. Ce fichier ne peut pas être importé. Le message affiché au démarrage explique comment le mettre à la place du fichier de données auquel il correspond, après avoir effectué une sauvegarde.</p>
+
+            <h3>Messages au démarrage</h3>
+            <p>Au démarrage, DiceAudio vous signale les fichiers de données qui ne se trouvent que dans le cloud, ainsi que les copies qu'un service de synchronisation crée lorsque deux ordinateurs modifient le même fichier en même temps. DiceAudio utilise les fichiers d'origine&nbsp;; je vous invite à les comparer avec ces copies et à supprimer celles dont vous n'avez pas besoin.</p>
+
+            <h3>Lorsque le dossier est inaccessible</h3>
+            <p>Si le dossier de données est inaccessible au démarrage, par exemple parce qu'un disque n'est pas branché, DiceAudio n'y crée pas de bibliothèque vide. Il propose plutôt les choix suivants&nbsp;:</p>
+            <ul>
+                <li><strong>Try again</strong>, une fois le disque ou le réseau connecté&nbsp;;</li>
+                <li><strong>Choose another folder…</strong>, si vos données se trouvent désormais ailleurs&nbsp;;</li>
+                <li><strong>Open the default folder instead</strong>, pour cette session uniquement. Un message vous rappelle alors que vos modifications sont enregistrées dans le dossier par défaut, et non dans votre dossier de données&nbsp;;</li>
+                <li><strong>Quit</strong>.</li>
+            </ul>
+        </div>
+    </section>
+
+    </main>
+
+    <footer>
+        <div class="wrap">
+            <span>DiceAudio, GPL-3.0-or-later. Construit avec .NET MAUI et Blazor.</span>
+            <span><a href="./">DiceAudio</a> &middot; <a href="https://github.com/YannCharbon/DiceAudio/">GitHub</a> &middot; <a href="https://yanncharbon.github.io/DiceAtrium/fr/">Dice Atrium</a> &middot; <a href="https://yanncharbon.github.io/DiceCombats/fr/">DiceCombats</a></span>
+        </div>
+    </footer>
+
+</body>
+</html>

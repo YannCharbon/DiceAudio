@@ -96,7 +96,7 @@
                 </div>
                 <div class="card">
                     <h3>Importing your audio</h3>
-                    <p>Download from YouTube, SoundCloud and thousands of other sites with the built-in downloader: add several links, choose the destination folder and start the download. You can also import files you already have on your disk.</p>
+                    <p>Download from YouTube, SoundCloud and thousands of other sites with the built-in downloader: add several links, choose the destination folder and start the download. Files you already have on your computer are added with <strong>Import audio from disk</strong>, in the Explorer or on the home page.</p>
                 </div>
                 <div class="card">
                     <h3>Track settings</h3>
@@ -124,7 +124,7 @@
                 </div>
                 <div class="card">
                     <h3>On your machine</h3>
-                    <p>The library points to the audio files you already have and the settings stay on your computer. The interface is in English and the app runs on Windows. There is no mobile version yet, but one may come later. DiceAudio is free and open source under GPL-3.0.</p>
+                    <p>Your library, your audio files and your settings stay on your computer, in a folder you can choose. The interface is in English and the app runs on Windows. There is no mobile version yet, but one may come later. DiceAudio is free and open source under GPL-3.0.</p>
                 </div>
             </div>
         </div>
@@ -252,55 +252,22 @@
     <section id="data">
         <div class="wrap">
             <h2>Your data</h2>
-            <p class="lead">Your library, scenes, scenarios and settings stay on your computer. DiceAudio lets you share them with other game masters, and it keeps backups of them for you.</p>
+            <p class="lead">Your library, scenes, scenarios and settings stay on your computer, in a folder you can choose.</p>
             <div class="cards">
                 <div class="card">
-                    <h3>Sharing with everything it uses</h3>
-                    <p>Audio items, folders, scenes, scenarios, scenario groups, collections and presets can all be exported. The file also holds everything they use: a scenario group comes with its scenes, the audio items they play, and the folders and tags of those items. In Settings, under Data, <strong>Export the whole library…</strong> saves everything at once. The export is a <span class="code-style">.dicea</span> file, which holds the descriptions and the download links, but never the audio itself.</p>
-                </div>
-                <div class="card">
-                    <h3>The audio files</h3>
-                    <p>If you tick <strong>Also save the audio files, in a second file (.diceamedia)</strong>, the audio files that are on your computer are saved in a second file, next to the first one. The first time you do this in a session, DiceAudio reminds you that audio files are often protected by copyright. You may use this for your own needs, for example to move your library to another computer. Sharing these files publicly, or with people who do not hold the rights to them, is not allowed.</p>
-                </div>
-                <div class="card">
-                    <h3>Importing</h3>
-                    <p><strong>Import a DiceAudio file…</strong> is available in the Explorer and in Settings. When nothing in the file is already in your library, a short summary asks you to confirm. When some of it is already there, each item is shown as <strong>New</strong>, <strong>Up to date</strong>, <strong>Differs</strong> or <strong>Name already used</strong>. You then choose what to do with each one. A scenario group or a folder can also be merged with yours (<strong>Merge</strong>), and the parts of a scenario group go into the group or scenario you choose. A backup is made before anything is changed.</p>
-                </div>
-                <div class="card">
-                    <h3>Getting the audio back</h3>
-                    <p>After the import, DiceAudio gives each audio item its file. It takes it from the <span class="code-style">.diceamedia</span> file when there is one, which it looks for next to the <span class="code-style">.dicea</span> file or asks you for. Otherwise it uses a file already on your computer with the same name or size, or downloads the item from its link through the download list. The items still without a file are listed with a <strong>Pick file…</strong> button for each, and the <strong>Missing files</strong> filter of the Explorer shows them again later.</p>
+                    <h3>Sharing</h3>
+                    <p>Export a scene, a scenario group or your whole library to give it to another game master. The file comes with everything it uses, such as the scenes and audio items of a scenario group. When you import a file, you choose what to do with each item you already have.</p>
+                    <p class="card-more"><a href="data.html#sharing">Sharing and importing in detail</a></p>
                 </div>
                 <div class="card">
                     <h3>Backups</h3>
-                    <p>DiceAudio backs up your data the first time you open it each day, and before every import, every restore and every change of data folder. A backup holds your library, folders, tags, scenes, scenario groups, presets and settings, but never the audio files themselves. The ten most recent automatic backups are kept. The ones you make with <strong>Back up now</strong>, and those made before an import, a restore or a change of folder, are never deleted by the app.</p>
+                    <p>DiceAudio backs up your library every day and before every import or restore. You can restore any of these backups from the settings.</p>
+                    <p class="card-more"><a href="data.html#backups">Backups in detail</a></p>
                 </div>
                 <div class="card">
-                    <h3>Restoring a backup</h3>
-                    <p>In Settings, under Data, the most recent backup is shown with a <strong>Restore</strong> button, and <strong>All backups…</strong> lists the others with their date, computer and reason. Before restoring, DiceAudio backs up your current data, so you can go back if needed. Once the backup is restored, the audio items whose file is no longer on this computer are listed. <strong>Save a backup to a file…</strong> copies a backup out of the app, <strong>Restore from a file…</strong> brings one back, and <strong>Open the backups folder</strong> shows where they are kept.</p>
-                </div>
-                <div class="card">
-                    <h3>Choosing the data folder</h3>
-                    <p>In Settings, under Data, <strong>Choose another folder…</strong> moves your library, its backups and your audio files to a folder of your choice. Before the move, DiceAudio shows how much space your audio files take and how much is free on the target drive. It then stops playback and downloads, copies everything, checks the copy and restarts with the new folder. Your previous data stays where it was until you click <strong>Delete the old copy</strong>, and <strong>Back to the default folder</strong> moves your data back. This is available on Windows only.</p>
-                </div>
-                <div class="card">
-                    <h3>A folder that already holds data</h3>
-                    <p>The folder you choose may already hold DiceAudio data, for example from another computer. DiceAudio then shows what each side contains and offers three choices. <strong>Use the folder's data</strong> switches to it as it is. <strong>Replace it with mine</strong> backs up the folder's data in its own backups, then replaces it with yours. <strong>Merge</strong> adds your data to the folder's, and you choose what to do when an item exists on both sides, as with an import.</p>
-                </div>
-                <div class="card">
-                    <h3>Using several computers</h3>
-                    <p>A folder that OneDrive, Dropbox or a similar service keeps in sync lets you use the same library on several computers. Please open DiceAudio on one computer at a time. Please also set the service to always keep the files of this folder on the device, otherwise DiceAudio may have to wait for them to download. If the folder cannot be reached when DiceAudio starts, for example because a drive is not connected, DiceAudio does not create an empty library there. You can try again, choose another folder, or open the default folder for this session only.</p>
-                </div>
-                <div class="card">
-                    <h3>Open on another computer</h3>
-                    <p>When the data folder is already in use on another computer, DiceAudio says so at start, with the name of that computer and the time it was opened there. <strong>Open anyway</strong> opens the folder here as well. If DiceAudio is still open on the other computer, please close it there first. <strong>Quit</strong> closes DiceAudio without changing anything.</p>
-                </div>
-                <div class="card">
-                    <h3>Changes made on another computer</h3>
-                    <p>When another computer changes the data while DiceAudio is open, a message tells you so, with a <strong>Reload</strong> button. DiceAudio never reloads by itself, so you can wait for a quiet moment in the session. Reloading stops the scenarios that are playing. If you save a change to data that was changed elsewhere in the meantime, DiceAudio asks you which version to keep. <strong>Reload</strong> takes the other computer's version, and <strong>Overwrite</strong> keeps yours.</p>
-                </div>
-                <div class="card">
-                    <h3>Nothing is lost silently</h3>
-                    <p>If DiceAudio is closed before you have made that choice, your version is kept in the data folder, in a file whose name ends in <span class="code-style">.unsaved.json</span>. DiceAudio tells you about it at the next start. It also warns you at start about data files that are only in the cloud. The same goes for the copies that a synchronisation service makes when two computers change the same file at once. In the Explorer, an audio item whose file has not been downloaded to this computer yet is marked <strong>Only in the cloud</strong>.</p>
+                    <h3>Several computers</h3>
+                    <p>Your library and its audio files can live in a folder of your choice, for example one that OneDrive or Dropbox keeps in sync, so that you find the same library on each of your computers.</p>
+                    <p class="card-more"><a href="data.html#data-folder">The data folder in detail</a></p>
                 </div>
             </div>
         </div>

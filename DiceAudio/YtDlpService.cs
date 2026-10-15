@@ -32,6 +32,9 @@ namespace DiceAudio
         private Process? _process;
         private readonly object _processLock = new();
 
+        // The process AbortDownload killed: its download deletes the files it left.
+        private Process? _aborted;
+
         /// <summary>
         /// Recent yt-dlp requires a JavaScript runtime for full YouTube extraction
         /// and only auto-detects deno by default. Enabling node and bun as well lets
@@ -343,6 +346,13 @@ namespace DiceAudio
 
             item.SourceIsDownloading = true;
 
+            // Every file already there: a stopped download deletes only what it added,
+            // in this folder (the data folder may change in the meantime).
+            string audioDir = AudioFilesDirectory;
+            var filesBefore = new HashSet<string>(
+                Directory.GetFiles(audioDir).Select(f => Path.GetFileName(f)),
+                StringComparer.OrdinalIgnoreCase);
+
             // Snapshot existing MP3s before download so we can detect the new one
             var existingFiles = new HashSet<string>(
                 Directory.GetFiles(AudioFilesDirectory, "*.mp3").Select(f => Path.GetFileName(f)),
@@ -462,11 +472,21 @@ namespace DiceAudio
             finally
             {
                 // Only this download disposes its process: an abort only kills it.
+                bool aborted;
                 lock (_processLock)
                 {
                     if (ReferenceEquals(_process, process)) _process = null;
+                    aborted = ReferenceEquals(_aborted, process);
+                    if (aborted) _aborted = null;
                 }
                 process.Dispose();
+
+                if (aborted)
+                {
+                    await DeleteLeftoversAsync(audioDir, filesBefore, outputBaseName);
+                    item.LocalFileName = string.Empty;
+                    item.IsLocallyAvailable = false;
+                }
             }
 
             item.SourceIsDownloading = false;
@@ -485,6 +505,7 @@ namespace DiceAudio
             {
                 if (process != null && !process.HasExited)
                 {
+                    lock (_processLock) _aborted = process;
                     process.Kill(true);
                     reportStatus("Download aborted.");
                     return;
@@ -497,6 +518,43 @@ namespace DiceAudio
                 return;
             }
             reportStatus("No download in progress to abort.");
+        }
+
+        /// <summary>
+        /// Deletes the files a stopped download left in the audio folder (see
+        /// <see cref="DAAudioFileNames.IsDownloadLeftover"/>). yt-dlp and
+        /// ffmpeg may hold them for a moment after being killed, so a locked
+        /// file is tried again a few times; one that stays is left.
+        /// </summary>
+        private static async Task DeleteLeftoversAsync(string audioDir, HashSet<string> filesBefore, string? baseName)
+        {
+            for (int attempt = 0; attempt < 5; attempt++)
+            {
+                List<string> left;
+                try
+                {
+                    left = Directory.GetFiles(audioDir)
+                        .Where(f => !filesBefore.Contains(Path.GetFileName(f))
+                                    && DAAudioFileNames.IsDownloadLeftover(Path.GetFileName(f), baseName))
+                        .ToList();
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    Debug.WriteLine($"Listing the audio folder failed: {ex.Message}");
+                    return;
+                }
+                if (left.Count == 0) return;
+
+                foreach (var file in left)
+                {
+                    try { File.Delete(file); }
+                    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                    {
+                        Debug.WriteLine($"Deleting {file} after a stopped download failed: {ex.Message}");
+                    }
+                }
+                await Task.Delay(300);
+            }
         }
 
         /// <summary>

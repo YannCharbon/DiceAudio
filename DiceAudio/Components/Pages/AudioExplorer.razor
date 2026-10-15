@@ -275,6 +275,17 @@ else if (_breadcrumb.Any())
 @{
     var matches = shownItems;
     var shown = matches.Count > MaxRenderedItems ? matches.Take(MaxRenderedItems).ToList() : matches;
+    // In a folder: the items shown here that wait for their first download.
+    var toDownload = AcrossAllFolders ? new List<DAAudioItem>() : matches.Where(CanQueue).ToList();
+}
+@if (toDownload.Count > 0)
+{
+    <div class="da-irow" style="margin:4px 0 10px;">
+        <button type="button" class="da-btn da-btn-out da-btn-sm" title="@Portability.DownloadAllHelp"
+                disabled="@(!DAService.CanWriteData)" @onclick="() => Download(toDownload)">
+            <DaIcon Name="cloud-download" Size="16" />@string.Format(Portability.DownloadAllBtn, toDownload.Count)
+        </button>
+    </div>
 }
 <div class="@(_itemView == DAViewMode.Big ? "da-grid" : "da-list") @(_selectionMode ? "da-selectable" : "")">
     @foreach (var item in shown)
@@ -336,6 +347,7 @@ else if (_breadcrumb.Any())
     protected override void OnInitialized()
     {
         DownloadQueue.LibraryChanged += OnDownloadAdded;
+        DownloadQueue.Changed += OnDownloadProgress;
         BuildFolderTree();
         // initialize navigation at root
         _currentFolder = _rootFolder;
@@ -352,7 +364,28 @@ else if (_breadcrumb.Any())
         StateHasChanged();
     });
 
-    public void Dispose() => DownloadQueue.LibraryChanged -= OnDownloadAdded;
+    // The download list changed (an item queued, a download's progress): the
+    // status lines follow, at most a few times a second, since each redraw of
+    // the page redraws up to 200 cards.
+    private bool _progressRedrawPending;
+
+    void OnDownloadProgress()
+    {
+        if (_progressRedrawPending) return;
+        _progressRedrawPending = true;
+        _ = InvokeAsync(async () =>
+        {
+            await Task.Delay(500);
+            _progressRedrawPending = false;
+            StateHasChanged();
+        });
+    }
+
+    public void Dispose()
+    {
+        DownloadQueue.LibraryChanged -= OnDownloadAdded;
+        DownloadQueue.Changed -= OnDownloadProgress;
+    }
 
     // Renders once more when the tags arrive, which enables their editor.
     protected override async Task OnInitializedAsync()
@@ -493,10 +526,7 @@ else if (_breadcrumb.Any())
                 }
                 else
                 {
-                    <div class="da-offline">
-                        <DaIcon Name="cloud-download" Size="13" />
-                        Not downloaded yet
-                    </div>
+                    @RenderFileStatus(item)
                 }
                 <div class="da-acts">
                     <button type="button" class="da-ib" title="Edit tags" aria-label="Edit tags"
@@ -559,10 +589,7 @@ else if (_breadcrumb.Any())
                 }
                 else
                 {
-                    <div class="da-offline">
-                        <DaIcon Name="cloud-download" Size="13" />
-                        Not downloaded yet
-                    </div>
+                    @RenderFileStatus(item)
                 }
             </div>
             <div class="da-acts" @onclick="@(() => { })" @onclick:stopPropagation="true">
@@ -682,6 +709,72 @@ else if (_breadcrumb.Any())
             </div>
         </article>;
     };
+
+    /// What an item without its file shows: its state, with Download and
+    /// Pick file… when they apply, or the progress of its download.
+    RenderFragment RenderFileStatus(DAAudioItem item) => __builder =>
+    {
+        var job = DownloadQueue.ActiveJobFor(item);
+        var status = item.FileStatus();
+        <div class="da-irow da-irow-wrap" style="gap:6px;">
+            @if (job != null)
+            {
+                <span class="da-offline">
+                    <DaIcon Name="cloud-download" Size="13" />
+                    @(job.State == DADownloadState.Downloading ? string.Format(Portability.FileDownloading, item.SourceDownloadProgress) : Portability.FileWaiting)
+                </span>
+            }
+            else
+            {
+                <span class="da-offline">
+                    <DaIcon Name="@(status == DAFileStatus.NotDownloaded ? "cloud-download" : "folder-off")" Size="13" />
+                    @(status switch
+                    {
+                        DAFileStatus.NotDownloaded => Portability.FileNotDownloaded,
+                        DAFileStatus.NotFound => Portability.FileNotFound,
+                        _ => Portability.FileNone,
+                    })
+                </span>
+                @if (item.CanDownload())
+                {
+                    <button type="button" class="da-btn da-btn-out da-btn-sm" title="@Portability.DownloadHelp"
+                            disabled="@(!DAService.CanWriteData)" @onclick="() => Download(new[] { item })">
+                        <DaIcon Name="cloud-download" Size="14" />@Portability.DownloadBtn
+                    </button>
+                }
+                @if (item.CanPickFile())
+                {
+                    <button type="button" class="da-btn da-btn-out da-btn-sm" title="@Portability.PickFileHelp"
+                            disabled="@(!DAService.CanWriteData)" @onclick="() => PickFile(item)">
+                        <DaIcon Name="folder-open" Size="14" />@Portability.PickFileBtn
+                    </button>
+                }
+            }
+        </div>
+    };
+
+    /// Waiting for its first download, and not already in the download list.
+    bool CanQueue(DAAudioItem item) => item.FileStatus() == DAFileStatus.NotDownloaded && DownloadQueue.ActiveJobFor(item) == null;
+
+    void Download(IEnumerable<DAAudioItem> items)
+    {
+        if (!DAService.CanWriteData) return;
+        DownloadQueue.EnqueueLibraryItems(items.ToList());
+        StateHasChanged();
+    }
+
+    async Task PickFile(DAAudioItem item)
+    {
+        try
+        {
+            if (await Imports.PickFileForAsync(item)) StateHasChanged();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            Debug.WriteLine($"Copying the picked file failed: {ex.Message}");
+            Notifications.Show(Portability.PickFileBtn, ex.Message, PopupNotificationService.Type.FAILURE, 6000);
+        }
+    }
 
     // modal helpers
     void OpenAudioTagsPicker(DAAudioItem item) { _currentAudioItemForTagsPicker = item;  AudioTagsPickerModalRef?.Show(); }

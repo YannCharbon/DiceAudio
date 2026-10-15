@@ -110,5 +110,24 @@ namespace DiceAudio
                 candidate = $"{wanted} ({n})";
             return candidate;
         }
+
+        /// <summary>
+        /// Whether a file that appeared in the audio folder during a download
+        /// that was stopped belongs to that download, and so is deleted: with
+        /// the name given to yt-dlp, any file of that name ("Name.webm.part",
+        /// "Name.temp.mp3", "Name.mp3"…); without it, only yt-dlp's own
+        /// temporary files (".part", ".ytdl", "-Frag" pieces, ".temp.").
+        /// A file that appeared but is none of these, for example one copied
+        /// by "Pick file…" at the same time, is left alone.
+        /// </summary>
+        public static bool IsDownloadLeftover(string fileName, string? baseName)
+        {
+            if (!string.IsNullOrEmpty(baseName))
+                return fileName.StartsWith(baseName + ".", StringComparison.OrdinalIgnoreCase);
+            return fileName.EndsWith(".part", StringComparison.OrdinalIgnoreCase)
+                || fileName.EndsWith(".ytdl", StringComparison.OrdinalIgnoreCase)
+                || fileName.Contains(".part-Frag", StringComparison.OrdinalIgnoreCase)
+                || fileName.Contains(".temp.", StringComparison.OrdinalIgnoreCase);
+        }
     }
 }

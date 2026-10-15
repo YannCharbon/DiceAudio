@@ -113,6 +113,12 @@ namespace DiceAudio
         /// <summary>Every download of this session, oldest first, until the finished ones are cleared.</summary>
         public IReadOnlyList<DADownloadJob> Jobs { get { lock (_gate) return _jobs.ToList(); } }
 
+        /// <summary>The download of this item that is waiting or running, if any.</summary>
+        public DADownloadJob? ActiveJobFor(DAAudioItem item)
+        {
+            lock (_gate) return _jobs.FirstOrDefault(j => ReferenceEquals(j.Item, item) && !j.IsFinished);
+        }
+
         /// <summary>True while a download is running or waiting.</summary>
         public bool IsBusy { get { lock (_gate) return _jobs.Any(j => !j.IsFinished); } }
 
@@ -309,15 +315,27 @@ namespace DiceAudio
             if (planned != null)
             {
                 string wanted = Path.GetFileNameWithoutExtension(planned);
-                var taken = await OnUiAsync(() => ClaimedFileNames()).ConfigureAwait(false);
+                // The item's own name does not count: it may name a file that is missing.
+                var taken = await OnUiAsync(() => ClaimedFileNames(except: item)).ConfigureAwait(false);
                 baseName = DAAudioFileNames.UniqueBaseName(wanted, ".mp3", name => taken.Contains(name));
             }
 
             if (Cancelled(job)) return;
 
+            // A cancelled download leaves no file (the runner deletes what it
+            // wrote), so the item keeps the file name it had before.
+            string nameBefore = item.LocalFileName;
             await _runner.RunYtDlpAsync(item, _ => RaiseChanged(force: false), baseName).ConfigureAwait(false);
 
-            if (Cancelled(job)) return;
+            if (Cancelled(job))
+            {
+                if (job.InLibrary)
+                {
+                    item.LocalFileName = nameBefore;
+                    item.IsLocallyAvailable = false;
+                }
+                return;
+            }
 
             if (!item.IsLocallyAvailable)
             {
@@ -418,8 +436,8 @@ namespace DiceAudio
             return null;
         }
 
-        private HashSet<string> ClaimedFileNames() => new(
-            _library.AudioItems.Where(a => !string.IsNullOrEmpty(a.LocalFileName)).Select(a => a.LocalFileName),
+        private HashSet<string> ClaimedFileNames(DAAudioItem? except = null) => new(
+            _library.AudioItems.Where(a => !ReferenceEquals(a, except) && !string.IsNullOrEmpty(a.LocalFileName)).Select(a => a.LocalFileName),
             StringComparer.OrdinalIgnoreCase);
 
         private Task<T> OnUiAsync<T>(Func<T> read) => _library.OnUiAsync(read);

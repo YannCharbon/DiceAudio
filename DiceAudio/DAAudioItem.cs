@@ -88,4 +88,34 @@ namespace DiceAudio
             Name = name;
         }
     }
+
+    /// <summary>Where the audio file of an item stands, as the Explorer shows it.</summary>
+    public enum DAFileStatus
+    {
+        /// <summary>The file is in the audio folder (perhaps only in the cloud).</summary>
+        Available,
+        /// <summary>A link and no file name: "Not downloaded yet", with Download.</summary>
+        NotDownloaded,
+        /// <summary>A file name whose file is not there: "Not found on disk", with Pick file… (and Download with a link).</summary>
+        NotFound,
+        /// <summary>Neither a link nor a file name: "No audio file", with Pick file….</summary>
+        NoFile,
+    }
+
+    public static class DAFileStatusRules
+    {
+        public static DAFileStatus FileStatus(this DAAudioItem item) =>
+            item.IsLocallyAvailable ? DAFileStatus.Available
+            : !string.IsNullOrWhiteSpace(item.LocalFileName) ? DAFileStatus.NotFound
+            : item.HasLink() ? DAFileStatus.NotDownloaded
+            : DAFileStatus.NoFile;
+
+        public static bool HasLink(this DAAudioItem item) => !string.IsNullOrWhiteSpace(item.SourceURL);
+
+        /// <summary>Download is offered: the file is not there and the item has a link.</summary>
+        public static bool CanDownload(this DAAudioItem item) => !item.IsLocallyAvailable && item.HasLink();
+
+        /// <summary>Pick file… is offered: the file is not there and is not simply waiting to be downloaded.</summary>
+        public static bool CanPickFile(this DAAudioItem item) => item.FileStatus() is DAFileStatus.NotFound or DAFileStatus.NoFile;
+    }
 }

@@ -153,7 +153,7 @@
                 <div class="da-irow da-irow-wrap">
                     <div style="flex:1; min-width:0;">
                         <div style="font-weight:600;">@item.Name</div>
-                        <div class="da-meta">@StateLabel(job) · @DAService.FolderDisplayPath(job.TargetFolder)</div>
+                        <div class="da-meta">@StateLabel(job) · @DAService.FolderDisplayPath(JobFolder(job))</div>
                     </div>
                     <div class="progress-spinner" style="@GetSpinnerStyle(job)"></div>
                     @if (item.IsLocallyAvailable && job.IsFinished)
@@ -220,6 +220,12 @@
     private void OnQueueChanged() => _ = InvokeAsync(StateHasChanged);
 
     public void Dispose() => Queue.Changed -= OnQueueChanged;
+
+    /// The folder a download goes to: the one chosen for a new link, or the
+    /// folder an item of the library (after an import, or "Download" in the
+    /// Explorer) is already in.
+    private DAVirtualAudioFolder? JobFolder(DADownloadJob job) =>
+        job.InLibrary ? DAService.AudioVirtualFolders.FirstOrDefault(f => f.Name == job.Item.Folder?.Name) : job.TargetFolder;
 
     private async Task OnTargetFolderChanged(DAVirtualAudioFolder? folder)
     {

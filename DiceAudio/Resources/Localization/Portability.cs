@@ -58,11 +58,17 @@ namespace DiceAudio.Resources.Localization
         public const string ExportNoSourceWarning =
             "{0} audio items have no download link, and their file is not included. " +
             "The person who imports will have to pick their own file for them.";
+        public const string ExportNoSourceWarningOne =
+            "1 audio item has no download link, and its file is not included. " +
+            "The person who imports will have to pick their own file for it.";
 
         /// <summary>New string (not in the spec): broken references found while exporting.</summary>
         public const string ExportBrokenReferences =
             "{0} references point to audio items or scenes that are no longer in your library. " +
             "They are exported as they are, and the person who imports is told about them.";
+        public const string ExportBrokenReferencesOne =
+            "1 reference points to an audio item or a scene that is no longer in your library. " +
+            "It is exported as it is, and the person who imports is told about it.";
 
         /// <summary>New string (not in the spec): the file type shown in the save window.</summary>
         public const string ExportFileType = "DiceAudio file";
@@ -195,13 +201,15 @@ namespace DiceAudio.Resources.Localization
 
         /// <summary>New strings (round 2): the file holds nothing of what the page that opened the import is about.</summary>
         public const string ImportOriginNoAudio =
-            "You opened this from the Explorer, but this file contains no audio item or folder. You can still import the rest of its content.";
+            "You opened this from the Explorer, but this file contains no audio item or folder.";
         public const string ImportOriginNoScene =
-            "You opened this from the Scenes page, but this file contains no scene. You can still import the rest of its content.";
+            "You opened this from the Scenes page, but this file contains no scene.";
         public const string ImportOriginNoScenario =
-            "You opened this from the Scenarios page, but this file contains no scenario group, scenario or scenario item. You can still import the rest of its content.";
+            "You opened this from the Scenarios page, but this file contains no scenario group, scenario or scenario item.";
         public const string ImportOriginNoLocalScene =
-            "You opened this from the local scenes of \"{0}\", but this file contains no scene. You can still import the rest of its content.";
+            "You opened this from the local scenes of \"{0}\", but this file contains no scene.";
+        /// <summary>Added to those warnings when the file has something to import.</summary>
+        public const string ImportOriginRest = "You can still import the rest of its content.";
         public const string ImportIntoGroupNote = "The scenes of this file are added to the local scenes of \"{0}\".";
 
         public const string WizardSkipWarningTitle = "Other content uses this one";
@@ -232,6 +240,10 @@ namespace DiceAudio.Resources.Localization
             "Some of the content of this file refers to things that are not in it ({0} references). It is imported without them.";
         public const string WarningBrokenReferencesFolder =
             "Some of the content of this folder refers to things that are not in it ({0} references). It is added without them.";
+        public const string WarningBrokenReferenceOne =
+            "Some of the content of this file refers to something that is not in it (1 reference). It is imported without it.";
+        public const string WarningBrokenReferenceOneFolder =
+            "Some of the content of this folder refers to something that is not in it (1 reference). It is added without it.";
 
         public const string KindTag = "Tags";
         public const string KindFolder = "Folders";

@@ -50,7 +50,7 @@
                         <p class="da-confirm-msg" style="color:var(--danger);">@_error</p>
                     </div>
                     <div class="da-confirm-foot imp-foot">
-                        <button type="button" class="da-btn da-btn-fill" @onclick="Close"><DaIcon Name="check" /> @Portability.AlertCloseBtn</button>
+                        <button type="button" data-da-cancel class="da-btn da-btn-fill" @onclick="Close"><DaIcon Name="check" /> @Portability.AlertCloseBtn</button>
                     </div>
                     break;
 
@@ -64,7 +64,7 @@
                         }
                     </div>
                     <div class="da-confirm-foot imp-foot">
-                        <button type="button" class="da-btn" @onclick="Close">@Portability.WizardCancelBtn</button>
+                        <button type="button" data-da-cancel class="da-btn" @onclick="Close">@Portability.WizardCancelBtn</button>
                         <button type="button" class="da-btn da-btn-out" @onclick="ContinueWithoutPack">@Portability.MediaPackSkipBtn</button>
                         <button type="button" class="da-btn da-btn-fill" @onclick="PickPack"><DaIcon Name="folder-open" /> @Portability.MediaPackOpenBtn</button>
                     </div>
@@ -303,7 +303,7 @@
         </div>
 
         <div class="da-confirm-foot imp-foot">
-            <button type="button" class="da-btn" @onclick="Close">@(nothing ? Portability.AlertCloseBtn : Portability.WizardCancelBtn)</button>
+            <button type="button" data-da-cancel class="da-btn" @onclick="Close">@(nothing ? Portability.AlertCloseBtn : Portability.WizardCancelBtn)</button>
             @if (!nothing)
             {
                 <button type="button" class="da-btn da-btn-fill" disabled="@(!NamesValid())" @onclick="ApplyAsync">
@@ -319,7 +319,9 @@
     {
         @if (_originWarning != null)
         {
-            <div class="da-note imp-note imp-note-warn">@_originWarning</div>
+            // When everything is up to date, there is no "rest" to import.
+            bool nothing = _session!.Plan?.AllItems.All(i => i.Choice == ImportChoice.Nothing) == true;
+            <div class="da-note imp-note imp-note-warn">@(nothing ? _originWarning : _originWarning + " " + Portability.ImportOriginRest)</div>
         }
         @if (_intoGroupNote != null)
         {
@@ -327,7 +329,9 @@
         }
         @if (_session!.BrokenReferences > 0)
         {
-            <div class="da-note imp-note imp-note-warn">@string.Format(IsFolder ? Portability.WarningBrokenReferencesFolder : Portability.WarningBrokenReferences, _session.BrokenReferences)</div>
+            <div class="da-note imp-note imp-note-warn">@(_session.BrokenReferences == 1
+                    ? (IsFolder ? Portability.WarningBrokenReferenceOneFolder : Portability.WarningBrokenReferenceOne)
+                    : string.Format(IsFolder ? Portability.WarningBrokenReferencesFolder : Portability.WarningBrokenReferences, _session.BrokenReferences))</div>
         }
         @if (!string.IsNullOrEmpty(_session.PackProblem))
         {
@@ -584,7 +588,7 @@
         </div>
 
         <div class="da-confirm-foot imp-foot">
-            <button type="button" class="da-btn da-btn-fill" @onclick="Close"><DaIcon Name="check" /> @Portability.AlertCloseBtn</button>
+            <button type="button" data-da-cancel class="da-btn da-btn-fill" @onclick="Close"><DaIcon Name="check" /> @Portability.AlertCloseBtn</button>
         </div>
     };
 

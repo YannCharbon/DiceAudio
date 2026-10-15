@@ -726,7 +726,7 @@ else if (_breadcrumb.Any())
             }
             else
             {
-                <span class="da-offline">
+                <span class="da-offline" style="white-space:nowrap;">
                     <DaIcon Name="@(status == DAFileStatus.NotDownloaded ? "cloud-download" : "folder-off")" Size="13" />
                     @(status switch
                     {
@@ -735,20 +735,24 @@ else if (_breadcrumb.Any())
                         _ => Portability.FileNone,
                     })
                 </span>
-                @if (item.CanDownload())
-                {
-                    <button type="button" class="da-btn da-btn-out da-btn-sm" title="@Portability.DownloadHelp"
-                            disabled="@(!DAService.CanWriteData)" @onclick="() => Download(new[] { item })">
-                        <DaIcon Name="cloud-download" Size="14" />@Portability.DownloadBtn
-                    </button>
-                }
-                @if (item.CanPickFile())
-                {
-                    <button type="button" class="da-btn da-btn-out da-btn-sm" title="@Portability.PickFileHelp"
-                            disabled="@(!DAService.CanWriteData)" @onclick="() => PickFile(item)">
-                        <DaIcon Name="folder-open" Size="14" />@Portability.PickFileBtn
-                    </button>
-                }
+                @* The buttons stay together on one line; they move below the
+                   state only as a pair, when the space is too narrow. *@
+                <span class="da-irow" style="gap:4px; flex-wrap:nowrap;">
+                    @if (item.CanDownload())
+                    {
+                        <button type="button" class="da-btn da-btn-out da-btn-sm" style="padding:0 8px; white-space:nowrap;" title="@Portability.DownloadHelp"
+                                disabled="@(!DAService.CanWriteData)" @onclick="() => Download(new[] { item })">
+                            <DaIcon Name="cloud-download" Size="14" />@Portability.DownloadBtn
+                        </button>
+                    }
+                    @if (item.CanPickFile())
+                    {
+                        <button type="button" class="da-btn da-btn-out da-btn-sm" style="padding:0 8px; white-space:nowrap;" title="@Portability.PickFileHelp"
+                                disabled="@(!DAService.CanWriteData)" @onclick="() => PickFile(item)">
+                            <DaIcon Name="folder-open" Size="14" />@Portability.PickFileBtn
+                        </button>
+                    }
+                </span>
             }
         </div>
     };

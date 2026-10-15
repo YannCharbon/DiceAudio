@@ -186,7 +186,7 @@
                 </div>
             </div>
             <div class="da-confirm-foot">
-                <button type="button" class="da-btn" @onclick="() => _existing = null">@Portability.WizardCancelBtn</button>
+                <button type="button" data-da-cancel class="da-btn" @onclick="() => _existing = null">@Portability.WizardCancelBtn</button>
             </div>
         </div>
     </div>
@@ -205,7 +205,7 @@
                 }
             </div>
             <div class="da-confirm-foot">
-                <button type="button" class="da-btn da-btn-fill" @onclick="() => _showAll = false">
+                <button type="button" data-da-cancel class="da-btn da-btn-fill" @onclick="() => _showAll = false">
                     <DaIcon Name="check" /> @Portability.AlertCloseBtn
                 </button>
             </div>

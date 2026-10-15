@@ -37,7 +37,7 @@
             }
 
             <div class="da-confirm-foot">
-                <button type="button" class="da-btn" @onclick="() => Answer(false)">@_cancelText</button>
+                <button type="button" data-da-cancel class="da-btn" @onclick="() => Answer(false)">@_cancelText</button>
                 <button type="button" class="da-btn @(Destructive ? "da-btn-danger" : "da-btn-fill")"
                         @onclick="() => Answer(true)">
                     <DaIcon Name="@(Destructive ? "delete" : "check")" />

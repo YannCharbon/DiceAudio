@@ -110,18 +110,18 @@
             <div class="da-confirm-foot">
                 @if (_done)
                 {
-                    <button type="button" class="da-btn da-btn-fill" @onclick="Close">
+                    <button type="button" data-da-cancel class="da-btn da-btn-fill" @onclick="Close">
                         <DaIcon Name="check" />@Portability.AlertCloseBtn
                     </button>
                 }
                 else if (_saving)
                 {
                     @* Stops the export; nothing half-written is left behind. *@
-                    <button type="button" class="da-btn" @onclick="() => _cts?.Cancel()">@Portability.WizardCancelBtn</button>
+                    <button type="button" data-da-cancel class="da-btn" @onclick="() => _cts?.Cancel()">@Portability.WizardCancelBtn</button>
                 }
                 else
                 {
-                    <button type="button" class="da-btn" @onclick="Close">@Portability.WizardCancelBtn</button>
+                    <button type="button" data-da-cancel class="da-btn" @onclick="Close">@Portability.WizardCancelBtn</button>
                     <button type="button" class="da-btn da-btn-fill"
                             disabled="@(_bundle == null || _summary.Count == 0)" @onclick="SaveAsync">
                         <DaIcon Name="upload" />@Portability.ExportItemBtn
@@ -227,8 +227,8 @@
         if (_bundle == null) yield break;
         int nothing = Exports.NothingToGetCount(_bundle, _includeMedia);
         int broken = _bundle.Warnings.Count(w => w.Code == DAWarningCode.BrokenReference);
-        if (nothing > 0) yield return string.Format(Portability.ExportNoSourceWarning, nothing);
-        if (broken > 0) yield return string.Format(Portability.ExportBrokenReferences, broken);
+        if (nothing > 0) yield return (nothing == 1 ? Portability.ExportNoSourceWarningOne : string.Format(Portability.ExportNoSourceWarning, nothing));
+        if (broken > 0) yield return (broken == 1 ? Portability.ExportBrokenReferencesOne : string.Format(Portability.ExportBrokenReferences, broken));
     }
 
     private void Add(string format, int count)

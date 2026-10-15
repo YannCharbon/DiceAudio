@@ -33,15 +33,18 @@ namespace DiceAudio.Portability
     public static class DAImportFollowUp
     {
         /// <summary>
-        /// The imported items that still need a file: every audio item of the
-        /// file that was not skipped and whose library item has no file here.
+        /// The imported items that still need a file: every audio item this
+        /// import added or replaced and whose library item has no file here.
         /// Paired with its record (the original file name and size).
         /// </summary>
         public static List<(DAAudioItem Item, DAAudioItemRecord Record, Guid IncomingId)> ItemsNeedingFiles(
             DAImportPlan plan, DAImportResult result, string audioDir)
         {
             var list = new List<(DAAudioItem, DAAudioItemRecord, Guid)>();
-            foreach (var planItem in plan.Items.Where(i => i.Kind == DAAssetKind.AudioItem && i.Choice != ImportChoice.Skip))
+            // Only what this import added or replaced: an item that was up to
+            // date, or kept as it was, is left alone (Download and Pick file…
+            // in the Explorer are there for those).
+            foreach (var planItem in plan.Items.Where(i => i.Kind == DAAssetKind.AudioItem && i.Inserts))
             {
                 if (planItem.IncomingId is not Guid id || !result.FinalItems.TryGetValue(id, out var item)) continue;
                 if (HasFile(item, audioDir)) continue;

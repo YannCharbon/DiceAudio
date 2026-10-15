@@ -58,6 +58,12 @@ namespace DiceAudio
     }
 
     /// <summary>
+    /// Where an import was asked for: the page, and for the local scenes of a
+    /// scenario group, that group (its scenes are imported into it).
+    /// </summary>
+    public sealed record DAImportRequest(DAImportOrigin Origin, Guid? GroupId = null, string? GroupName = null);
+
+    /// <summary>
     /// The import (spec §3.2), from the app's side: the file, the plan, the
     /// apply with its safety net (a before-import backup, playback and
     /// downloads stopped, every save awaited, the library put back on
@@ -85,9 +91,13 @@ namespace DiceAudio
         }
 
         /// <summary>Raised when a page asks for an import; the wizard opens.</summary>
-        public event Action? Requested;
+        public event Action<DAImportRequest>? Requested;
 
-        public void RequestImport() => Requested?.Invoke();
+        public void RequestImport(DAImportOrigin origin) => Requested?.Invoke(new DAImportRequest(origin));
+
+        /// <summary>From the local scenes of a group: the scenes of the file become local scenes of it.</summary>
+        public void RequestImportIntoGroup(DAScenarioGroup group) =>
+            Requested?.Invoke(new DAImportRequest(DAImportOrigin.LocalScenes, group.Id, group.Name));
 
         /// <summary>Raised to import a bundle that is not a file (a merge with another data folder); the wizard opens on it.</summary>
         public event Action<DAImportSession, TaskCompletionSource<bool>>? BundleRequested;
@@ -307,6 +317,7 @@ namespace DiceAudio
         /// <summary>"Pick file…": copies a file the user picks into the audio folder, under a new name, for this item.</summary>
         public async Task<bool> PickFileForAsync(DAAudioItem item)
         {
+            if (!_service.CanWriteData) return false;
             var paths = await DAImportHelper.PickFilesAsync();
             string? source = paths.FirstOrDefault();
             if (source == null) return false;
@@ -316,6 +327,7 @@ namespace DiceAudio
             await Task.Run(() => File.Copy(source, Path.Combine(audioDir, name), overwrite: false));
             item.LocalFileName = name;
             item.IsLocallyAvailable = true;
+            item.IsCloudOnly = false;
             await _service.SaveAudioItemListAsync();
             return true;
         }

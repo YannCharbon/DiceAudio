@@ -160,7 +160,9 @@ namespace DiceAudio.Resources.Localization
         public const string ChoiceImportWithNewName = "Import with a new name";
         public const string ChoiceKeepBothSameName = "Keep both with the same name";
         public const string ChoiceUseLocal = "Use the local one instead";
-        public const string ChoiceApplyToAll = "Apply to all of this kind";
+
+        /// <summary>New string (round 2): {0} = how many, {1} = the kind in the plural, {2} = the status.</summary>
+        public const string ChoiceSameForAll = "Same choice for all {0} {1} marked “{2}”";
 
         public const string ChoiceImportHelp = "Adds it to your library.";
         public const string ChoiceSkipHelp = "Leaves it out of the import.";
@@ -184,6 +186,24 @@ namespace DiceAudio.Resources.Localization
         public const string WizardNewName = "New name";
         public const string WizardNameEmpty = "Please enter a name.";
         public const string WizardNameTaken = "This name is already used. Please choose another one.";
+        /// <summary>New strings (round 2): the bar that sets the names of the items imported under a new name.</summary>
+        public const string WizardNamesLabel = "Names of copies:";
+        public const string WizardNamesWord = "name";
+        public const string WizardNamesBefore = "Text before the name";
+        public const string WizardNamesAfter = "Text after the name";
+        public const string WizardNamesHelp = "Changes every new name below that you have not typed yourself.";
+
+        /// <summary>New strings (round 2): the file holds nothing of what the page that opened the import is about.</summary>
+        public const string ImportOriginNoAudio =
+            "You opened this from the Explorer, but this file contains no audio item or folder. You can still import the rest of its content.";
+        public const string ImportOriginNoScene =
+            "You opened this from the Scenes page, but this file contains no scene. You can still import the rest of its content.";
+        public const string ImportOriginNoScenario =
+            "You opened this from the Scenarios page, but this file contains no scenario group, scenario or scenario item. You can still import the rest of its content.";
+        public const string ImportOriginNoLocalScene =
+            "You opened this from the local scenes of \"{0}\", but this file contains no scene. You can still import the rest of its content.";
+        public const string ImportIntoGroupNote = "The scenes of this file are added to the local scenes of \"{0}\".";
+
         public const string WizardSkipWarningTitle = "Other content uses this one";
         public const string WizardSkipWarning = "If you do not import \"{0}\", the following will be imported without it: {1}";
         public const string WizardConfirmBtn = "Import";
@@ -243,6 +263,18 @@ namespace DiceAudio.Resources.Localization
             "These audio items have no file yet. Pick a file from your computer for each of them, or leave them for later: " +
             "the Explorer can show them with the \"Missing files\" filter.";
         public const string PickFileBtn = "Pick file…";
+
+        /// <summary>New strings (round 2): the file of an audio item, in the Explorer.</summary>
+        public const string FileNotDownloaded = "Not downloaded yet";
+        public const string FileNotFound = "Not found on disk";
+        public const string FileNone = "No audio file";
+        public const string FileWaiting = "Waiting to download";
+        public const string FileDownloading = "Downloading… {0}%";
+        public const string DownloadBtn = "Download";
+        public const string DownloadHelp = "Downloads the audio file from the link of this item.";
+        public const string DownloadAllBtn = "Download all ({0})";
+        public const string DownloadAllHelp = "Downloads the audio files of the items shown here that have a link but no file yet.";
+        public const string PickFileHelp = "Choose an audio file on this computer for this item. A copy of it is kept in the audio folder.";
 
         /// <summary>Spec §8.1 (the move wizard's text), used too when the audio file pack does not fit.</summary>
         public const string MoveErrorNoSpace = "There is not enough free space on this drive: {0} needed, {1} available.";

@@ -12,6 +12,7 @@
 @inject PopupNotificationService Notifications
 @inject NavigationManager NavManager
 @inject DABundleExportService Exports
+@inject DAImportService Imports
 
 <style>
     .scm-header {
@@ -222,6 +223,11 @@ else
                     @DiceAudio.Resources.Localization.Portability.ExportGroupScenesBtn
                 </button>
             }
+
+            <button type="button" class="da-btn da-btn-out" @onclick="() => Imports.RequestImportIntoGroup(_group)">
+                <DaIcon Name="upload-file" Size="16" />
+                @DiceAudio.Resources.Localization.Portability.ImportFromFileBtn
+            </button>
 
             @if (DAService.Scenes.Count > 0)
             {

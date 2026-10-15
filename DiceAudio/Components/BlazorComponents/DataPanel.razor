@@ -91,7 +91,7 @@
                 <DaIcon Name="upload" Size="16" />
                 @Portability.ExportLibraryBtn
             </button>
-            <button type="button" class="da-btn da-btn-out" @onclick="Imports.RequestImport">
+            <button type="button" class="da-btn da-btn-out" @onclick="() => Imports.RequestImport(DiceAudio.Portability.DAImportOrigin.Settings)">
                 <DaIcon Name="upload-file" Size="16" />
                 @Portability.ImportFromFileBtn
             </button>

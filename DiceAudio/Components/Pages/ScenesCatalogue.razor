@@ -9,6 +9,7 @@
 @page "/scenes"
 @inject DiceAudioService DAService
 @inject DABundleExportService Exports
+@inject DAImportService Imports
 
 <style>
     /* The card itself is .da-strip and the tile .da-icon, both from app.css:
@@ -28,7 +29,7 @@
     Scenes from this catalogue can be copied into scenarios.
 </p>
 
-<div class="da-irow" style="gap:10px; margin-bottom:10px;">
+<div class="da-irow da-irow-wrap" style="gap:10px; margin-bottom:10px;">
     <button type="button" class="da-btn da-btn-fill" @onclick="CreateScene">
         <DaIcon Name="add" Size="16" />
         New scene
@@ -41,6 +42,11 @@
             @DiceAudio.Resources.Localization.Portability.ExportAllScenesBtn
         </button>
     }
+
+    <button type="button" class="da-btn da-btn-out" @onclick="() => Imports.RequestImport(DiceAudio.Portability.DAImportOrigin.Scenes)">
+        <DaIcon Name="upload-file" Size="16" />
+        @DiceAudio.Resources.Localization.Portability.ImportFromFileBtn
+    </button>
 
     @{ var scenePresets = DAService.Presets.Where(p => p.Kind == DAPresetKind.Scene).ToList(); }
     @if (scenePresets.Count > 0)

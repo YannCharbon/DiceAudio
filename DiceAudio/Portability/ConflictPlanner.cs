@@ -29,10 +29,22 @@ namespace DiceAudio.Portability
         /// <summary>A local scene record placed with the scenario item record that plays it (spec §4.1, Targets).</summary>
         private readonly Dictionary<DAImportItem, DAImportItem> _followers = new();
 
+        /// <summary>Items whose new name the user typed: a change of the name affixes leaves them alone.</summary>
+        private readonly HashSet<DAImportItem> _namedByHand = new(ReferenceEqualityComparer.Instance);
+
         public ConflictPlanner(DALibrarySnapshot local)
         {
             _local = local;
         }
+
+        /// <summary>The suffix new names get by default: "Name (2)", as before the affixes existed.</summary>
+        public const string DefaultNameSuffix = " (2)";
+
+        /// <summary>Put before the name of every item imported under a new name (the wizard's "Names of copies" bar).</summary>
+        public string NamePrefix { get; private set; } = "";
+
+        /// <summary>Put after the name of every item imported under a new name.</summary>
+        public string NameSuffix { get; private set; } = DefaultNameSuffix;
 
         /// <summary>Folder ids already used in the library: an imported folder that reuses one gets a new id.</summary>
         public IReadOnlySet<Guid> LocalFolderIds => _local.Folders.Select(f => f.Id).ToHashSet();
@@ -141,7 +153,7 @@ namespace DiceAudio.Portability
             // Defaults that rename (Import as a copy, Import with a new name) get
             // their unique name now that every scope is known, in plan order.
             foreach (var item in plan.Items.Where(i => i.NeedsNewName && i.NewName == null))
-                item.NewName = MakeUniqueName(plan, item, item.IncomingName);
+                item.NewName = DefaultNewName(plan, item);
             return plan;
         }
 
@@ -313,18 +325,58 @@ namespace DiceAudio.Portability
             item.Status = status;
             item.AllowedChoices = ChoicesFor(item.Kind, status);
             item.Choice = DefaultChoice(item.Kind, status);
-            item.NewName = item.NeedsNewName ? MakeUniqueName(plan, item, item.IncomingName) : null;
+            _namedByHand.Remove(item);
+            item.NewName = item.NeedsNewName ? DefaultNewName(plan, item) : null;
         }
 
         // ── Choices and names ──────────────────────────────────────────────
 
-        /// <summary>Sets a choice, gives it a unique new name when it needs one, and expands or clears a Merge.</summary>
+        /// <summary>
+        /// Sets a choice, gives it a suggested new name when it needs one (a
+        /// valid name typed by hand is kept), and expands or clears a Merge.
+        /// </summary>
         public void SetChoice(DAImportPlan plan, DAImportItem item, ImportChoice choice)
         {
             if (!item.AllowedChoices.Contains(choice)) return;
             item.Choice = choice;
-            item.NewName = item.NeedsNewName ? MakeUniqueName(plan, item, item.NewName ?? item.IncomingName) : null;
+            if (item.NeedsNewName && !KeepsTypedName(plan, item)) item.NewName = DefaultNewName(plan, item);
             ExpandMerge(plan, item);
+        }
+
+        private bool KeepsTypedName(DAImportPlan plan, DAImportItem item) =>
+            _namedByHand.Contains(item) && item.NewName != null && IsNameAvailable(plan, item, item.NewName);
+
+        /// <summary>A new name the user typed: kept as it is when the name affixes change.</summary>
+        public void SetNewName(DAImportItem item, string? name)
+        {
+            item.NewName = name;
+            _namedByHand.Add(item);
+        }
+
+        public bool IsNamedByHand(DAImportItem item) => _namedByHand.Contains(item);
+
+        /// <summary>
+        /// Changes the text put before and after the names of the items
+        /// imported under a new name, and gives each of them, except those
+        /// named by hand, its new default name, made unique in plan order.
+        /// </summary>
+        public void SetNameAffixes(DAImportPlan plan, string? prefix, string? suffix)
+        {
+            NamePrefix = prefix ?? "";
+            NameSuffix = suffix ?? "";
+            RenameSuggested(plan, plan.AllItems.Where(i => i.NeedsNewName && !_namedByHand.Contains(i)).ToList());
+        }
+
+        /// <summary>The name an item imported under a new name gets unless the user types one: the affixes around its trimmed name, made unique.</summary>
+        public string DefaultNewName(DAImportPlan plan, DAImportItem item) =>
+            MakeUniqueName(plan, item, NamePrefix + item.IncomingName.Trim() + NameSuffix);
+
+        // Suggests the names again, in plan order. The old names are moved out
+        // of the way first, so that a name about to change never blocks another.
+        private void RenameSuggested(DAImportPlan plan, IReadOnlyList<DAImportItem> items)
+        {
+            foreach (var item in items) item.NewName = Guid.NewGuid().ToString();
+            foreach (var item in items) item.NewName = DefaultNewName(plan, item);
         }
 
         /// <summary>
@@ -356,21 +408,28 @@ namespace DiceAudio.Portability
                 container.Children.Add(NewItem(DAAssetKind.LocalScene, scene, scene.Id, scene.Name, status, match, container));
             }
             foreach (var child in container.Children)
-                if (child.NeedsNewName) child.NewName = MakeUniqueName(plan, child, child.IncomingName);
+                if (child.NeedsNewName) child.NewName = DefaultNewName(plan, child);
         }
 
         /// <summary>
-        /// Sets the same choice on every item of this kind and status that
-        /// allows it; each new name is made unique again.
+        /// "Same choice for all…": the same choice on every item of this kind
+        /// and status that allows it. Names typed by hand are kept while they
+        /// are valid; the others are suggested again.
         /// </summary>
         public void ApplyToAllOfKind(DAImportPlan plan, DAAssetKind kind, ImportStatus status, ImportChoice choice)
         {
-            foreach (var item in plan.AllItems.Where(i => i.Kind == kind && i.Status == status && i.AllowedChoices.Contains(choice)).ToList())
+            var items = plan.AllItems.Where(i => i.Kind == kind && i.Status == status && i.AllowedChoices.Contains(choice)).ToList();
+            foreach (var item in items)
             {
-                item.NewName = null;
-                SetChoice(plan, item, choice);
+                item.Choice = choice;
+                ExpandMerge(plan, item);
             }
+            RenameSuggested(plan, items.Where(i => i.NeedsNewName && !KeepsTypedName(plan, i)).ToList());
         }
+
+        /// <summary>The items "Same choice for all…" is about: those of the same kind and status.</summary>
+        public static IReadOnlyList<DAImportItem> SameKindAndStatus(DAImportPlan plan, DAImportItem item) =>
+            plan.AllItems.Where(i => i.Kind == item.Kind && i.Status == item.Status).ToList();
 
         /// <summary>
         /// The rename rules (spec §4.1): trimmed, not empty, not "." for a
@@ -392,10 +451,19 @@ namespace DiceAudio.Portability
         /// <summary><paramref name="wanted"/>, else "wanted (2)", "(3)"… — the first name that is available.</summary>
         public string MakeUniqueName(DAImportPlan plan, DAImportItem item, string wanted)
         {
-            wanted = string.IsNullOrWhiteSpace(wanted) ? item.IncomingName : wanted.Trim();
+            wanted = string.IsNullOrWhiteSpace(wanted) ? item.IncomingName.Trim() : wanted.Trim();
             if (IsNameAvailable(plan, item, wanted)) return wanted;
-            string stem = System.Text.RegularExpressions.Regex.Replace(wanted, @" \(\d+\)$", "");
-            for (int n = 2; ; n++)
+            // A name that already ends with a number in brackets counts on from
+            // it: "name (2)" is followed by "name (3)", never "name (2) (2)".
+            string stem = wanted;
+            int n = 2;
+            var numbered = System.Text.RegularExpressions.Regex.Match(wanted, @"^(.*\S)\s*\((\d{1,6})\)$");
+            if (numbered.Success)
+            {
+                stem = numbered.Groups[1].Value;
+                n = int.Parse(numbered.Groups[2].Value, System.Globalization.CultureInfo.InvariantCulture) + 1;
+            }
+            for (; ; n++)
             {
                 string candidate = $"{stem} ({n})";
                 if (IsNameAvailable(plan, item, candidate)) return candidate;

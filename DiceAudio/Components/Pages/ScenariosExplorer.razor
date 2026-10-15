@@ -10,6 +10,7 @@
 @inject DiceAudioService DAService
 @inject NavigationManager NavManager
 @inject DABundleExportService Exports
+@inject DAImportService Imports
 
 <style>
 
@@ -33,6 +34,10 @@
     <button type="button" class="da-btn da-btn-fill" @onclick="CreateNewGroup">
         <DaIcon Name="add" Size="16" />
         New scenario group
+    </button>
+    <button type="button" class="da-btn da-btn-out" @onclick="() => Imports.RequestImport(DiceAudio.Portability.DAImportOrigin.Scenarios)">
+        <DaIcon Name="upload-file" Size="16" />
+        @DiceAudio.Resources.Localization.Portability.ImportFromFileBtn
     </button>
 </div>
 

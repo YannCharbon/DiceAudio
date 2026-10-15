@@ -7,7 +7,7 @@
 *@
 
 @*
-    The import, full screen (spec §3.2 and §7.2). It sits in the main layout
+    The import, in a dialog (spec §3.2 and §7.2). It sits in the main layout
     and opens when a page asks DAImportService for an import:
     the file → its audio files (when they are not next to it) → the choices
     (only when something conflicts; otherwise a summary and one button) →
@@ -22,45 +22,48 @@
 @inject DiceAudioService AudioService
 
 <style>
-    .imp-screen {
-        position: fixed; left: 0; right: 0; bottom: 0; z-index: 2500;
-        background: var(--s1); color: var(--t1); overflow-y: auto; padding: 20px 24px 40px;
-    }
-    .imp-body { max-width: 980px; margin: 0 auto; }
-    .imp-kind { font-size: 15px; font-weight: 700; color: var(--a3); border-bottom: 1px solid var(--b1); padding: 14px 2px 4px; margin: 6px 0 8px; }
-    .imp-row { background: var(--s3); border: 1px solid var(--b1); border-radius: var(--r-card); padding: 10px 12px; margin-bottom: 8px; }
-    .imp-child { margin-left: 22px; }
-    .imp-name { font-weight: 600; }
-    .imp-status { font-size: 12px; padding: 1px 8px; border-radius: 10px; border: 1px solid var(--b2); margin-left: 8px; color: var(--t2); }
-    .imp-status-Differs, .imp-status-NameUsed { color: var(--warn); border-color: var(--warn); }
-    .imp-choices { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 8px; }
-    .imp-help { font-size: 12.5px; color: var(--t3); margin-top: 4px; }
+    .imp-dialog { width: min(560px, 100%); max-height: calc(100vh - 48px); display: flex; flex-direction: column; }
+    .imp-wide { width: min(880px, 100%); }
+    .imp-scroll { overflow-y: auto; min-height: 0; flex: 1 1 auto; padding-right: 4px; }
+    .imp-foot { margin-top: 14px; }
+    .imp-kind { font-size: 14px; font-weight: 700; color: var(--a3); border-bottom: 1px solid var(--b1); padding: 12px 2px 4px; margin: 4px 0 8px; }
+    .imp-item { margin-bottom: 8px; }
+    .imp-child { margin: 8px 0 0 18px; }
+    .imp-name { font-weight: 600; color: var(--t1); overflow-wrap: anywhere; }
+    .imp-status-warn { color: var(--warn); border-color: var(--warn); }
+    .imp-help { font-size: 12.5px; color: var(--t3); margin-top: 4px; line-height: 1.5; }
     .imp-warn { font-size: 13px; color: var(--warn); margin-top: 6px; }
-    .imp-foot { display: flex; justify-content: flex-end; gap: 9px; margin-top: 18px; position: sticky; bottom: 0; background: var(--s1); padding: 10px 0; }
+    .imp-note { margin-bottom: 10px; }
+    .imp-note-warn { border-left-color: var(--warn); }
+    .imp-list { margin: 0 0 12px; padding-left: 20px; font-size: 13.5px; line-height: 1.6; color: var(--t2); }
 </style>
 
 @if (_stage != Stage.Hidden)
 {
-    <div class="imp-screen" style="top:@(OperatingSystem.IsWindows() ? "82px" : "50px");">
-        <div class="imp-body">
-            <h3>@Portability.WizardTitle</h3>
-
+    <div class="da-confirm-scrim">
+        <div class="da-confirm imp-dialog @(IsWide ? "imp-wide" : "")" role="dialog" aria-modal="true" aria-labelledby="imp-title">
             @switch (_stage)
             {
                 case Stage.Error:
-                    <p class="da-confirm-msg" style="color:var(--danger);">@_error</p>
-                    <div class="imp-foot">
+                    <h3 id="imp-title" class="da-confirm-title">@Portability.WizardTitle</h3>
+                    <div class="imp-scroll">
+                        <p class="da-confirm-msg" style="color:var(--danger);">@_error</p>
+                    </div>
+                    <div class="da-confirm-foot imp-foot">
                         <button type="button" class="da-btn da-btn-fill" @onclick="Close"><DaIcon Name="check" /> @Portability.AlertCloseBtn</button>
                     </div>
                     break;
 
                 case Stage.AskPack:
-                    <p class="da-confirm-msg">@Portability.MediaPackAsk</p>
-                    @if (!string.IsNullOrEmpty(_session?.PackProblem))
-                    {
-                        <p class="imp-warn">@_session.PackProblem</p>
-                    }
-                    <div class="imp-foot">
+                    <h3 id="imp-title" class="da-confirm-title">@Portability.WizardTitle</h3>
+                    <div class="imp-scroll">
+                        <p class="da-confirm-msg">@Portability.MediaPackAsk</p>
+                        @if (!string.IsNullOrEmpty(_session?.PackProblem))
+                        {
+                            <p class="imp-warn">@_session.PackProblem</p>
+                        }
+                    </div>
+                    <div class="da-confirm-foot imp-foot">
                         <button type="button" class="da-btn" @onclick="Close">@Portability.WizardCancelBtn</button>
                         <button type="button" class="da-btn da-btn-out" @onclick="ContinueWithoutPack">@Portability.MediaPackSkipBtn</button>
                         <button type="button" class="da-btn da-btn-fill" @onclick="PickPack"><DaIcon Name="folder-open" /> @Portability.MediaPackOpenBtn</button>
@@ -72,6 +75,7 @@
                     break;
 
                 case Stage.Working:
+                    <h3 id="imp-title" class="da-confirm-title">@Portability.WizardTitle</h3>
                     <p class="da-confirm-msg">@Portability.ImportWorking</p>
                     break;
 
@@ -102,6 +106,16 @@
     /// <summary>A merge with another data folder: the texts speak of "this folder", not "this file".</summary>
     private bool IsFolder => _session?.MergeAudioDir != null;
 
+    /// <summary>The choices and a report with files to find need room; the other steps are short messages.</summary>
+    private bool IsWide => (_stage == Stage.Review && _session?.Plan?.HasConflicts == true)
+                           || (_stage == Stage.Report && _followUp?.Missing.Count > 0);
+
+    /// <summary>The file holds nothing of what the page it was opened from is about.</summary>
+    private string? _originWarning;
+
+    /// <summary>Opened from the local scenes of a group: where the scenes of the file go.</summary>
+    private string? _intoGroupNote;
+
     /// <summary>Set when the wizard was opened on a bundle by a merge; completed when it closes.</summary>
     private TaskCompletionSource<bool>? _completion;
 
@@ -129,13 +143,15 @@
         _result = null;
         _followUp = null;
         _imported = false;
+        _originWarning = null;
+        _intoGroupNote = null;
         Analyse();
         StateHasChanged();
     });
 
-    private void OnRequested() => _ = InvokeAsync(StartAsync);
+    private void OnRequested(DAImportRequest request) => _ = InvokeAsync(() => StartAsync(request));
 
-    private async Task StartAsync()
+    private async Task StartAsync(DAImportRequest request)
     {
         if (_stage is Stage.Working) return;
         _completion?.TrySetResult(false);
@@ -145,6 +161,8 @@
         _result = null;
         _followUp = null;
         _imported = false;
+        _originWarning = null;
+        _intoGroupNote = null;
 
         var (session, error, cancelled) = await Import.PickAndReadAsync();
         if (cancelled) return;
@@ -157,9 +175,34 @@
         }
 
         _session = session;
+        ApplyOrigin(request, session.Bundle);
         if (session.Bundle.MediaPack != null && session.Pack == null) _stage = Stage.AskPack;
         else Analyse();
         StateHasChanged();
+    }
+
+    /// The page the import was opened from: a warning when the file holds
+    /// none of what that page is about, and from the local scenes of a group,
+    /// the scenes of the file made local scenes of that group.
+    private void ApplyOrigin(DAImportRequest request, DABundle bundle)
+    {
+        var group = request.GroupId is Guid id ? AudioService.ScenarioGroups.FirstOrDefault(g => g.Id == id) : null;
+        if (!DAImportScope.HasExpectedContent(bundle, request.Origin))
+        {
+            _originWarning = request.Origin switch
+            {
+                DAImportOrigin.Explorer => Portability.ImportOriginNoAudio,
+                DAImportOrigin.Scenes => Portability.ImportOriginNoScene,
+                DAImportOrigin.Scenarios => Portability.ImportOriginNoScenario,
+                DAImportOrigin.LocalScenes => string.Format(Portability.ImportOriginNoLocalScene, group?.Name ?? request.GroupName),
+                _ => null,
+            };
+        }
+        else if (request.Origin == DAImportOrigin.LocalScenes && group != null
+                 && DAImportScope.ScenesIntoGroup(bundle, group.Id, group.Name) > 0)
+        {
+            _intoGroupNote = string.Format(Portability.ImportIntoGroupNote, group.Name);
+        }
     }
 
     private async Task PickPack()
@@ -187,69 +230,79 @@
     private RenderFragment RenderReview() => __builder =>
     {
         var plan = _session!.Plan!;
+        var planner = _session.Planner!;
         bool conflicts = plan.HasConflicts;
         bool nothing = plan.AllItems.All(i => i.Choice == ImportChoice.Nothing);
 
-        if (conflicts)
-        {
-            <p class="da-confirm-msg">@(IsFolder ? Portability.WizardIntroFolder : Portability.WizardIntro)</p>
-        }
-        else if (nothing)
-        {
-            <p class="da-confirm-msg">@(IsFolder ? Portability.ImportNothingToDoFolder : Portability.ImportNothingToDo)</p>
-        }
-        else
-        {
-            <div style="font-weight:700; margin-bottom:6px;">@Portability.ImportSummaryTitle</div>
-            <p class="da-confirm-msg" style="margin-bottom:4px;">@(IsFolder ? Portability.ImportSummaryTextFolder : Portability.ImportSummaryText)</p>
-            <ul class="da-confirm-msg" style="padding-left:20px;">
+        <h3 id="imp-title" class="da-confirm-title">@(conflicts || nothing ? Portability.WizardTitle : Portability.ImportSummaryTitle)</h3>
+        <div class="imp-scroll">
+            @RenderNotes()
+
+            @if (conflicts)
+            {
+                <p class="da-confirm-msg" style="margin-bottom:12px;">@(IsFolder ? Portability.WizardIntroFolder : Portability.WizardIntro)</p>
+
+                @if (plan.AllItems.Any(i => i.NeedsNewName))
+                {
+                    <div class="da-msec" style="margin-bottom:6px;">
+                        <div class="da-irow da-irow-wrap" style="gap:8px;">
+                            <span style="font-weight:600; color:var(--t1);">@Portability.WizardNamesLabel</span>
+                            <input class="da-inp" type="text" style="width:150px;" value="@planner.NamePrefix"
+                                   aria-label="@Portability.WizardNamesBefore" title="@Portability.WizardNamesBefore"
+                                   @oninput="@((ChangeEventArgs e) => planner.SetNameAffixes(plan, e.Value?.ToString(), planner.NameSuffix))" />
+                            <span class="da-meta">@Portability.WizardNamesWord</span>
+                            <input class="da-inp" type="text" style="width:150px;" value="@planner.NameSuffix"
+                                   aria-label="@Portability.WizardNamesAfter" title="@Portability.WizardNamesAfter"
+                                   @oninput="@((ChangeEventArgs e) => planner.SetNameAffixes(plan, planner.NamePrefix, e.Value?.ToString()))" />
+                        </div>
+                        <div class="imp-help">@Portability.WizardNamesHelp</div>
+                    </div>
+                }
+
                 @foreach (var kind in KindOrder)
                 {
-                    int count = plan.Items.Count(i => i.Kind == kind && i.Inserts);
-                    if (count > 0)
+                    var items = plan.Items.Where(i => i.Kind == kind).ToList();
+                    if (items.Count == 0) continue;
+                    var shown = items.Where(i => i.Status != ImportStatus.UpToDate || i.Children.Count > 0).ToList();
+                    int upToDate = items.Count - shown.Count;
+
+                    <div class="imp-kind">@KindLabel(kind)</div>
+                    @foreach (var item in shown)
                     {
-                        <li>@KindLabel(kind): @count</li>
+                        @RenderItem(item, false)
+                    }
+                    @if (upToDate > 0)
+                    {
+                        <div class="da-meta" style="margin:0 0 8px 2px;">@string.Format(Portability.ReportUpToDate, upToDate)</div>
                     }
                 }
-            </ul>
-        }
-
-        @if (_session.BrokenReferences > 0)
-        {
-            <p class="imp-warn">@string.Format(IsFolder ? Portability.WarningBrokenReferencesFolder : Portability.WarningBrokenReferences, _session.BrokenReferences)</p>
-        }
-        @if (!string.IsNullOrEmpty(_session.PackProblem))
-        {
-            <p class="imp-warn">@_session.PackProblem</p>
-        }
-
-        @if (conflicts)
-        {
-            @foreach (var kind in KindOrder)
-            {
-                var items = plan.Items.Where(i => i.Kind == kind).ToList();
-                if (items.Count == 0) continue;
-                var shown = items.Where(i => i.Status != ImportStatus.UpToDate || i.Children.Count > 0).ToList();
-                int upToDate = items.Count - shown.Count;
-
-                <div class="imp-kind">@KindLabel(kind)</div>
-                @foreach (var item in shown)
-                {
-                    @RenderItem(item, false)
-                }
-                @if (upToDate > 0)
-                {
-                    <div class="da-meta" style="margin:0 0 8px 2px;">@string.Format(Portability.ReportUpToDate, upToDate)</div>
-                }
             }
-        }
+            else if (nothing)
+            {
+                <p class="da-confirm-msg">@(IsFolder ? Portability.ImportNothingToDoFolder : Portability.ImportNothingToDo)</p>
+            }
+            else
+            {
+                <p class="da-confirm-msg" style="margin-bottom:4px;">@(IsFolder ? Portability.ImportSummaryTextFolder : Portability.ImportSummaryText)</p>
+                <ul class="imp-list">
+                    @foreach (var kind in KindOrder)
+                    {
+                        int count = plan.Items.Count(i => i.Kind == kind && i.Inserts);
+                        if (count > 0)
+                        {
+                            <li>@KindLabel(kind): @count</li>
+                        }
+                    }
+                </ul>
+            }
 
-        @if (!nothing)
-        {
-            <p class="da-meta" style="margin-top:12px;">@Portability.ImportBackupNote</p>
-        }
+            @if (!nothing)
+            {
+                <p class="da-meta" style="margin:12px 0 0;">@Portability.ImportBackupNote</p>
+            }
+        </div>
 
-        <div class="imp-foot">
+        <div class="da-confirm-foot imp-foot">
             <button type="button" class="da-btn" @onclick="Close">@(nothing ? Portability.AlertCloseBtn : Portability.WizardCancelBtn)</button>
             @if (!nothing)
             {
@@ -260,18 +313,41 @@
         </div>
     };
 
+    /// What the user should know before choosing: the page the import came
+    /// from, references to things not in the file, an unusable audio file pack.
+    private RenderFragment RenderNotes() => __builder =>
+    {
+        @if (_originWarning != null)
+        {
+            <div class="da-note imp-note imp-note-warn">@_originWarning</div>
+        }
+        @if (_intoGroupNote != null)
+        {
+            <div class="da-note imp-note">@_intoGroupNote</div>
+        }
+        @if (_session!.BrokenReferences > 0)
+        {
+            <div class="da-note imp-note imp-note-warn">@string.Format(IsFolder ? Portability.WarningBrokenReferencesFolder : Portability.WarningBrokenReferences, _session.BrokenReferences)</div>
+        }
+        @if (!string.IsNullOrEmpty(_session.PackProblem))
+        {
+            <div class="da-note imp-note imp-note-warn">@_session.PackProblem</div>
+        }
+    };
+
     private RenderFragment RenderItem(DAImportItem item, bool child) => __builder =>
     {
         var plan = _session!.Plan!;
         var planner = _session.Planner!;
-        <div class="imp-row @(child ? "imp-child" : "")">
-            <div>
+        bool conflict = item.Status is ImportStatus.Differs or ImportStatus.NameUsed;
+        <div class="da-msec imp-item @(child ? "imp-child" : "")">
+            <div class="da-irow da-irow-wrap" style="gap:8px;">
                 <span class="imp-name">@item.IncomingName</span>
-                <span class="imp-status imp-status-@item.Status">@StatusLabel(item.Status)</span>
+                <span class="da-tag @(conflict ? "imp-status-warn" : "")">@StatusLabel(item.Status)</span>
             </div>
-            @if (item.Status is ImportStatus.Differs or ImportStatus.NameUsed && LocalName(item) is { } localName)
+            @if (conflict && LocalName(item) is { } localName)
             {
-                <div class="da-meta">@Portability.WizardInLibrary: @localName</div>
+                <div class="da-meta" style="margin-top:4px;">@Portability.WizardInLibrary: @localName</div>
             }
 
             @if (item.NeedsTarget && !planner.Follows(item, out _))
@@ -281,15 +357,22 @@
 
             @if (item.AllowedChoices.Count > 1)
             {
-                <div class="imp-choices">
-                    @foreach (var choice in item.AllowedChoices)
+                int same = ConflictPlanner.SameKindAndStatus(plan, item).Count;
+                <div class="da-irow da-irow-wrap" style="gap:8px; margin-top:8px;">
+                    <select class="da-inp" style="flex:0 1 300px; width:auto; min-width:220px;" value="@item.Choice"
+                            aria-label="@item.IncomingName"
+                            @onchange="@((ChangeEventArgs e) => Choose(item, e.Value))">
+                        @foreach (var choice in item.AllowedChoices)
+                        {
+                            <option value="@choice">@ChoiceLabel(choice)</option>
+                        }
+                    </select>
+                    @if (same > 1)
                     {
-                        var c = choice;
-                        <label class="da-chk">
-                            <input type="radio" name="@($"imp-{item.GetHashCode()}")" checked="@(item.Choice == c)"
-                                   @onchange="@(() => planner.SetChoice(plan, item, c))" />
-                            @ChoiceLabel(c)
-                        </label>
+                        <button type="button" class="da-btn da-btn-out da-btn-sm"
+                                @onclick="() => planner.ApplyToAllOfKind(plan, item.Kind, item.Status, item.Choice)">
+                            @string.Format(Portability.ChoiceSameForAll, same, KindLabel(item.Kind).ToLowerInvariant(), StatusLabel(item.Status))
+                        </button>
                     }
                 </div>
                 <div class="imp-help">@ChoiceHelp(item.Choice)</div>
@@ -300,7 +383,7 @@
                 <div class="da-field" style="margin-top:8px; max-width:420px;">
                     <span class="da-flabel">@Portability.WizardNewName</span>
                     <input class="da-inp" type="text" value="@item.NewName"
-                           @oninput="@((ChangeEventArgs e) => item.NewName = e.Value?.ToString())" />
+                           @oninput="@((ChangeEventArgs e) => planner.SetNewName(item, e.Value?.ToString()))" />
                     @if (NameProblem(item) is { } problem)
                     {
                         <span class="imp-warn">@problem</span>
@@ -316,14 +399,6 @@
                 </div>
             }
 
-            @if (!child && plan.Items.Count(i => i.Kind == item.Kind && i.Status == item.Status) > 1 && item.AllowedChoices.Count > 1)
-            {
-                <button type="button" class="da-btn da-btn-text da-btn-sm" style="margin-top:6px;"
-                        @onclick="() => planner.ApplyToAllOfKind(plan, item.Kind, item.Status, item.Choice)">
-                    @Portability.ChoiceApplyToAll
-                </button>
-            }
-
             @foreach (var c in item.Children)
             {
                 @RenderItem(c, true)
@@ -331,11 +406,15 @@
         </div>
     };
 
+    private void Choose(DAImportItem item, object? value)
+    {
+        if (Enum.TryParse<ImportChoice>(value?.ToString(), out var choice))
+            _session!.Planner!.SetChoice(_session.Plan!, item, choice);
+    }
+
     /// The container a group part goes into: a local group, or a new one (scenario items: a scenario).
     private RenderFragment RenderTarget(DAImportItem item) => __builder =>
     {
-        var plan = _session!.Plan!;
-        var planner = _session.Planner!;
         bool scenarioTarget = item.Kind == DAAssetKind.ScenarioItem;
         string current = item.TargetContainerId is Guid t && t != Guid.Empty ? t.ToString() : "new";
         string newLabel = scenarioTarget
@@ -447,62 +526,64 @@
     private RenderFragment RenderReport() => __builder =>
     {
         var r = _result!.Report;
-        <div style="font-weight:700; margin-bottom:6px;">@Portability.ImportReportTitle</div>
-        <ul class="da-confirm-msg" style="padding-left:20px;">
-            @if (r.Added > 0) { <li>@string.Format(Portability.ReportAdded, r.Added)</li> }
-            @if (r.Replaced > 0) { <li>@string.Format(Portability.ReportReplaced, r.Replaced)</li> }
-            @if (r.KeptLocal > 0) { <li>@string.Format(Portability.ReportKeptLocal, r.KeptLocal)</li> }
-            @if (r.Merged > 0) { <li>@string.Format(Portability.ReportMerged, r.Merged)</li> }
-            @if (r.Skipped > 0) { <li>@string.Format(Portability.ReportSkipped, r.Skipped)</li> }
-            @if (r.UpToDate > 0) { <li>@string.Format(Portability.ReportUpToDate, r.UpToDate)</li> }
-        </ul>
-        @foreach (var problem in r.Problems)
-        {
-            <p class="imp-warn">@problem</p>
-        }
-
-        @if (_followUp is { } f && (f.FromPack + f.Matched + f.Queued + f.Missing.Count + f.Rejected.Count > 0 || f.NotEnoughSpace != null))
-        {
-            <div class="imp-kind">@Portability.FollowUpTitle</div>
-            <ul class="da-confirm-msg" style="padding-left:20px;">
-                @if (f.FromPack > 0) { <li>@string.Format(Portability.FollowUpFromPack, f.FromPack)</li> }
-                @if (f.Matched > 0) { <li>@string.Format(Portability.FollowUpMatched, f.Matched)</li> }
-                @if (f.Queued > 0) { <li>@string.Format(Portability.FollowUpQueued, f.Queued)</li> }
+        <h3 id="imp-title" class="da-confirm-title">@Portability.ImportReportTitle</h3>
+        <div class="imp-scroll">
+            <ul class="imp-list">
+                @if (r.Added > 0) { <li>@string.Format(Portability.ReportAdded, r.Added)</li> }
+                @if (r.Replaced > 0) { <li>@string.Format(Portability.ReportReplaced, r.Replaced)</li> }
+                @if (r.KeptLocal > 0) { <li>@string.Format(Portability.ReportKeptLocal, r.KeptLocal)</li> }
+                @if (r.Merged > 0) { <li>@string.Format(Portability.ReportMerged, r.Merged)</li> }
+                @if (r.Skipped > 0) { <li>@string.Format(Portability.ReportSkipped, r.Skipped)</li> }
+                @if (r.UpToDate > 0) { <li>@string.Format(Portability.ReportUpToDate, r.UpToDate)</li> }
             </ul>
-            @if (f.NotEnoughSpace is { } space)
+            @foreach (var problem in r.Problems)
             {
-                <p class="imp-warn">@string.Format(Portability.MoveErrorNoSpace, DABundleExportService.FormatSize(space.Needed), DABundleExportService.FormatSize(space.Available))</p>
-            }
-            @foreach (var name in f.Rejected)
-            {
-                <p class="imp-warn">@string.Format(Portability.MediaPackFileRejected, name)</p>
+                <p class="imp-warn">@problem</p>
             }
 
-            @if (f.Missing.Count > 0)
+            @if (_followUp is { } f && (f.FromPack + f.Matched + f.Queued + f.Missing.Count + f.Rejected.Count > 0 || f.NotEnoughSpace != null))
             {
-                <div style="font-weight:700; margin:10px 0 4px;">@Portability.FollowUpMissingTitle</div>
-                <p class="imp-help">@Portability.FollowUpMissingHelp</p>
-                @foreach (var item in f.Missing)
+                <div class="imp-kind">@Portability.FollowUpTitle</div>
+                <ul class="imp-list">
+                    @if (f.FromPack > 0) { <li>@string.Format(Portability.FollowUpFromPack, f.FromPack)</li> }
+                    @if (f.Matched > 0) { <li>@string.Format(Portability.FollowUpMatched, f.Matched)</li> }
+                    @if (f.Queued > 0) { <li>@string.Format(Portability.FollowUpQueued, f.Queued)</li> }
+                </ul>
+                @if (f.NotEnoughSpace is { } space)
                 {
-                    var it = item;
-                    <div class="imp-row" style="display:flex; align-items:center; gap:10px;">
-                        <span class="imp-name" style="flex:1;">@it.Name</span>
-                        @if (it.IsLocallyAvailable)
-                        {
-                            <DaIcon Name="check-circle" Size="20" style="color:var(--ok);" />
-                        }
-                        else
-                        {
-                            <button type="button" class="da-btn da-btn-out da-btn-sm" @onclick="() => PickFile(it)">
-                                <DaIcon Name="folder-open" Size="16" /> @Portability.PickFileBtn
-                            </button>
-                        }
-                    </div>
+                    <p class="imp-warn">@string.Format(Portability.MoveErrorNoSpace, DABundleExportService.FormatSize(space.Needed), DABundleExportService.FormatSize(space.Available))</p>
+                }
+                @foreach (var name in f.Rejected)
+                {
+                    <p class="imp-warn">@string.Format(Portability.MediaPackFileRejected, name)</p>
+                }
+
+                @if (f.Missing.Count > 0)
+                {
+                    <div style="font-weight:700; margin:10px 0 4px; color:var(--t1);">@Portability.FollowUpMissingTitle</div>
+                    <p class="imp-help" style="margin-bottom:8px;">@Portability.FollowUpMissingHelp</p>
+                    @foreach (var item in f.Missing)
+                    {
+                        var it = item;
+                        <div class="da-msec imp-item da-irow" style="gap:10px; padding:8px 12px;">
+                            <span class="imp-name" style="flex:1;">@it.Name</span>
+                            @if (it.IsLocallyAvailable)
+                            {
+                                <DaIcon Name="check-circle" Size="20" style="color:var(--ok);" />
+                            }
+                            else
+                            {
+                                <button type="button" class="da-btn da-btn-out da-btn-sm" title="@Portability.PickFileHelp" @onclick="() => PickFile(it)">
+                                    <DaIcon Name="folder-open" Size="16" /> @Portability.PickFileBtn
+                                </button>
+                            }
+                        </div>
+                    }
                 }
             }
-        }
+        </div>
 
-        <div class="imp-foot">
+        <div class="da-confirm-foot imp-foot">
             <button type="button" class="da-btn da-btn-fill" @onclick="Close"><DaIcon Name="check" /> @Portability.AlertCloseBtn</button>
         </div>
     };

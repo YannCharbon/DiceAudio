@@ -73,9 +73,9 @@
         <DaIcon Name="download" Size="18" />Audio downloader
     </button>
     <button type="button" class="da-btn da-btn-fill" @onclick="@(() => _audioImporterRef?.Show())">
-        <DaIcon Name="folder-upload" Size="18" />Import from disk
+        <DaIcon Name="folder-upload" Size="18" />Import audio from disk
     </button>
-    <button type="button" class="da-btn da-btn-out" @onclick="Imports.RequestImport">
+    <button type="button" class="da-btn da-btn-out" @onclick="() => Imports.RequestImport(DiceAudio.Portability.DAImportOrigin.Explorer)">
         <DaIcon Name="upload-file" Size="18" />@Portability.ImportFromFileBtn
     </button>
     @* Until the tag files are read, the editor would show empty lists, and

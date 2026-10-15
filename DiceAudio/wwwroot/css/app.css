@@ -1480,6 +1480,14 @@ input[type="number"].da-inp::-webkit-inner-spin-button,
 .da-selectable .da-row { cursor: pointer; }
 .da-selectable .da-row { grid-template-columns: 26px 36px minmax(140px, 1.1fr) minmax(0, 1fr) 290px auto; }
 
+/* An item without its file shows its state and its buttons (Download,
+   Pick file…) where the player goes: that column grows to keep them on
+   one line. Below 960px the row stacks, as for the player. */
+@media (min-width: 961px) {
+    .da-row.da-row-nofile { grid-template-columns: 36px minmax(140px, 1.1fr) minmax(0, 1fr) minmax(290px, max-content) auto; }
+    .da-selectable .da-row.da-row-nofile { grid-template-columns: 26px 36px minmax(140px, 1.1fr) minmax(0, 1fr) minmax(290px, max-content) auto; }
+}
+
 /* Folder rows carry no player, tags or selection — and the whole row opens
    the folder, padding included, not just the tile and the name. */
 .da-row.da-folder-row,

@@ -553,7 +553,7 @@ else if (_breadcrumb.Any())
     @* One row per item: kind tile, name, tags, a single-row player, actions. *@
     RenderFragment RenderItemRow(DAAudioItem item) => __builder =>
     {
-        <div class="da-row @item.Kind.KindClass() @(IsPlaying(item) ? "playing" : "") @(_selectionMode && IsSelected(item) ? "marked" : "")"
+        <div class="da-row @item.Kind.KindClass() @(item.IsLocallyAvailable ? "" : "da-row-nofile") @(IsPlaying(item) ? "playing" : "") @(_selectionMode && IsSelected(item) ? "marked" : "")"
              @onclick="@(() => { if (_selectionMode) ToggleSelected(item); })"
              title="@(_selectionMode ? "Click to select this item" : null)">
             @if (_selectionMode)
@@ -1207,7 +1207,7 @@ else if (_breadcrumb.Any())
         return true;
     }
 
-    void ToggleKind(DAAudioItem item)
+    async Task ToggleKind(DAAudioItem item)
     {
         // Cycle Music → Ambiance → SoundEffect → Music
         item.Kind = item.Kind switch
@@ -1216,6 +1216,7 @@ else if (_breadcrumb.Any())
             AudioKind.Ambiance => AudioKind.SoundEffect,
             _ => AudioKind.Music,
         };
+        await DAService.SaveAudioItemListAsync();
     }
 
     // misc

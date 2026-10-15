@@ -122,25 +122,14 @@ More screenshots on the [website](https://yanncharbon.github.io/DiceAudio/#scree
 
 ## Your data
 
-- **Sharing.** Audio items, folders, scenes, scenarios, scenario groups, collections and presets can be
-  exported to a `.dicea` file, together with everything they use: a scenario group comes with its scenes
-  and the audio items they play. The file holds the descriptions and the download links. If you tick the
-  option, the audio files on your computer are saved in a second file (`.diceamedia`). Audio files are
-  often protected by copyright, so please keep that second file for your own use.
-- **Importing.** **Import a DiceAudio file…** shows what is new and what you already have, and you choose
-  what to do with each item. Each audio item then gets its file back from the `.diceamedia` file, from a
-  file already on your computer, or from its download link. The items still without a file are listed,
-  and the **Missing files** filter of the Explorer shows them later.
-- **Backups.** DiceAudio backs up your data the first time you open it each day, and before every import,
-  restore or change of data folder. A backup holds everything except the audio files. You restore one in
-  Settings, under Data.
-- **Using several computers (Windows).** **Choose another folder…** moves your library and its audio
-  files to a folder of your choice, for example one that OneDrive or Dropbox keeps in sync. Please open
-  DiceAudio on one computer at a time. If it is open elsewhere, DiceAudio warns you at start. When
-  another computer changes the data, a message offers to **Reload** it, and DiceAudio never reloads by
-  itself.
+- **Sharing.** Export a scene, a scenario group or your whole library to a `.dicea` file, together with
+  everything it uses. When you import a file, you choose what to do with each item you already have.
+- **Backups.** DiceAudio backs up your data every day and before every import or restore. You restore a
+  backup in Settings, under Data.
+- **Several computers (Windows).** Your library and its audio files can live in a folder of your choice,
+  for example one that OneDrive or Dropbox keeps in sync.
 
-The [website](https://yanncharbon.github.io/DiceAudio/#data) gives the details.
+The [Your data](https://yanncharbon.github.io/DiceAudio/data.html) page of the website gives the details.
 
 ---
 

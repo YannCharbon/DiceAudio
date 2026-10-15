@@ -58,7 +58,8 @@ namespace DiceAudio.Portability
         {
             (_, ImportStatus.UpToDate) => new[] { ImportChoice.Nothing },
             (DAAssetKind.Tag, ImportStatus.Differs) => new[] { ImportChoice.KeepLocal, ImportChoice.ReplaceLocal },
-            (DAAssetKind.Folder, ImportStatus.Differs) => new[] { ImportChoice.ImportAsCopy, ImportChoice.Merge },
+            // Skip too, so that a folder can be left out like anything else (its items then go where its parent goes).
+            (DAAssetKind.Folder, ImportStatus.Differs) => new[] { ImportChoice.ImportAsCopy, ImportChoice.Merge, ImportChoice.Skip },
             (DAAssetKind.ScenarioGroup, ImportStatus.Differs) => new[] { ImportChoice.ImportAsCopy, ImportChoice.ReplaceLocal, ImportChoice.KeepLocal, ImportChoice.Merge },
             (_, ImportStatus.Differs) => new[] { ImportChoice.ImportAsCopy, ImportChoice.ReplaceLocal, ImportChoice.KeepLocal },
             (_, ImportStatus.NameUsed) => new[] { ImportChoice.ImportWithNewName, ImportChoice.KeepBothSameName, ImportChoice.UseLocal, ImportChoice.Skip },
@@ -81,6 +82,7 @@ namespace DiceAudio.Portability
             var plan = new DAImportPlan();
             plan.Warnings.AddRange(bundle.Warnings);
             _dependents.Clear();
+            _uses.Clear();
             _followers.Clear();
 
             var byIncoming = new Dictionary<object, DAImportItem>(ReferenceEqualityComparer.Instance);
@@ -518,6 +520,82 @@ namespace DiceAudio.Portability
 
         // ── Dependents (the skip warning) ──────────────────────────────────
 
+        // ── Selection (the tick boxes of the wizard) ──────────────────────
+        // A ticked row is imported: its choice puts it into the library. An
+        // unticked one is left out: Skip, or for a conflict, the local one is
+        // kept. Ticking it again gives back the choice it had.
+
+        private readonly Dictionary<DAImportItem, ImportChoice> _choiceBeforeUntick = new(ReferenceEqualityComparer.Instance);
+
+        /// <summary>The choice that leaves an item out of the import, or null when it has none (up to date).</summary>
+        public static ImportChoice? LeaveOutChoice(DAImportItem item) =>
+            item.AllowedChoices.Contains(ImportChoice.Skip) ? ImportChoice.Skip
+            : item.AllowedChoices.Contains(ImportChoice.KeepLocal) ? ImportChoice.KeepLocal
+            : item.AllowedChoices.Contains(ImportChoice.UseLocal) ? ImportChoice.UseLocal
+            : null;
+
+        /// <summary>True when the row has a tick box: something to import, and a way to leave it out.</summary>
+        public static bool IsSelectable(DAImportItem item) => item.Status != ImportStatus.UpToDate && LeaveOutChoice(item) != null;
+
+        public static bool IsSelected(DAImportItem item) => item.Inserts;
+
+        /// <summary>Ticks (imports, with the choice it had before, else the suggested one) or unticks (leaves out) an item.</summary>
+        public void SetSelected(DAImportPlan plan, DAImportItem item, bool selected)
+        {
+            if (!IsSelectable(item) || IsSelected(item) == selected) return;
+            if (!selected)
+            {
+                _choiceBeforeUntick[item] = item.Choice;
+                SetChoice(plan, item, LeaveOutChoice(item)!.Value);
+                return;
+            }
+            var choice = _choiceBeforeUntick.TryGetValue(item, out var before) ? before : DefaultChoice(item.Kind, item.Status);
+            if (!item.AllowedChoices.Contains(choice) || choice == LeaveOutChoice(item))
+                choice = item.AllowedChoices.FirstOrDefault(c => c is not (ImportChoice.Skip or ImportChoice.KeepLocal or ImportChoice.UseLocal or ImportChoice.Nothing));
+            SetChoice(plan, item, choice);
+        }
+
+        /// <summary>Select all / Select none of a section.</summary>
+        public void SetSelected(DAImportPlan plan, IEnumerable<DAImportItem> items, bool selected)
+        {
+            foreach (var item in items.ToList()) SetSelected(plan, item, selected);
+        }
+
+        /// <summary>The items of the file that <paramref name="item"/> uses directly (its audio items, folder, tags, local scenes).</summary>
+        public IReadOnlyList<DAImportItem> UsedBy(DAImportItem item) =>
+            _uses.TryGetValue(item, out var list) ? list : Array.Empty<DAImportItem>();
+
+        /// <summary>The other way round from <see cref="_dependents"/>: what each item of the file uses.</summary>
+        private readonly Dictionary<DAImportItem, List<DAImportItem>> _uses = new(ReferenceEqualityComparer.Instance);
+
+        /// <summary>
+        /// What a ticked item needs and will not get: the items it uses,
+        /// directly or through them, that are skipped. "Also import what it
+        /// needs" ticks them. An item kept local is not missing: the local one
+        /// is used instead.
+        /// </summary>
+        public IReadOnlyList<DAImportItem> MissingNeeds(DAImportItem item)
+        {
+            var missing = new List<DAImportItem>();
+            var seen = new HashSet<DAImportItem>(ReferenceEqualityComparer.Instance) { item };
+            var queue = new Queue<DAImportItem>(UsedBy(item));
+            while (queue.Count > 0)
+            {
+                var used = queue.Dequeue();
+                if (!seen.Add(used)) continue;
+                if (used.Choice != ImportChoice.Skip) continue;
+                missing.Add(used);
+                foreach (var next in UsedBy(used)) queue.Enqueue(next);
+            }
+            return missing;
+        }
+
+        /// <summary>Ticks everything <see cref="MissingNeeds"/> lists.</summary>
+        public void SelectNeeds(DAImportPlan plan, DAImportItem item)
+        {
+            foreach (var used in MissingNeeds(item)) SetSelected(plan, used, true);
+        }
+
         /// <summary>The items this import inserts that use <paramref name="item"/>.</summary>
         public IReadOnlyList<DAImportItem> DependentsOf(DAImportPlan plan, DAImportItem item) =>
             _dependents.TryGetValue(item, out var list) ? list.Where(d => d.Inserts).Distinct().ToList() : new List<DAImportItem>();
@@ -534,6 +612,8 @@ namespace DiceAudio.Portability
                 if (used == null || ReferenceEquals(used, user)) return;
                 if (!_dependents.TryGetValue(used, out var list)) _dependents[used] = list = new();
                 list.Add(user);
+                if (!_uses.TryGetValue(user, out var uses)) _uses[user] = uses = new();
+                if (!uses.Contains(used)) uses.Add(used);
             }
             void UsesAudio(IEnumerable<DAAudioUsage> usages, DAImportItem user)
             {

@@ -27,7 +27,12 @@
     .imp-scroll { overflow-y: auto; min-height: 0; flex: 1 1 auto; padding-right: 4px; }
     .imp-foot { margin-top: 14px; }
     .imp-kind { font-size: 14px; font-weight: 700; color: var(--a3); border-bottom: 1px solid var(--b1); padding: 12px 2px 4px; margin: 4px 0 8px; }
-    .imp-item { margin-bottom: 8px; }
+    .imp-item { margin-bottom: 6px; padding: 8px 10px; }
+    .imp-muted { opacity: .62; }
+    .imp-tick { width: 18px; flex: none; margin-top: 1px; }
+    .imp-top { margin-bottom: 8px; }
+    .imp-sec-btn { display: inline-flex; align-items: center; gap: 4px; background: none; border: 0; padding: 2px 0; color: inherit; font: inherit; cursor: pointer; }
+    .imp-sec-btn:focus-visible { outline: 2px solid var(--a2); outline-offset: 2px; border-radius: 4px; }
     .imp-child { margin: 8px 0 0 18px; }
     .imp-name { font-weight: 600; color: var(--t1); overflow-wrap: anywhere; }
     .imp-status-warn { color: var(--warn); border-color: var(--warn); }
@@ -99,15 +104,16 @@
 
     private static readonly DAAssetKind[] KindOrder =
     {
+        // The order the import applies them in (spec §3.2).
+        DAAssetKind.Tag, DAAssetKind.Folder, DAAssetKind.AudioItem, DAAssetKind.Scene, DAAssetKind.Preset,
         DAAssetKind.ScenarioGroup, DAAssetKind.Scenario, DAAssetKind.ScenarioItem, DAAssetKind.LocalScene,
-        DAAssetKind.Scene, DAAssetKind.Preset, DAAssetKind.AudioItem, DAAssetKind.Folder, DAAssetKind.Tag,
     };
 
     /// <summary>A merge with another data folder: the texts speak of "this folder", not "this file".</summary>
     private bool IsFolder => _session?.MergeAudioDir != null;
 
     /// <summary>The choices and a report with files to find need room; the other steps are short messages.</summary>
-    private bool IsWide => (_stage == Stage.Review && _session?.Plan?.HasConflicts == true)
+    private bool IsWide => _stage == Stage.Review
                            || (_stage == Stage.Report && _followUp?.Missing.Count > 0);
 
     /// <summary>The file holds nothing of what the page it was opened from is about.</summary>
@@ -222,10 +228,17 @@
     private void Analyse()
     {
         Import.Analyse(_session!);
+        CollapseLongSections();
         _stage = Stage.Review;
     }
 
-    // ── The review: the wizard, or a summary when nothing conflicts ─────
+    // ── The review: what the file holds, with a tick box per row ────────
+
+    /// Sections of more rows than this start collapsed.
+    private const int CollapseAbove = 20;
+
+    private readonly HashSet<DAAssetKind> _collapsed = new();
+    private readonly HashSet<DAImportItem> _openContents = new(ReferenceEqualityComparer.Instance);
 
     private RenderFragment RenderReview() => __builder =>
     {
@@ -233,67 +246,81 @@
         var planner = _session.Planner!;
         bool conflicts = plan.HasConflicts;
         bool nothing = plan.AllItems.All(i => i.Choice == ImportChoice.Nothing);
+        var selectable = plan.AllItems.Where(ConflictPlanner.IsSelectable).ToList();
+        int selected = selectable.Count(ConflictPlanner.IsSelected);
 
         <h3 id="imp-title" class="da-confirm-title">@(conflicts || nothing ? Portability.WizardTitle : Portability.ImportSummaryTitle)</h3>
-        <div class="imp-scroll">
-            @RenderNotes()
 
-            @if (conflicts)
+        @* The bar above the list: how much is ticked, and what to know first. *@
+        <div class="imp-top">
+            @if (selectable.Count > 0)
             {
-                <p class="da-confirm-msg" style="margin-bottom:12px;">@(IsFolder ? Portability.WizardIntroFolder : Portability.WizardIntro)</p>
-
-                @if (plan.AllItems.Any(i => i.NeedsNewName))
-                {
-                    <div class="da-msec" style="margin-bottom:6px;">
-                        <div class="da-irow da-irow-wrap" style="gap:8px;">
-                            <span style="font-weight:600; color:var(--t1);">@Portability.WizardNamesLabel</span>
-                            <input class="da-inp" type="text" style="width:150px;" value="@planner.NamePrefix"
-                                   aria-label="@Portability.WizardNamesBefore" title="@Portability.WizardNamesBefore"
-                                   @oninput="@((ChangeEventArgs e) => planner.SetNameAffixes(plan, e.Value?.ToString(), planner.NameSuffix))" />
-                            <span class="da-meta">@Portability.WizardNamesWord</span>
-                            <input class="da-inp" type="text" style="width:150px;" value="@planner.NameSuffix"
-                                   aria-label="@Portability.WizardNamesAfter" title="@Portability.WizardNamesAfter"
-                                   @oninput="@((ChangeEventArgs e) => planner.SetNameAffixes(plan, planner.NamePrefix, e.Value?.ToString()))" />
-                        </div>
-                        <div class="imp-help">@Portability.WizardNamesHelp</div>
-                    </div>
-                }
-
-                @foreach (var kind in KindOrder)
-                {
-                    var items = plan.Items.Where(i => i.Kind == kind).ToList();
-                    if (items.Count == 0) continue;
-                    var shown = items.Where(i => i.Status != ImportStatus.UpToDate || i.Children.Count > 0).ToList();
-                    int upToDate = items.Count - shown.Count;
-
-                    <div class="imp-kind">@KindLabel(kind)</div>
-                    @foreach (var item in shown)
-                    {
-                        @RenderItem(item, false)
-                    }
-                    @if (upToDate > 0)
-                    {
-                        <div class="da-meta" style="margin:0 0 8px 2px;">@string.Format(Portability.ReportUpToDate, upToDate)</div>
-                    }
-                }
+                <div class="da-meta" style="color:var(--t2); margin-bottom:6px;" role="status">
+                    @string.Format(selectable.Count == 1 ? Portability.WizardSelectedOne : Portability.WizardSelected, selected, selectable.Count)
+                </div>
             }
-            else if (nothing)
+            @RenderNotes()
+        </div>
+
+        <div class="imp-scroll">
+            @if (nothing)
             {
-                <p class="da-confirm-msg">@(IsFolder ? Portability.ImportNothingToDoFolder : Portability.ImportNothingToDo)</p>
+                <p class="da-confirm-msg" style="margin-bottom:12px;">@(IsFolder ? Portability.ImportNothingToDoFolder : Portability.ImportNothingToDo)</p>
+            }
+            else if (conflicts)
+            {
+                <p class="da-confirm-msg" style="margin-bottom:12px;">@(IsFolder ? Portability.WizardIntroFolder : Portability.WizardIntro) @Portability.WizardUntickHint</p>
             }
             else
             {
-                <p class="da-confirm-msg" style="margin-bottom:4px;">@(IsFolder ? Portability.ImportSummaryTextFolder : Portability.ImportSummaryText)</p>
-                <ul class="imp-list">
-                    @foreach (var kind in KindOrder)
+                <p class="da-confirm-msg" style="margin-bottom:12px;">@(IsFolder ? Portability.WizardListIntroFolder : Portability.WizardListIntro)</p>
+            }
+
+            @if (plan.AllItems.Any(i => i.NeedsNewName))
+            {
+                <div class="da-msec" style="margin-bottom:6px;">
+                    <div class="da-irow da-irow-wrap" style="gap:8px;">
+                        <span style="font-weight:600; color:var(--t1);">@Portability.WizardNamesLabel</span>
+                        <input class="da-inp" type="text" style="width:150px;" value="@planner.NamePrefix"
+                               aria-label="@Portability.WizardNamesBefore" title="@Portability.WizardNamesBefore"
+                               @oninput="@((ChangeEventArgs e) => planner.SetNameAffixes(plan, e.Value?.ToString(), planner.NameSuffix))" />
+                        <span class="da-meta">@Portability.WizardNamesWord</span>
+                        <input class="da-inp" type="text" style="width:150px;" value="@planner.NameSuffix"
+                               aria-label="@Portability.WizardNamesAfter" title="@Portability.WizardNamesAfter"
+                               @oninput="@((ChangeEventArgs e) => planner.SetNameAffixes(plan, planner.NamePrefix, e.Value?.ToString()))" />
+                    </div>
+                    <div class="imp-help">@Portability.WizardNamesHelp</div>
+                </div>
+            }
+
+            @foreach (var kind in KindOrder)
+            {
+                var items = plan.Items.Where(i => i.Kind == kind).ToList();
+                if (items.Count == 0) continue;
+                var k = kind;
+                bool collapsed = _collapsed.Contains(kind);
+                var tickable = items.Where(ConflictPlanner.IsSelectable).ToList();
+
+                <div class="imp-kind da-irow da-irow-wrap" style="gap:6px;">
+                    <button type="button" class="imp-sec-btn" aria-expanded="@(collapsed ? "false" : "true")"
+                            @onclick="() => ToggleSection(k)">
+                        <DaIcon Name="@(collapsed ? "chevron-right" : "chevron-down")" Size="16" />
+                        @KindLabel(kind) (@items.Count)
+                    </button>
+                    <span style="flex:1;"></span>
+                    @if (tickable.Count > 0)
                     {
-                        int count = plan.Items.Count(i => i.Kind == kind && i.Inserts);
-                        if (count > 0)
-                        {
-                            <li>@KindLabel(kind): @count</li>
-                        }
+                        <button type="button" class="da-btn da-btn-text da-btn-sm" @onclick="() => planner.SetSelected(plan, tickable, true)">@Portability.WizardSelectAll</button>
+                        <button type="button" class="da-btn da-btn-text da-btn-sm" @onclick="() => planner.SetSelected(plan, tickable, false)">@Portability.WizardSelectNone</button>
                     }
-                </ul>
+                </div>
+                @if (!collapsed)
+                {
+                    @foreach (var item in items)
+                    {
+                        @RenderItem(item, false)
+                    }
+                }
             }
 
             @if (!nothing)
@@ -306,12 +333,26 @@
             <button type="button" data-da-cancel class="da-btn" @onclick="Close">@(nothing ? Portability.AlertCloseBtn : Portability.WizardCancelBtn)</button>
             @if (!nothing)
             {
-                <button type="button" class="da-btn da-btn-fill" disabled="@(!NamesValid())" @onclick="ApplyAsync">
+                <button type="button" class="da-btn da-btn-fill" disabled="@(!NamesValid() || !plan.AllItems.Any(i => i.Inserts))" @onclick="ApplyAsync">
                     <DaIcon Name="check" /> @Portability.WizardConfirmBtn
                 </button>
             }
         </div>
     };
+
+    private void ToggleSection(DAAssetKind kind)
+    {
+        if (!_collapsed.Remove(kind)) _collapsed.Add(kind);
+    }
+
+    /// Long sections start collapsed, so a whole library opens on a list of headers.
+    private void CollapseLongSections()
+    {
+        _collapsed.Clear();
+        _openContents.Clear();
+        foreach (var group in _session!.Plan!.Items.GroupBy(i => i.Kind))
+            if (group.Count() > CollapseAbove) _collapsed.Add(group.Key);
+    }
 
     /// What the user should know before choosing: the page the import came
     /// from, references to things not in the file, an unusable audio file pack.
@@ -344,69 +385,129 @@
         var plan = _session!.Plan!;
         var planner = _session.Planner!;
         bool conflict = item.Status is ImportStatus.Differs or ImportStatus.NameUsed;
-        <div class="da-msec imp-item @(child ? "imp-child" : "")">
-            <div class="da-irow da-irow-wrap" style="gap:8px;">
-                <span class="imp-name">@item.IncomingName</span>
-                <span class="da-tag @(conflict ? "imp-status-warn" : "")">@StatusLabel(item.Status)</span>
-            </div>
-            @if (conflict && LocalName(item) is { } localName)
-            {
-                <div class="da-meta" style="margin-top:4px;">@Portability.WizardInLibrary: @localName</div>
-            }
-
-            @if (item.NeedsTarget && !planner.Follows(item, out _))
-            {
-                @RenderTarget(item)
-            }
-
-            @if (item.AllowedChoices.Count > 1)
-            {
-                int same = ConflictPlanner.SameKindAndStatus(plan, item).Count;
-                <div class="da-irow da-irow-wrap" style="gap:8px; margin-top:8px;">
-                    <select class="da-inp" style="flex:0 1 300px; width:auto; min-width:220px;" value="@item.Choice"
-                            aria-label="@item.IncomingName"
-                            @onchange="@((ChangeEventArgs e) => Choose(item, e.Value))">
-                        @foreach (var choice in item.AllowedChoices)
+        bool upToDate = item.Status == ImportStatus.UpToDate;
+        bool tickable = ConflictPlanner.IsSelectable(item);
+        bool ticked = ConflictPlanner.IsSelected(item);
+        string? detail = Detail(item);
+        <div class="da-msec imp-item @(child ? "imp-child" : "") @(upToDate ? "imp-muted" : "")">
+            <div class="da-irow" style="gap:10px; align-items:flex-start;">
+                @if (tickable)
+                {
+                    <label class="da-chk imp-tick" title="@string.Format(Portability.WizardImportThis, item.IncomingName)">
+                        <input type="checkbox" checked="@ticked" aria-label="@string.Format(Portability.WizardImportThis, item.IncomingName)"
+                               @onchange="@((ChangeEventArgs e) => planner.SetSelected(plan, item, e.Value is true))" />
+                    </label>
+                }
+                else
+                {
+                    <span class="imp-tick" aria-hidden="true"></span>
+                }
+                <div style="flex:1; min-width:0;">
+                    <div class="da-irow da-irow-wrap" style="gap:4px 8px;">
+                        <span class="imp-name">@item.IncomingName</span>
+                        @if (detail != null)
                         {
-                            <option value="@choice">@ChoiceLabel(choice)</option>
+                            <span class="da-meta">@detail</span>
                         }
-                    </select>
-                    @if (same > 1)
+                        <span style="flex:1;"></span>
+                        <span class="da-tag @(conflict ? "imp-status-warn" : "")">@StatusLabel(item.Status)</span>
+                    </div>
+                    @if (conflict && LocalName(item) is { } localName)
                     {
-                        <button type="button" class="da-btn da-btn-out da-btn-sm"
-                                @onclick="() => planner.ApplyToAllOfKind(plan, item.Kind, item.Status, item.Choice)">
-                            @string.Format(Portability.ChoiceSameForAll, same, KindLabel(item.Kind).ToLowerInvariant(), StatusLabel(item.Status))
+                        <div class="da-meta" style="margin-top:4px;">@Portability.WizardInLibrary: @localName</div>
+                    }
+
+                    @if (item.NeedsTarget && ticked && !planner.Follows(item, out _))
+                    {
+                        @RenderTarget(item)
+                    }
+
+                    @if (conflict && item.AllowedChoices.Count > 1)
+                    {
+                        int same = ConflictPlanner.SameKindAndStatus(plan, item).Count;
+                        <div class="da-irow da-irow-wrap" style="gap:8px; margin-top:8px;">
+                            <select class="da-inp" style="flex:0 1 300px; width:auto; min-width:220px;" value="@item.Choice"
+                                    aria-label="@item.IncomingName"
+                                    @onchange="@((ChangeEventArgs e) => Choose(item, e.Value))">
+                                @foreach (var choice in item.AllowedChoices)
+                                {
+                                    <option value="@choice">@ChoiceLabel(choice)</option>
+                                }
+                            </select>
+                            @if (same > 1)
+                            {
+                                <button type="button" class="da-btn da-btn-out da-btn-sm"
+                                        @onclick="() => planner.ApplyToAllOfKind(plan, item.Kind, item.Status, item.Choice)">
+                                    @string.Format(Portability.ChoiceSameForAll, same, KindLabel(item.Kind).ToLowerInvariant(), StatusLabel(item.Status))
+                                </button>
+                            }
+                        </div>
+                        <div class="imp-help">@ChoiceHelp(item.Choice)</div>
+                    }
+
+                    @if (item.NeedsNewName)
+                    {
+                        <div class="da-field" style="margin-top:8px; max-width:420px;">
+                            <span class="da-flabel">@Portability.WizardNewName</span>
+                            <input class="da-inp" type="text" value="@item.NewName"
+                                   @oninput="@((ChangeEventArgs e) => planner.SetNewName(item, e.Value?.ToString()))" />
+                            @if (NameProblem(item) is { } problem)
+                            {
+                                <span class="imp-warn">@problem</span>
+                            }
+                        </div>
+                    }
+
+                    @if (item.Choice == ImportChoice.Skip && planner.DependentsOf(plan, item) is { Count: > 0 } users)
+                    {
+                        <div class="imp-warn">
+                            <b>@Portability.WizardSkipWarningTitle.</b>
+                            @string.Format(Portability.WizardSkipWarning, item.IncomingName, string.Join(", ", users.Select(u => u.IncomingName)))
+                        </div>
+                    }
+
+                    @if (ticked && planner.MissingNeeds(item) is { Count: > 0 } needs)
+                    {
+                        <button type="button" class="da-btn da-btn-out da-btn-sm" style="margin-top:6px;"
+                                title="@string.Format(Portability.WizardAlsoNeedsHelp, string.Join(", ", needs.Select(n => n.IncomingName)))"
+                                @onclick="() => planner.SelectNeeds(plan, item)">
+                            <DaIcon Name="add" Size="14" />@string.Format(Portability.WizardAlsoNeeds, needs.Count)
                         </button>
                     }
-                </div>
-                <div class="imp-help">@ChoiceHelp(item.Choice)</div>
-            }
 
-            @if (item.NeedsNewName)
-            {
-                <div class="da-field" style="margin-top:8px; max-width:420px;">
-                    <span class="da-flabel">@Portability.WizardNewName</span>
-                    <input class="da-inp" type="text" value="@item.NewName"
-                           @oninput="@((ChangeEventArgs e) => planner.SetNewName(item, e.Value?.ToString()))" />
-                    @if (NameProblem(item) is { } problem)
+                    @if (item.Incoming is DAScenarioGroup group && group.Scenarios.Count + group.LocalScenes.Count > 0 && item.Children.Count == 0)
                     {
-                        <span class="imp-warn">@problem</span>
+                        bool open = _openContents.Contains(item);
+                        <button type="button" class="da-btn da-btn-text da-btn-sm" style="margin-top:4px;" aria-expanded="@(open ? "true" : "false")"
+                                @onclick="() => { if (!_openContents.Remove(item)) _openContents.Add(item); }">
+                            <DaIcon Name="@(open ? "chevron-down" : "chevron-right")" Size="14" />@(open ? Portability.WizardHideContents : Portability.WizardShowContents)
+                        </button>
+                        @if (open)
+                        {
+                            <ul class="imp-list" style="margin:4px 0 0;">
+                                @foreach (var scenario in group.Scenarios)
+                                {
+                                    <li>@KindLabelOne(DAAssetKind.Scenario): @scenario.Name · <span class="da-meta">@Count(scenario.Items.Count, Portability.DetailItemOne, Portability.DetailItems)</span>
+                                        @if (scenario.Items.Count > 0)
+                                        {
+                                            <div class="da-meta">@string.Join(", ", scenario.Items.Select(i => i.Name))</div>
+                                        }
+                                    </li>
+                                }
+                                @foreach (var scene in group.LocalScenes)
+                                {
+                                    <li>@KindLabelOne(DAAssetKind.LocalScene): @scene.Name</li>
+                                }
+                            </ul>
+                        }
+                    }
+
+                    @foreach (var c in item.Children)
+                    {
+                        @RenderItem(c, true)
                     }
                 </div>
-            }
-
-            @if (item.Choice == ImportChoice.Skip && planner.DependentsOf(plan, item) is { Count: > 0 } users)
-            {
-                <div class="imp-warn">
-                    <b>@Portability.WizardSkipWarningTitle.</b>
-                    @string.Format(Portability.WizardSkipWarning, item.IncomingName, string.Join(", ", users.Select(u => u.IncomingName)))
-                </div>
-            }
-
-            @foreach (var c in item.Children)
-            {
-                @RenderItem(c, true)
-            }
+            </div>
         </div>
     };
 
@@ -415,6 +516,50 @@
         if (Enum.TryParse<ImportChoice>(value?.ToString(), out var choice))
             _session!.Planner!.SetChoice(_session.Plan!, item, choice);
     }
+
+    /// The short line next to a name: where an audio item goes and where its
+    /// file will come from, what a group holds, where a part of a group comes from.
+    private string? Detail(DAImportItem item)
+    {
+        var bundle = _session!.Bundle;
+        switch (item.Incoming)
+        {
+            case DATagRecord t:
+                return t.Category is "Type" or "Location" or "Expression" ? string.Format(Portability.DetailTagCategory, t.Category) : Portability.DetailTagNoCategory;
+            case DAFolderRecord f:
+                return string.IsNullOrWhiteSpace(f.Path) || f.Path == f.Name ? null : f.Path;
+            case DAAudioItemRecord r:
+                string folder = r.FolderId is Guid fid && bundle.Folders.FirstOrDefault(f => f.Id == fid) is { } fr ? fr.Name : Portability.DetailRoot;
+                string source = _session.Pack?.Usable.ContainsKey(r.Id) == true ? Portability.DetailInPack
+                              : !string.IsNullOrWhiteSpace(r.SourceURL) ? Portability.DetailHasLink
+                              : Portability.DetailNoLink;
+                return $"{folder} · {source}";
+            case DAScene s:
+                return string.IsNullOrWhiteSpace(s.Category) ? null : s.Category;
+            case DAPreset p:
+                string kind = p.Kind == DAPresetKind.Scene ? Portability.DetailScenePreset : Portability.DetailItemPreset;
+                return string.IsNullOrWhiteSpace(p.Category) ? kind : $"{kind} · {p.Category}";
+            case DAScenarioGroup g:
+                var parts = new List<string> { Count(g.Scenarios.Count, Portability.DetailScenarioOne, Portability.DetailScenarios) };
+                if (g.LocalScenes.Count > 0) parts.Add(Count(g.LocalScenes.Count, Portability.DetailLocalSceneOne, Portability.DetailLocalScenes));
+                return string.Join(", ", parts);
+            case DAScenario sc:
+                return Count(sc.Items.Count, Portability.DetailItemOne, Portability.DetailItems);
+            case DAScenarioRecord r:
+                return $"{string.Format(Portability.DetailFrom, r.SourceGroupName)} · {Count(r.Scenario.Items.Count, Portability.DetailItemOne, Portability.DetailItems)}";
+            case DAScenarioItemRecord r:
+                return string.Format(Portability.DetailFrom, $"{r.SourceGroupName} / {r.SourceScenarioName}");
+            case DALocalSceneRecord r:
+                return string.Format(Portability.DetailFrom, r.SourceGroupName);
+            default:
+                return null;
+        }
+    }
+
+    private static string Count(int n, string one, string many) => n == 1 ? one : string.Format(many, n);
+
+    /// The kind of a nested row, in the singular.
+    private static string KindLabelOne(DAAssetKind kind) => kind == DAAssetKind.Scenario ? Portability.NestedScenario : Portability.NestedLocalScene;
 
     /// The container a group part goes into: a local group, or a new one (scenario items: a scenario).
     private RenderFragment RenderTarget(DAImportItem item) => __builder =>

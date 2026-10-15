@@ -212,6 +212,39 @@ namespace DiceAudio.Resources.Localization
         public const string ImportOriginRest = "You can still import the rest of its content.";
         public const string ImportIntoGroupNote = "The scenes of this file are added to the local scenes of \"{0}\".";
 
+        /// <summary>New strings (round 3): the list of what the file holds, and the tick boxes.</summary>
+        public const string WizardSelected = "{0} of {1} items selected";
+        public const string WizardSelectedOne = "{0} of 1 item selected";
+        public const string WizardSelectAll = "Select all";
+        public const string WizardSelectNone = "Select none";
+        public const string WizardImportThis = "Import \"{0}\"";
+        public const string WizardAlsoNeeds = "Also import what it needs ({0})";
+        public const string WizardAlsoNeedsHelp = "Ticks the items of this file that it uses and that are not ticked yet: {0}";
+        public const string WizardShowContents = "Show what it contains";
+        public const string WizardHideContents = "Hide what it contains";
+        public const string WizardListIntro =
+            "Nothing in this file conflicts with your library. Everything that is ticked will be imported; untick what you do not want.";
+        public const string WizardListIntroFolder =
+            "Nothing in this folder conflicts with your library. Everything that is ticked will be added; untick what you do not want.";
+        public const string WizardUntickHint = "Untick what you do not want to import.";
+        public const string NestedScenario = "Scenario";
+        public const string NestedLocalScene = "Local scene";
+        public const string DetailRoot = "Root";
+        public const string DetailHasLink = "download link";
+        public const string DetailInPack = "file in the audio file pack";
+        public const string DetailNoLink = "no download link";
+        public const string DetailScenarios = "{0} scenarios";
+        public const string DetailScenarioOne = "1 scenario";
+        public const string DetailLocalScenes = "{0} local scenes";
+        public const string DetailLocalSceneOne = "1 local scene";
+        public const string DetailItems = "{0} items";
+        public const string DetailItemOne = "1 item";
+        public const string DetailFrom = "from \"{0}\"";
+        public const string DetailScenePreset = "Scene preset";
+        public const string DetailItemPreset = "Scenario item preset";
+        public const string DetailTagCategory = "{0} tag";
+        public const string DetailTagNoCategory = "tag in no category";
+
         public const string WizardSkipWarningTitle = "Other content uses this one";
         public const string WizardSkipWarning = "If you do not import \"{0}\", the following will be imported without it: {1}";
         public const string WizardConfirmBtn = "Import";

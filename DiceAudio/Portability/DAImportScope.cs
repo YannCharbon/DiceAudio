@@ -59,4 +59,23 @@ namespace DiceAudio.Portability
             return count;
         }
     }
+
+    /// <summary>
+    /// The DaIcon glyph each kind has elsewhere in the app (the navigation
+    /// bar, the Explorer, the Scenes and Scenarios pages), shown next to its
+    /// name in the import and export windows.
+    /// </summary>
+    public static class DAKindIcon
+    {
+        public static string For(DAAssetKind kind) => kind switch
+        {
+            DAAssetKind.Tag => "tag",
+            DAAssetKind.Folder => "folder",
+            DAAssetKind.AudioItem => "music-note",
+            DAAssetKind.Scene or DAAssetKind.LocalScene => "movie",
+            DAAssetKind.Preset => "bookmarks",
+            DAAssetKind.ScenarioGroup => "auto-stories",
+            _ => "playlist",   // a scenario, a scenario item
+        };
+    }
 }

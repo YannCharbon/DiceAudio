@@ -42,10 +42,10 @@
             @if (_bundle != null && _summary.Count > 0)
             {
                 <p class="da-confirm-msg" style="margin-bottom:4px;">@Portability.ExportContains</p>
-                <ul class="da-confirm-msg" style="margin-top:0; padding-left:20px;">
-                    @foreach (var line in _summary)
+                <ul class="da-confirm-msg" style="margin-top:0; padding-left:4px; list-style:none;">
+                    @foreach (var (icon, line) in _summary)
                     {
-                        <li>@line</li>
+                        <li><DaIcon Name="@icon" Size="15" style="color:var(--t3); vertical-align:-3px; margin-right:6px;" />@line</li>
                     }
                 </ul>
 
@@ -146,7 +146,7 @@
     private bool _checksums;
     private int _present;
     private long _bytes;
-    private readonly List<string> _summary = new();
+    private readonly List<(string Icon, string Text)> _summary = new();
     private bool _saving, _done, _failed;
     private string _result = "";
     private DAMediaProgress? _progress;
@@ -205,14 +205,14 @@
         var b = _bundle;
         int scenes = b.Scenes.Count + b.LocalScenes.Count + b.ScenarioGroups.Sum(g => g.LocalScenes.Count);
         int scenarios = b.Scenarios.Count + b.ScenarioGroups.Sum(g => g.Scenarios.Count);
-        Add(Portability.SummaryScenarioGroups, b.ScenarioGroups.Count);
-        Add(Portability.SummaryScenarios, scenarios);
-        Add(Portability.SummaryScenarioItems, b.ScenarioItems.Count);
-        Add(Portability.SummaryScenes, scenes);
-        Add(Portability.SummaryPresets, b.Presets.Count);
-        Add(Portability.SummaryAudioItems, b.AudioItems.Count);
-        Add(Portability.SummaryFolders, b.Folders.Count);
-        Add(Portability.SummaryTags, b.Tags.Count);
+        Add(DAAssetKind.ScenarioGroup, Portability.SummaryScenarioGroups, b.ScenarioGroups.Count);
+        Add(DAAssetKind.Scenario, Portability.SummaryScenarios, scenarios);
+        Add(DAAssetKind.ScenarioItem, Portability.SummaryScenarioItems, b.ScenarioItems.Count);
+        Add(DAAssetKind.Scene, Portability.SummaryScenes, scenes);
+        Add(DAAssetKind.Preset, Portability.SummaryPresets, b.Presets.Count);
+        Add(DAAssetKind.AudioItem, Portability.SummaryAudioItems, b.AudioItems.Count);
+        Add(DAAssetKind.Folder, Portability.SummaryFolders, b.Folders.Count);
+        Add(DAAssetKind.Tag, Portability.SummaryTags, b.Tags.Count);
         Estimate();
     }
 
@@ -231,9 +231,9 @@
         if (broken > 0) yield return (broken == 1 ? Portability.ExportBrokenReferencesOne : string.Format(Portability.ExportBrokenReferences, broken));
     }
 
-    private void Add(string format, int count)
+    private void Add(DAAssetKind kind, string format, int count)
     {
-        if (count > 0) _summary.Add(string.Format(format, count));
+        if (count > 0) _summary.Add((DAKindIcon.For(kind), string.Format(format, count)));
     }
 
     private static int Percent(DAMediaProgress p) =>

@@ -29,6 +29,7 @@
     .imp-kind { font-size: 14px; font-weight: 700; color: var(--a3); border-bottom: 1px solid var(--b1); padding: 12px 2px 4px; margin: 4px 0 8px; }
     .imp-item { margin-bottom: 6px; padding: 8px 10px; }
     .imp-muted { opacity: .62; }
+    .imp-kind-icon { color: var(--t3); flex: none; margin-top: 2px; vertical-align: -2px; }
     .imp-tick { width: 18px; flex: none; margin-top: 1px; }
     .imp-top { margin-bottom: 8px; }
     .imp-sec-btn { display: inline-flex; align-items: center; gap: 4px; background: none; border: 0; padding: 2px 0; color: inherit; font: inherit; cursor: pointer; }
@@ -305,6 +306,7 @@
                     <button type="button" class="imp-sec-btn" aria-expanded="@(collapsed ? "false" : "true")"
                             @onclick="() => ToggleSection(k)">
                         <DaIcon Name="@(collapsed ? "chevron-right" : "chevron-down")" Size="16" />
+                        <DaIcon Name="@DAKindIcon.For(kind)" Size="16" />
                         @KindLabel(kind) (@items.Count)
                     </button>
                     <span style="flex:1;"></span>
@@ -405,6 +407,7 @@
                 <div style="flex:1; min-width:0;">
                     @* The status stays on the right; the name and its detail wrap instead. *@
                     <div class="da-irow" style="gap:8px; align-items:flex-start;">
+                        <DaIcon Name="@DAKindIcon.For(item.Kind)" Size="16" Class="imp-kind-icon" />
                         <div class="da-irow da-irow-wrap" style="gap:2px 8px; flex:1; min-width:0;">
                             <span class="imp-name">@item.IncomingName</span>
                             @if (detail != null)
@@ -489,7 +492,7 @@
                             <ul class="imp-list" style="margin:4px 0 0;">
                                 @foreach (var scenario in group.Scenarios)
                                 {
-                                    <li>@KindLabelOne(DAAssetKind.Scenario): @scenario.Name · <span class="da-meta">@Count(scenario.Items.Count, Portability.DetailItemOne, Portability.DetailItems)</span>
+                                    <li><DaIcon Name="@DAKindIcon.For(DAAssetKind.Scenario)" Size="13" Class="imp-kind-icon" /> @KindLabelOne(DAAssetKind.Scenario): @scenario.Name · <span class="da-meta">@Count(scenario.Items.Count, Portability.DetailItemOne, Portability.DetailItems)</span>
                                         @if (scenario.Items.Count > 0)
                                         {
                                             <div class="da-meta">@string.Join(", ", scenario.Items.Select(i => i.Name))</div>
@@ -498,7 +501,7 @@
                                 }
                                 @foreach (var scene in group.LocalScenes)
                                 {
-                                    <li>@KindLabelOne(DAAssetKind.LocalScene): @scene.Name</li>
+                                    <li><DaIcon Name="@DAKindIcon.For(DAAssetKind.LocalScene)" Size="13" Class="imp-kind-icon" /> @KindLabelOne(DAAssetKind.LocalScene): @scene.Name</li>
                                 }
                             </ul>
                         }

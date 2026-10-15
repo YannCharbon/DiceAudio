@@ -403,14 +403,16 @@
                     <span class="imp-tick" aria-hidden="true"></span>
                 }
                 <div style="flex:1; min-width:0;">
-                    <div class="da-irow da-irow-wrap" style="gap:4px 8px;">
-                        <span class="imp-name">@item.IncomingName</span>
-                        @if (detail != null)
-                        {
-                            <span class="da-meta">@detail</span>
-                        }
-                        <span style="flex:1;"></span>
-                        <span class="da-tag @(conflict ? "imp-status-warn" : "")">@StatusLabel(item.Status)</span>
+                    @* The status stays on the right; the name and its detail wrap instead. *@
+                    <div class="da-irow" style="gap:8px; align-items:flex-start;">
+                        <div class="da-irow da-irow-wrap" style="gap:2px 8px; flex:1; min-width:0;">
+                            <span class="imp-name">@item.IncomingName</span>
+                            @if (detail != null)
+                            {
+                                <span class="da-meta" style="overflow-wrap:anywhere;">@detail</span>
+                            }
+                        </div>
+                        <span class="da-tag @(conflict ? "imp-status-warn" : "")" style="flex:none;">@StatusLabel(item.Status)</span>
                     </div>
                     @if (conflict && LocalName(item) is { } localName)
                     {

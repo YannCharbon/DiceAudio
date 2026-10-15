@@ -299,7 +299,7 @@
         catch (Exception ex)
         {
             Debug.WriteLine($"Backup failed: {ex}");
-            Notices.Report(string.Format(Portability.BackupFailed, ex.Message));
+            Notices.Report(Portability.BackupsTitle, string.Format(Portability.BackupFailed, ex.Message));
         }
         finally
         {
@@ -329,7 +329,7 @@
         catch (Exception ex)
         {
             Debug.WriteLine($"Saving a backup to a file failed: {ex}");
-            Notices.Report(string.Format(Portability.ExportFailed, ex.Message));
+            Notices.Report(Portability.BackupsTitle, string.Format(Portability.ExportFailed, ex.Message));
         }
         finally
         {
@@ -348,7 +348,7 @@
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             Debug.WriteLine($"Reading the backup failed: {ex.Message}");
-            Notices.Report(Portability.RestoreDamaged);
+            Notices.Report(Portability.NoticeRestoreTitle, Portability.RestoreDamaged);
             return;
         }
         await RestoreAsync(bytes);
@@ -369,7 +369,7 @@
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             Debug.WriteLine($"Reading the backup file failed: {ex.Message}");
-            Notices.Report(Portability.RestoreDamaged);
+            Notices.Report(Portability.NoticeRestoreTitle, Portability.RestoreDamaged);
             return;
         }
         if (bytes.Length == 0) return;
@@ -407,7 +407,7 @@
             }
             catch (BackupSafetyFailedException safety)
             {
-                Notices.Report(string.Format(Portability.BackupFailed, safety.Message));
+                Notices.Report(Portability.BackupsTitle, string.Format(Portability.BackupFailed, safety.Message));
                 return;
             }
             catch (BackupRollbackFailedException rollback)
@@ -449,7 +449,7 @@
             BackupCheck.NewerVersion => Portability.RestoreNewerVersion,
             _ => Portability.RestoreDamaged,
         };
-        Notices.Report(message);
+        Notices.Report(Portability.NoticeRestoreTitle, message);
     }
 
     // ── Data folder (Windows) ──────────────────────────────────────────
@@ -483,7 +483,7 @@
         };
         if (refusal != null)
         {
-            Notices.Report(refusal);
+            Notices.Report(Portability.DataFolderTitle, refusal);
             return;
         }
 
@@ -546,7 +546,7 @@
         catch (Exception ex)
         {
             await DataFolder.UndoRenamesAsync(renames);
-            Notices.Report(string.Format(Portability.MoveFailed, ex.Message, Location.Root));
+            Notices.Report(Portability.DataFolderTitle, string.Format(Portability.MoveFailed, ex.Message, Location.Root));
             return;
         }
 
@@ -603,7 +603,7 @@
         {
             Debug.WriteLine($"Moving the data failed: {ex}");
             _moveProgress = null;
-            Notices.Report(string.Format(Portability.MoveFailed, ex.Message, Location.Root));
+            Notices.Report(Portability.DataFolderTitle, string.Format(Portability.MoveFailed, ex.Message, Location.Root));
             _busy = false;
         }
     }
@@ -621,7 +621,7 @@
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            Notices.Report(ex.Message);
+            Notices.Report(Portability.DataFolderTitle, ex.Message);
         }
     }
 

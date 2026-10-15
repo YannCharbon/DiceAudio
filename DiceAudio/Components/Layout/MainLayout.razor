@@ -28,17 +28,24 @@
    how a restore ended: the user must see it and acknowledge it, so it is a
    dialog rather than a toast that fades away. The messages live in
    DAStorageNotices, so they survive the rebuild of the pages after a
-   restore. Drawn like DaConfirm, with a single button and
-   no title, as in DiceCombats: there is nothing to decide, only something
-   to know. *@
+   restore. Drawn like DaConfirm, with a single button: there is nothing
+   to decide, only something to know. Each message has its own short
+   heading, and a line separates it from the next one. *@
 @if (_storageNotices.Count > 0)
 {
     <div class="da-confirm-scrim">
-        <div class="da-confirm" role="alertdialog" aria-modal="true">
-            @foreach (var line in _storageNotices)
-            {
-                <p class="da-confirm-msg">@line</p>
-            }
+        <div class="da-confirm" role="alertdialog" aria-modal="true"
+             style="width:min(560px, 100%); max-height:calc(100vh - 48px); display:flex; flex-direction:column;">
+            <div style="overflow-y:auto; min-height:0; margin-bottom:6px;">
+                @for (int i = 0; i < _storageNotices.Count; i++)
+                {
+                    var notice = _storageNotices[i];
+                    <section style="@(i > 0 ? "border-top:1px solid var(--b1); padding-top:14px;" : "")">
+                        <h3 class="da-confirm-title" style="font-size:14.5px;">@notice.Title</h3>
+                        <p class="da-confirm-msg">@notice.Text</p>
+                    </section>
+                }
+            </div>
             <div class="da-confirm-foot">
                 <button type="button" class="da-btn da-btn-fill" @onclick="CloseStorageNotice">
                     <DaIcon Name="check" />
@@ -140,10 +147,8 @@ else
             },
     };
 
-    /// The messages waiting to be read, oldest first. Each one names its own
-    /// file or says what happened, so they can be shown together without a
-    /// title that would fit only some.
-    private IReadOnlyList<string> _storageNotices = Array.Empty<string>();
+    /// The messages waiting to be read, oldest first, each with its heading.
+    private IReadOnlyList<DANotice> _storageNotices = Array.Empty<DANotice>();
 
     private bool ShowGate => !DataFolder.IsLoaded && DataFolder.Location.State != DiceAudio.Storage.DataLocationState.Ok;
 
@@ -172,7 +177,27 @@ else
         Notices.Changed += OnNoticesChanged;
         _storageNotices = Notices.Pending;
         App.PagesReloadRequested += ReloadInPlace;
+        Playback.StateChanged += OnPlaybackChanged;
     }
+
+    // "Reloading stops the scenarios that are playing" follows the playback
+    // while the banner or the conflict question shows it. Only a change of
+    // "something plays" redraws the page.
+    private bool _playingShown;
+
+    private void OnPlaybackChanged()
+    {
+        if (ExternalChanges.ChangedElsewhere.Count == 0 && ExternalChanges.PendingConflict == null) return;
+        _ = InvokeAsync(() =>
+        {
+            bool playing = Playback.ActiveScenarioPlayers.Count > 0;
+            if (playing == _playingShown) return;
+            _playingShown = playing;
+            StateHasChanged();
+        });
+    }
+
+    protected override void OnAfterRender(bool firstRender) => _playingShown = Playback.ActiveScenarioPlayers.Count > 0;
 
     // A full reload of the web page in the same web view: every component and
     // every scoped service starts again, as with a new page, but the native
@@ -198,5 +223,6 @@ else
         DataFolder.LoadedChanged -= OnLoadedChanged;
         ExternalChanges.Changed -= OnLoadedChanged;
         App.PagesReloadRequested -= ReloadInPlace;
+        Playback.StateChanged -= OnPlaybackChanged;
     }
 }

@@ -78,11 +78,11 @@ namespace DiceAudio
             if (!OperatingSystem.IsWindows()) return;
             var names = BackupService.DataFileNames;
             var copies = CloudFiles.FindConflictCopies(_location.Root, names);
-            if (copies.Count > 0) _notices.Report(string.Format(Texts.CloudConflictCopies, string.Join(", ", copies)));
+            if (copies.Count > 0) _notices.Report(Texts.NoticeCloudCopiesTitle, string.Format(Texts.CloudConflictCopies, string.Join(", ", copies)));
             var cloudOnly = CloudFiles.FindCloudOnly(_location.Root, names);
-            if (cloudOnly.Count > 0) _notices.Report(string.Format(Texts.CloudOnlyWarning, string.Join(", ", cloudOnly)));
+            if (cloudOnly.Count > 0) _notices.Report(Texts.NoticeCloudOnlyTitle, string.Format(Texts.CloudOnlyWarning, string.Join(", ", cloudOnly)));
             var unsaved = UnsavedCopies.Find(_location.Root, names);
-            if (unsaved.Count > 0) _notices.Report(string.Format(Texts.UnsavedCopiesManual, string.Join(", ", unsaved)));
+            if (unsaved.Count > 0) _notices.Report(Texts.NoticeUnsavedTitle, string.Format(Texts.UnsavedCopiesManual, string.Join(", ", unsaved)));
         }
 
         /// <summary>

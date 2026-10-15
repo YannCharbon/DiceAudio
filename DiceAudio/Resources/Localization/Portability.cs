@@ -98,7 +98,7 @@ namespace DiceAudio.Resources.Localization
 
         public const string BackupsTitle = "Backups";
         public const string BackupsHelp =
-            "DiceAudio backs up your data the first time you open it each day, and before every import, every restore, and before your data is copied to another folder. " +
+            "DiceAudio backs up your data the first time you open it each day, and before every import, every restore and every copy of your data to another folder. " +
             "A backup contains your library, folders, tags, scenes, scenario groups, presets and settings, but never the audio files themselves.";
         public const string BackupNowBtn = "Back up now";
         public const string BackupRestoreBtn = "Restore";
@@ -396,6 +396,15 @@ namespace DiceAudio.Resources.Localization
             "Some changes could not be saved because the same data was changed on another computer. They are kept in the data folder: {0}. " +
             "These files cannot be imported. To use one of them, please make a backup first and close DiceAudio. " +
             "Then give the file the name of the data file it belongs to, for example presets.json, in place of that file.";
+
+        /// <summary>New strings (round 2): the headings of the messages shown in the notice window.</summary>
+        public const string NoticeLoadFailedTitle = "A data file could not be read";
+        public const string NoticeSaveFailedTitle = "A data file could not be saved";
+        public const string NoticeRestoreTitle = "Restore";
+        public const string NoticeRestoreMissingTitle = "Audio files missing after the restore";
+        public const string NoticeCloudCopiesTitle = "Copies made by your synchronisation service";
+        public const string NoticeCloudOnlyTitle = "Files only in the cloud";
+        public const string NoticeUnsavedTitle = "Changes kept aside";
 
         public const string DataPanelTitle = "Data";
         public const string SharingTitle = "Sharing";

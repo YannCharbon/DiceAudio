@@ -1,66 +1,69 @@
 # Release notes
 
-Third release of DiceAudio. The application has been redrawn: it now wears the same visual language as
-DiceCombats, built from the colours DiceAudio already had, so the two halves of the suite finally look
-like one program. The home page has been rebuilt around what you actually open the app for, and the
-update check no longer forgets what it found.
+Fourth release of DiceAudio. It is about your data: you can now share any part of your library with
+other game masters, keep backups and restore them from Settings, choose the folder where everything is
+kept, and use the same library on several computers. The website has a new page, "Your data", which
+explains all of this step by step.
 
 ### New
 
-- **A home page that is worth opening**
-  It shows what is playing right now, live, with a stop button per scenario, and the scenario groups you
-  pinned. The quick actions start something — a new scenario group, a new scene, a download, an import —
-  instead of repeating the links already in the title bar.
+- **Exporting**
+  Audio items, folders, scenes, scenarios, scenario groups, collections and presets each have an Export
+  button, and Settings → Data offers Export the whole library…. The file also holds everything the
+  exported content uses: a scenario group comes with its scenes, the audio items they play, and the
+  folders and tags of those items. The audio itself is not in the file, only the download links. If you
+  tick Also save the audio files, the audio files on your computer are saved in a second file
+  (.diceamedia) next to the first one.
 
-- **Pinned scenario groups**
-  The groups you keep coming back to can be pinned from the scenarios explorer and are then one click
-  away on the home page. The list survives a rename, a re-filing into a collection, and a restart; a
-  group deleted elsewhere simply stops appearing.
+- **Importing**
+  Import a DiceAudio file… is available in the Explorer, on the Scenes and Scenarios pages, in the Local
+  scenes tab of a scenario group, and in Settings. The import window lists everything the file holds,
+  with a tick box for each part. When an item is already in your library, you choose what to do with it:
+  import it as a copy, replace yours, keep yours, or merge a folder or a scenario group. One button gives
+  the same answer to many items at once, and you can set a text to put before and after the names of the
+  copies. After the import, DiceAudio finds the audio files in the pack, on your computer or through the
+  download links, and lists the items still without a file.
 
-- **Checking for updates on demand**
-  The settings page carries a "Check now" button and says when it last looked, next to the yt-dlp
-  section that already worked this way.
+- **Backups**
+  DiceAudio backs up your library, scenes, scenarios, tags, presets and settings the first time you open
+  it each day, and before every import or restore. Settings → Data shows the most recent backup with a
+  Restore button, and All backups… lists the others. A backup can also be saved to a file and restored
+  from one. The audio files are not part of the backups.
+
+- **A data folder of your choice**
+  Your library, its backups and your audio files are now kept together in one data folder. Choose
+  another folder… in Settings moves everything there, checks the copy and restarts. Your previous data
+  stays where it was until you delete it.
+
+- **The same library on several computers**
+  A data folder kept in sync by OneDrive, Dropbox or a similar service can be used from several
+  computers. DiceAudio tells you when the folder is already open on another computer, offers to reload
+  when data was changed elsewhere, and asks which version to keep when both sides changed the same thing.
+  It never reloads by itself in the middle of a session.
+
+- **The state of each audio file**
+  In the Explorer, an audio item whose file is not on this computer says so on its card: not downloaded
+  yet, not found on disk, no audio file, or only in the cloud. A Download or Pick file… button sits next
+  to it. Download all adds every item of a folder that is not downloaded yet, and the Missing files filter
+  gathers these items from every folder.
 
 ### Improvements
 
-- **One visual language across the suite**
-  Every MudBlazor control is gone, replaced by the application's own. Buttons, inputs, tick boxes,
-  steppers, menus, modals and confirmations are drawn by DiceAudio itself, which means they all answer
-  to the same tokens: one card colour, one border, one radius, one set of accents. Nothing was
-  recoloured — the tokens were derived from the colours the application already used.
+- **Downloads carry on in the background**
+  Tracks now go through a download list that keeps going when you close the download window. Each track
+  joins your library as soon as it is downloaded. Stopping a download deletes the partial files it left.
 
-- **Scenario groups, scenes and the home page share one card**
-  A scenario group used to be a slab of the brand gradient with a small icon loose on it while a scene
-  was a flat card with a gradient tile. They are the same object in three places and now look it.
-
-- **Icons**
-  A single stroked set drawn for the application, including the audio vocabulary: levels, transport,
-  loop, shuffle, fades, tags, playlists.
-
-- **Readable controls**
-  Operable edges now clear the contrast ratio the standard asks for, and accent text uses a tint that is
-  legible on a dark card rather than the identity pink, which was not.
-
-- **The taskbar shows the application's name**
-  The window had no title, so Windows had only the icon to go on.
+- **Safer saving**
+  The library files are written in a way that survives a crash or a power cut in the middle of a save.
+  A file that failed to load is no longer overwritten by an empty library at the next save.
 
 ### Fixed
 
-- **An update that disappeared**
-  The settings page reported anything that was not a confirmed update as "up to date", so a request
-  refused by GitHub — which is what happens once the hourly limit for your address is spent — looked
-  exactly like good news, and an update found a minute earlier vanished. A failed check now says so and
-  keeps what it last knew. The answer is also cached for six hours instead of being asked again on every
-  visit to a page, which is what exhausted the limit in the first place.
+- **Confirmation dialogs that did not appear**
+  A mistake in the stylesheet hid the confirmation dialogs raised from inside another window.
 
-- **The version was always 0.0.0**
-  Shown in the settings, and compared against the latest release to decide whether an update exists.
+- **Long release notes in the welcome dialog**
+  They ran past the bottom of the dialog. They now scroll inside it.
 
-- **Volume sliders jumping about**
-  On a French system the slider was given its value with a comma, rejected it, and sent the handle
-  somewhere other than where the coloured part of the track ended. Every slider bound to a decimal value
-  is affected: scene layers, scene step commands, clip volume and the seek bars.
-
-- **The slider gradient ran the wrong way**
-  Silence wore the loud colour, and the colour under the handle read as full volume at every position.
-  Quiet is the cool end now, and the colour under the handle is the colour of the value it is on.
+- **The title bar**
+  It could move out of place when the pages were rebuilt.

@@ -244,7 +244,7 @@ else if (Player != null)
        is what paints the played part of the track, which MudSlider drew itself. *@
     <input type="range" class="da-range" aria-label="Seek"
            style="@($"margin:0 0 4px 0; --pp:{SeekPercent};")"
-           min="0" max="@(Math.Max(Player.Duration, 1))" step="1"
+           min="0" max="@Inv(Math.Max(Player.Duration, 1))" step="1"
            value="@Inv(Player.CurrentPosition)" @oninput="OnSeekInput" />
 
     @* ── Next in queue ── *@
@@ -290,7 +290,9 @@ else if (Player != null)
     /// a double in the CURRENT culture, so on a French locale value="0,37" is
     /// rejected and the thumb snaps elsewhere - while --pp, written invariantly,
     /// stays put. That disagreement is what made the thumb jitter and the fill
-    /// stop matching it.
+    /// stop matching it. The same goes for max: a track length such as
+    /// "245,37" is rejected, the browser falls back to max=100, and the thumb
+    /// runs as if every track were 100 seconds long.
     static string Inv(double value) =>
         value.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture);
 

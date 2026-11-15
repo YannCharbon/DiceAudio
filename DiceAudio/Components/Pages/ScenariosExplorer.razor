@@ -226,6 +226,9 @@ else
 }
 
 @code {
+    /// The collection to open on arrival, when coming back from one of its groups.
+    [SupplyParameterFromQuery(Name = "collection")] public string? InitialCollection { get; set; }
+
     private string _search = string.Empty;
 
     /// Null = root view (collection folders + groups in no collection); otherwise
@@ -359,6 +362,14 @@ else
             }
         </div>
     };
+
+    protected override void OnInitialized()
+    {
+        if (!string.IsNullOrWhiteSpace(InitialCollection)
+            && DAService.GetGroupsOfCollection(InitialCollection).Count > 0)
+            _openCollection = DAService.GetCollections().First(c =>
+                string.Equals(c, InitialCollection, StringComparison.CurrentCultureIgnoreCase));
+    }
 
     void OpenGroup(DAScenarioGroup group) => NavManager.NavigateTo($"scenarios/{group.Id}");
 

@@ -89,7 +89,7 @@
 {
     <p style="padding:20px; color:grey;">Scenario group not found.</p>
     <button type="button" class="da-btn da-btn-text"
-            @onclick='() => NavManager.NavigateTo("scenarios")'>
+            @onclick="BackToExplorer">
         <DaIcon Name="arrow-back" Size="16" />
         Back to scenarios
     </button>
@@ -98,7 +98,7 @@ else
 {
     <div class="scm-header">
         <button type="button" class="da-btn da-btn-text"
-                @onclick='() => NavManager.NavigateTo("scenarios")'>
+                @onclick="BackToExplorer">
             <DaIcon Name="arrow-back" Size="16" />
             Back
         </button>
@@ -423,7 +423,21 @@ else
         // Awaited rather than queued: the page is about to go away, and the
         // deletion must not sit in a pending auto-save.
         await DAService.SaveScenarioGroupsAsync();
-        NavManager.NavigateTo("scenarios");
+        BackToExplorer();
+    }
+
+    /// <summary>
+    /// Returns to the scenarios explorer, inside the collection the group is
+    /// filed under, so a group just created there is found where it was made.
+    /// </summary>
+    void BackToExplorer()
+    {
+        string collection = _group?.Collection ?? string.Empty;
+        // A deleted group may have been the last of its collection.
+        if (string.IsNullOrWhiteSpace(collection) || DAService.GetGroupsOfCollection(collection).Count == 0)
+            NavManager.NavigateTo("scenarios");
+        else
+            NavManager.NavigateTo($"scenarios?collection={Uri.EscapeDataString(collection)}");
     }
 
     // ── Local scenes ────────────────────────────────────────────────────────

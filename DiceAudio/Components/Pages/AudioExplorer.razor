@@ -243,14 +243,18 @@ else if (_breadcrumb.Any())
 
             if (!isLast)
             {
-                <span class="crumb-link" @onclick="@(() => NavigateToFolder(crumb))">
-                    @(crumb == _rootFolder ? "Root" : crumb.Name)
+                <span class="crumb-link" title="@(crumb == _rootFolder ? "Home" : null)"
+                      style="display:inline-flex; align-items:center;"
+                      @onclick="@(() => NavigateToFolder(crumb))">
+                    @if (crumb == _rootFolder) { <DaIcon Name="home" Size="16" aria-label="Home" /> } else { @crumb.Name }
                 </span>
                 <span class="crumb-sep">/</span>
             }
             else
             {
-                <span>@(crumb == _rootFolder ? "Root" : crumb.Name)</span>
+                <span title="@(crumb == _rootFolder ? "Home" : null)" style="display:inline-flex; align-items:center;">
+                    @if (crumb == _rootFolder) { <DaIcon Name="home" Size="16" aria-label="Home" /> } else { @crumb.Name }
+                </span>
             }
         }
 }

@@ -51,11 +51,11 @@
 <div class="fbr-crumbs">
     @if (_viewFolder == null)
     {
-        <span class="fbr-crumb-current">Root</span>
+        <span class="fbr-crumb-current" title="Home" style="display:inline-flex;"><DaIcon Name="home" Size="16" aria-label="Home" /></span>
     }
     else
     {
-        <span class="fbr-crumb" @onclick="() => NavigateTo(null)">Root</span>
+        <span class="fbr-crumb" title="Home" style="display:inline-flex;" @onclick="() => NavigateTo(null)"><DaIcon Name="home" Size="16" aria-label="Home" /></span>
         @foreach (var crumb in DAService.FolderAncestry(_viewFolder))
         {
             var c = crumb;

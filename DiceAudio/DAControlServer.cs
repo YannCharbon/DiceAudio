@@ -143,6 +143,8 @@ namespace DiceAudio
                     ("POST", "/api/scene/advance") => await OnSceneAdvanceAsync(Parse(body)),
                     ("POST", "/api/scene/goto") => await OnSceneGotoAsync(Parse(body)),
                     ("POST", "/api/volume") => await OnVolumeAsync(Parse(body)),
+                    ("POST", "/api/sound/play") => await OnSoundAsync(Parse(body), play: true),
+                    ("POST", "/api/sound/stop") => await OnSoundAsync(Parse(body), play: false),
                     _ => null,
                 };
 
@@ -184,7 +186,7 @@ namespace DiceAudio
         }
 
         private sealed record ControlRequest(Guid? ScenarioId, Guid? ItemId, int? StepIndex,
-                                             double? Volume, bool? Muted);
+                                             double? Volume, bool? Muted, int? SoundIndex = null);
 
         private static readonly ControlRequest EmptyRequest = new(null, null, null, null, null);
 
@@ -270,6 +272,14 @@ namespace DiceAudio
                                   : scene.Mode == DASceneMode.Contextual
                                       ? scene.Contexts.Select(c => c.Name).ToList()
                                       : scene.Steps.Select(st => st.Name).ToList(),
+                            // The item's own sound effects, fired one by one through
+                            // /api/sound/play. Resolved as the item player resolves
+                            // them, so a position here is its soundIndex there.
+                            soundEffects = i.Type == DAScenarioItem.ItemType.Scene ? new List<string>()
+                                  : i.SoundEffects
+                                      .Select(u => _service.AudioItems.FirstOrDefault(a => a.Id == u.AudioItemId)?.Name)
+                                      .OfType<string>()
+                                      .ToList(),
                         };
                     }).ToList(),
                 }).ToList(),
@@ -394,6 +404,35 @@ namespace DiceAudio
             return player == null
                 ? new { ok = true, volume = (double?)null, muted = (bool?)null }
                 : new { ok = true, volume = (double?)player.Volume, muted = (bool?)player.IsMuted };
+        }
+
+        /// <summary>
+        /// Plays or stops one sound effect of an item, whether or not the item
+        /// itself is playing — as the sound effect buttons of its card do.
+        /// </summary>
+        private async Task<object> OnSoundAsync(ControlRequest req, bool play)
+        {
+            if (req.SoundIndex == null) return new { ok = false, error = "soundIndex required" };
+            var scenario = FindScenario(req.ScenarioId);
+            if (scenario == null) return new { ok = false, error = "scenario not found" };
+            var item = scenario.Items.FirstOrDefault(i => i.Id == req.ItemId);
+            if (item == null) return new { ok = false, error = "item not found" };
+
+            string? error = null;
+            await MainThread.InvokeOnMainThreadAsync(() =>
+            {
+                var player = _coordinator.GetOrCreateScenarioPlayer(scenario).GetItemPlayer(item);
+                if (player == null) { error = "player unavailable"; return; }
+
+                player.EnsureSoundsResolved();
+                int index = req.SoundIndex.Value;
+                if (index < 0 || index >= player.ResolvedSounds.Count) { error = "sound not found"; return; }
+
+                if (play) player.PlaySound(index);
+                else player.StopSound(index);
+            });
+
+            return error == null ? new { ok = true } : (object)new { ok = false, error };
         }
 
         private async Task<(DAScenarioItemPlayer? player, string? error)> GetSceneItemPlayerAsync(ControlRequest req)

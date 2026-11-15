@@ -9,7 +9,7 @@
  *   ┌──────────────────────┬──────────────────────────┐
  *   │ icon group · scenario│ player · volume · status │
  *   ├───────────┬──────────┴──────────────────────────┤
- *   │ item      │ scene steps / contexts              │
+ *   │ item      │ scene steps / contexts / sound effects │
  *   └───────────┴────────────────────────────────────┘
  *
  * The rows are independent: the top one breaks at the right edge of the scenario
@@ -191,6 +191,7 @@
 .da-cue.da-on { background: var(--da-accent-bg); border-color: var(--da-accent);
   color: var(--da-accent-2); font-weight: 700; box-shadow: inset 0 0 0 1px var(--da-accent); }
 .da-cue.da-done { opacity: .45; }
+.da-cue svg { width: 13px; height: 13px; fill: currentColor; flex: none; opacity: .7; }
 
 /* ── status ── */
 .da-eq { display: inline-flex; align-items: flex-end; gap: 2px; height: 12px; flex: none; }
@@ -294,7 +295,7 @@
 
         // ── Data / state ────────────────────────────────────────────────────
         // The API shape, kept as it arrives: groups own scenarios, scenarios own items.
-        let groups = [];         // { id, name, scenarios: [{ id, name, items: [{ id, name, type, mode, steps }] }] }
+        let groups = [];         // { id, name, scenarios: [{ id, name, items: [{ id, name, type, mode, steps, sounds }] }] }
         let cueButtons = [];     // rendered chips of the selected scene
         let disposed = false;
         let connected = true;
@@ -383,6 +384,7 @@
             cueCell.innerHTML = '';
 
             if (!isScene || !cues.length) {
+                renderSounds(item);
                 cueCell.appendChild(el('span', 'da-hint'));
                 updateHint();
                 return;
@@ -416,6 +418,40 @@
                 });
                 cueCell.appendChild(advance);
             }
+        }
+
+        // The sound effects of a non-scene item, one chip each, as on its card in
+        // the app: a click plays the sound, whether the item is playing or not,
+        // and the stop button after them silences them all.
+        function renderSounds(item) {
+            const sounds = (item && item.sounds) || [];
+            if (!sounds.length) return;
+
+            sounds.forEach(function (name, index) {
+                const chip = el('button', 'da-cue');
+                chip.innerHTML = ICON.vol1;
+                chip.appendChild(document.createTextNode(name));
+                chip.title = 'Play the sound effect "' + name + '"';
+                chip.addEventListener('click', function () {
+                    const current = selectedItem();
+                    const scenario = selectedScenario();
+                    if (current && scenario) post('/api/sound/play', {
+                        scenarioId: scenario.id, itemId: current.id, soundIndex: index
+                    });
+                });
+                cueCell.appendChild(chip);
+            });
+
+            const stop = button('stop', 'Stop the sound effects of this item', 'da-ghost');
+            stop.addEventListener('click', function () {
+                const current = selectedItem();
+                const scenario = selectedScenario();
+                if (!current || !scenario) return;
+                sounds.forEach(function (_, index) {
+                    post('/api/sound/stop', { scenarioId: scenario.id, itemId: current.id, soundIndex: index });
+                });
+            });
+            cueCell.appendChild(stop);
         }
 
         // The hint line only exists for non-scene items (scenes fill the cell
@@ -541,7 +577,10 @@
                                 items: (scenario.items || []).map(function (item) {
                                     return {
                                         id: item.id, name: item.name, type: item.type,
-                                        mode: item.sceneMode, steps: item.steps
+                                        mode: item.sceneMode, steps: item.steps,
+                                        // Absent from DiceAudio versions before the
+                                        // sound effect endpoints existed.
+                                        sounds: item.soundEffects || []
                                     };
                                 })
                             };

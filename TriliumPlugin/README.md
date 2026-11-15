@@ -201,7 +201,9 @@ bottom-right cell:
   **default context**.
 
 Non-scene items get the now-playing line in that cell instead, so it is never
-empty. Highlighting only follows the *selected* item: when another item is
+empty. When such an item has sound effects, one chip per sound effect comes
+first: a click plays it, whether the item is playing or not, as the buttons on
+the item's card in the app do. The stop button after the chips silences them. Highlighting only follows the *selected* item: when another item is
 playing, the chips stay neutral rather than reporting someone else's state.
 
 The widget learns the model from the `sceneMode` field returned by
@@ -290,6 +292,8 @@ http://localhost:{port}
 | POST | `/api/scene/advance` | `{scenarioId, itemId}` | Advances a linear scene to the next step (cycles contexts for contextual scenes). |
 | POST | `/api/scene/goto` | `{scenarioId, itemId, stepIndex}` | Jumps to a scene cue: a step (linear) or a context (contextual), by index. |
 | POST | `/api/volume` | `{scenarioId?, volume?, muted?}` | Sets the master level of one scenario, or of every active one when `scenarioId` is omitted. `volume` is `0..1`; `volume` and `muted` are independent, so sending only `muted` keeps the stored level. Replies `{ok, volume, muted}`. |
+| POST | `/api/sound/play` | `{scenarioId, itemId, soundIndex}` | Plays one sound effect of an item, by its position in the item's `soundEffects`, whether the item is playing or not. |
+| POST | `/api/sound/stop` | `{scenarioId, itemId, soundIndex}` | Stops that sound effect. |
 
 Scene cue fields:
 
@@ -298,6 +302,12 @@ Scene cue fields:
   scenes, or the context names for contextual scenes).
 - `/api/state` → the active entry carries `sceneMode`, `sceneStepIndex`,
   `sceneStepName`, and `sceneStepCount`, unified across steps and contexts.
+
+Sound effect fields:
+
+- `/api/groups` → each item carries `soundEffects`, the names of its sound
+  effects in order (empty for scene items, whose sound effects are layers of the
+  scene). A position in this list is the `soundIndex` of `/api/sound/play`.
 
 Volume fields:
 

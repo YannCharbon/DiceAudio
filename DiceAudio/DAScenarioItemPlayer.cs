@@ -158,6 +158,15 @@ namespace DiceAudio
             ResolveSounds();
         }
 
+        /// <summary>
+        /// Resolves the sound effects of an item that has not been played yet, so
+        /// one can be fired on its own — from the remote-control API, for instance.
+        /// </summary>
+        public void EnsureSoundsResolved()
+        {
+            if (_resolvedSounds.Count == 0 && Item.SoundEffects.Count > 0) ResolveSounds();
+        }
+
         private void ResolveSounds()
         {
             _resolvedSounds = ResolveUsages(Item.SoundEffects);

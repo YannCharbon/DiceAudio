@@ -50,6 +50,13 @@
   .axp-search .da-inp { border:0; background:transparent; height:30px; padding:0; color:var(--t1); }
   .axp-search .da-inp:focus-visible { outline:none; }
   .axp-search .da-ib { width:24px; height:24px; }
+
+  /* The name field of a card sits where the name does, at the foot of the
+     artwork: above it like the name (z-index 2), the full width of the hero,
+     with buttons on a dark backing so they read on any kind tint. */
+  .axp-rename-hero { position:relative; z-index:2; width:100%; }
+  .axp-rename-hero .da-ib { background:rgba(4,0,32,.6); }
+  .axp-rename-hero .da-ib:hover { background:rgba(4,0,32,.85); }
 </style>
 
 <!-- ─────────────────────  MODALS  ───────────────────── -->
@@ -509,8 +516,19 @@ else if (_breadcrumb.Any())
                     <DaIcon Name="@KindIcon(item.Kind)" Size="15" />
                     <span class="da-kind-label">@item.Kind.Label()</span>
                 </button>
-                @* The folder is a tooltip only — the breadcrumb already shows it. *@
-                <div class="da-name" title="@($"{item.Name} — {item.Folder.Name}")">@item.Name</div>
+                @if (_renamingItem == item)
+                {
+                    @* The field takes the place of the name, over the artwork; its
+                       clicks must not reach the hero, which selects the item. *@
+                    <div class="axp-rename-hero" @onclick="@(() => { })" @onclick:stopPropagation="true">
+                        @RenderItemRename()
+                    </div>
+                }
+                else
+                {
+                    @* The folder is a tooltip only — the breadcrumb already shows it. *@
+                    <div class="da-name" title="@($"{item.Name} — {item.Folder.Name}")">@item.Name</div>
+                }
             </div>
             <div class="da-body">
                 <div class="da-tags">
@@ -533,6 +551,10 @@ else if (_breadcrumb.Any())
                     @RenderFileStatus(item)
                 }
                 <div class="da-acts">
+                    <button type="button" class="da-ib" title="Rename" aria-label="Rename"
+                            @onclick="@(() => StartRenameItem(item))">
+                        <DaIcon Name="edit" Size="18" />
+                    </button>
                     <button type="button" class="da-ib" title="Edit tags" aria-label="Edit tags"
                             @onclick="@(() => OpenAudioTagsPicker(item))">
                         <DaIcon Name="tag" Size="18" />
@@ -574,7 +596,16 @@ else if (_breadcrumb.Any())
                     @onclick="@(() => ToggleKind(item))" @onclick:stopPropagation="true">
                 <DaIcon Name="@KindIcon(item.Kind)" Size="18" />
             </button>
-            <div class="da-row-name" title="@($"{item.Name} — {item.Folder.Name}")">@item.Name</div>
+            @if (_renamingItem == item)
+            {
+                <div style="flex:1; min-width:0;" @onclick="@(() => { })" @onclick:stopPropagation="true">
+                    @RenderItemRename()
+                </div>
+            }
+            else
+            {
+                <div class="da-row-name" title="@($"{item.Name} — {item.Folder.Name}")">@item.Name</div>
+            }
             <div class="da-tags">
                 @foreach (var tag in item.Tags)
                 {
@@ -597,6 +628,10 @@ else if (_breadcrumb.Any())
                 }
             </div>
             <div class="da-acts" @onclick="@(() => { })" @onclick:stopPropagation="true">
+                <button type="button" class="da-ib" title="Rename" aria-label="Rename"
+                        @onclick="@(() => StartRenameItem(item))">
+                    <DaIcon Name="edit" Size="18" />
+                </button>
                 <button type="button" class="da-ib" title="Edit tags" aria-label="Edit tags"
                         @onclick="@(() => OpenAudioTagsPicker(item))">
                     <DaIcon Name="tag" Size="18" />
@@ -896,6 +931,73 @@ else if (_breadcrumb.Any())
         _renameValue = string.Empty;
         BuildFolderTree();
     }
+
+    // ── audio item rename ───────────────────────────────────────────
+    // Only the name shown in the app changes: the file on disk keeps its own
+    // name, so scenes and scenarios that use the item are not affected.
+    private DAAudioItem? _renamingItem;
+    private string _itemRenameValue = string.Empty;
+    private ElementReference _itemRenameInput;
+    private bool _focusItemRename;
+
+    void StartRenameItem(DAAudioItem item)
+    {
+        _renamingItem = item;
+        _itemRenameValue = item.Name;
+        _focusItemRename = true;
+    }
+
+    // The field appears where the name was, ready to type in.
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_focusItemRename || _renamingItem == null) return;
+        _focusItemRename = false;
+        try { await _itemRenameInput.FocusAsync(); }
+        catch (Exception ex) when (ex is JSException or InvalidOperationException) { }
+    }
+
+    async Task ConfirmRenameItem()
+    {
+        var item = _renamingItem;
+        var newName = _itemRenameValue.Trim();
+        CancelRenameItem();
+        if (item == null || newName.Length == 0 || newName == item.Name) return;
+
+        item.Name = newName;
+        await DAService.SaveAudioItemListAsync();
+    }
+
+    void CancelRenameItem()
+    {
+        _renamingItem = null;
+        _itemRenameValue = string.Empty;
+    }
+
+    async Task OnItemRenameKeyUp(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await ConfirmRenameItem();
+        else if (e.Key == "Escape") CancelRenameItem();
+    }
+
+    /// The name field of the item being renamed, shared by the card and the row.
+    RenderFragment RenderItemRename() => __builder =>
+    {
+        <div class="da-irow" style="gap:4px;">
+            <input class="da-inp" type="text" spellcheck="false" style="flex:1; min-width:0;"
+                   @ref="_itemRenameInput"
+                   value="@_itemRenameValue" aria-label="Audio item name"
+                   @oninput="@(e => _itemRenameValue = e.Value?.ToString() ?? string.Empty)"
+                   @onkeyup="OnItemRenameKeyUp" />
+            <button type="button" class="da-ib" title="Rename" aria-label="Rename"
+                    @onclick="ConfirmRenameItem">
+                <DaIcon Name="check" Size="18" style="color:var(--ok);" />
+            </button>
+            <button type="button" class="da-ib" title="Cancel" aria-label="Cancel"
+                    @onclick="CancelRenameItem">
+                <DaIcon Name="close" Size="18" style="color:var(--danger);" />
+            </button>
+        </div>
+    };
 
     void CancelRename()
     {

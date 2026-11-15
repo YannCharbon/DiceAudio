@@ -195,16 +195,23 @@ namespace DiceAudio
 
             if (stepIndex < 0 || stepIndex >= Scene.Steps.Count) return;
 
-            if (stepIndex <= CurrentStepIndex || !IsPlaying)
+            if (!IsPlaying)
             {
-                // Backwards, or starting cold: nothing of the earlier steps should be
-                // heard, so the entering state is worked out on paper and applied in
-                // one go rather than by replaying their cues.
+                // Starting cold: nothing of the earlier steps should be heard, so the
+                // entering state is worked out on paper and applied in one go rather
+                // than by replaying their cues.
                 await StopAsync(0.3f);
                 _sessionCts = new CancellationTokenSource();
                 CurrentStepIndex = stepIndex - 1;
                 IsPlaying = true;
                 await RestoreStateForStepAsync(stepIndex, _sessionCts.Token);
+            }
+            else if (stepIndex <= CurrentStepIndex)
+            {
+                // Backwards mid-play: the layers are kept and brought to the entering
+                // state rather than cut, so the target step's own fades still have
+                // something to fade.
+                await ReconcileStateForStepAsync(stepIndex);
             }
             else
             {
@@ -262,7 +269,83 @@ namespace DiceAudio
             if (starts.Count > 0) await Task.WhenAll(starts);
         }
 
-        private Dictionary<Guid, LayerEntryState> SimulateEntryState(int stepIndex)
+        /// <summary>Fade used on a backward jump for a layer the target step does not stop itself.</summary>
+        private const double BackwardJumpFadeSeconds = 1.0;
+
+        /// <summary>
+        /// Brings the playing scene to where it stands just before
+        /// <paramref name="stepIndex"/>, without stopping it first. A layer that should
+        /// still play keeps playing; a layer that should not is left to the target
+        /// step when that step stops it — so its fade-out plays at its own length —
+        /// and faded out briefly otherwise. A layer the target step would stop is not
+        /// started only to be faded out at once.
+        /// </summary>
+        private async Task ReconcileStateForStepAsync(int stepIndex)
+        {
+            // The delayed cues and random loops of the steps being left go; the
+            // layer players are not tied to the session, so they keep playing.
+            var previous = _sessionCts;
+            _sessionCts = new CancellationTokenSource();
+            previous.Cancel();
+            var ct = _sessionCts.Token;
+
+            Dictionary<Guid, DAAudioPlayer> playing;
+            lock (_lock)
+            {
+                foreach (var cts in _randomLoops.Values) cts.Cancel();
+                _randomLoops.Clear();
+                playing = new Dictionary<Guid, DAAudioPlayer>(_layerPlayers);
+            }
+
+            CurrentStepIndex = stepIndex - 1;
+
+            var entry = SimulateEntryState(stepIndex, foldTargetStops: false);
+            var targetStops = Scene.Steps[stepIndex].Commands
+                .Where(c => c.Type is DACommandType.StopLayer or DACommandType.FadeOutLayer)
+                .ToList();
+            bool TargetStops(Guid layerId) => targetStops.Any(c => c.AllLayers || c.LayerId == layerId);
+
+            var starts = new List<Task>();
+            var handled = new HashSet<Guid>();
+
+            foreach (var (layerId, player) in playing)
+            {
+                bool wanted = entry.TryGetValue(layerId, out var state) && state.Playing;
+
+                if (wanted && player.IsPlaying)
+                {
+                    if (state!.Loop is bool loop) player.Loop = loop;
+                    _ = player.RampVolumeAsync(Math.Clamp(state.Volume, 0.0, 1.0), 0.3, ct);
+                    handled.Add(layerId);
+                }
+                else if (TargetStops(layerId))
+                {
+                    // The target step fades it out itself, at the length it asks for.
+                    handled.Add(layerId);
+                }
+                else if (!wanted)
+                {
+                    _ = StopLayerAsync(layerId, BackwardJumpFadeSeconds);
+                    handled.Add(layerId);
+                }
+                // Otherwise it is wanted but its audio has ended: started again below.
+            }
+
+            foreach (var (layerId, state) in entry)
+            {
+                var layer = Scene.Layers.FirstOrDefault(l => l.Id == layerId);
+                if (layer == null) continue;
+
+                if (state.Playing && !handled.Contains(layerId) && !TargetStops(layerId))
+                    starts.Add(StartLayerAsync(layer, 0, state.Volume, ct, state.Loop));
+                if (state.Random)
+                    StartRandomLoop(layer, ct);
+            }
+
+            if (starts.Count > 0) await Task.WhenAll(starts);
+        }
+
+        private Dictionary<Guid, LayerEntryState> SimulateEntryState(int stepIndex, bool foldTargetStops = true)
         {
             var state = new Dictionary<Guid, LayerEntryState>();
 
@@ -319,8 +402,9 @@ namespace DiceAudio
                 foreach (var command in Scene.Steps[i].Commands.OrderBy(c => c.DelaySeconds))
                     Apply(command, stopsOnly: false);
 
-            foreach (var command in Scene.Steps[stepIndex].Commands.OrderBy(c => c.DelaySeconds))
-                Apply(command, stopsOnly: true);
+            if (foldTargetStops)
+                foreach (var command in Scene.Steps[stepIndex].Commands.OrderBy(c => c.DelaySeconds))
+                    Apply(command, stopsOnly: true);
 
             return state;
         }

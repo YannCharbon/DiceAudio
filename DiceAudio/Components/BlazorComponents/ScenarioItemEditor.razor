@@ -235,7 +235,7 @@
                                 @item.Name
                             </button>
                             <button type="button" class="sie-chip-x" title="Remove" aria-label="Remove"
-                                    @onclick="() => ScenarioItem.PlaylistTracks.Remove(captured)">
+                                    @onclick="() => { ScenarioItem.PlaylistTracks.Remove(captured); FollowContentName(); }">
                                 <DaIcon Name="close" Size="12" />
                             </button>
                         </span>
@@ -321,12 +321,12 @@
 }
 
 @* Always-rendered picker modals (z-index 5000 > editor 3000) *@
-<AudioPicker @ref="_ambiencePicker" Title="Pick ambience / music" SelectionList="ScenarioItem.PlaylistTracks" OnClosed="StateHasChanged" />
-<AudioPicker @ref="_soundsPicker" Title="Pick sound effects" SelectionList="ScenarioItem.SoundEffects" OnClosed="StateHasChanged" />
+<AudioPicker @ref="_ambiencePicker" Title="Pick ambience / music" SelectionList="ScenarioItem.PlaylistTracks" Group="Group" OnClosed="FollowContentName" />
+<AudioPicker @ref="_soundsPicker" Title="Pick sound effects" SelectionList="ScenarioItem.SoundEffects" Group="Group" OnClosed="StateHasChanged" />
 <AudioClipEditor @ref="_clipEditor" OnClosed="StateHasChanged" />
-<SceneEditor @ref="_sceneEditor" OnClose="StateHasChanged" />
-<ScenePicker @ref="_catalogPicker" OnPicked="CopySceneFromCatalogue" OnClosed="StateHasChanged" />
-<ScenePicker @ref="_localPicker" OnPicked="PickLocalScene" OnClosed="StateHasChanged" />
+<SceneEditor @ref="_sceneEditor" Group="Group" OnClose="FollowContentName" />
+<ScenePicker @ref="_catalogPicker" OnPicked="CopySceneFromCatalogue" OnClosed="FollowContentName" />
+<ScenePicker @ref="_localPicker" OnPicked="PickLocalScene" OnClosed="FollowContentName" />
 
 @code {
     [Parameter] public DAScenarioItem ScenarioItem { get; set; } = default!;
@@ -382,7 +382,7 @@
     void PickLocalScene(DAScene scene)
     {
         ScenarioItem.LocalSceneId = scene.Id;
-        StateHasChanged();
+        FollowContentName();
     }
 
     /// <summary>
@@ -435,7 +435,7 @@
         // Deep copy with fresh ids so later edits never affect the catalogue scene.
         ScenarioItem.Scene = DAPreset.FromScene(source).ToScene();
         ScenarioItem.LocalSceneId = null;
-        StateHasChanged();
+        FollowContentName();
     }
 
     private string _presetCategory = "";
@@ -450,6 +450,45 @@
     void OnTypeChanged(DAScenarioItem.ItemType newType)
     {
         ScenarioItem.Type = newType;
+        FollowContentName();
+    }
+
+    // ── Automatic name ──────────────────────────────────────────────────────
+    // A new item is named after what it plays, until the user gives it a name
+    // of their own: the name follows the content as long as it is still the
+    // default one or the one given automatically.
+
+    private const string DefaultItemName = "Default item";
+
+    /// The name given automatically, while the user has not changed it.
+    private string? _autoName;
+
+    /// The name of what the item plays: its scene, or its first music track.
+    private string? ContentName()
+    {
+        string? name = ScenarioItem.Type switch
+        {
+            DAScenarioItem.ItemType.Scene => CurrentScene?.Name,
+            DAScenarioItem.ItemType.Single or DAScenarioItem.ItemType.Playlist =>
+                ScenarioItem.PlaylistTracks
+                    .Select(u => DAService.AudioItems.FirstOrDefault(a => a.Id == u.AudioItemId)?.Name)
+                    .FirstOrDefault(n => !string.IsNullOrWhiteSpace(n)),
+            _ => null,
+        };
+        return string.IsNullOrWhiteSpace(name) || name == "New scene" ? null : name;
+    }
+
+    void FollowContentName()
+    {
+        bool untouched = ScenarioItem.Name == DefaultItemName
+                      || string.IsNullOrWhiteSpace(ScenarioItem.Name)
+                      || ScenarioItem.Name == _autoName;
+        var contentName = ContentName();
+        if (untouched && contentName != null)
+        {
+            ScenarioItem.Name = contentName;
+            _autoName = contentName;
+        }
         StateHasChanged();
     }
 
@@ -465,6 +504,8 @@
     public void Show()
     {
         _visible = true;
+        // An item already named after its content keeps following it.
+        _autoName = ScenarioItem.Name == ContentName() ? ScenarioItem.Name : null;
         _presetSaved = false;
         StateHasChanged();
     }

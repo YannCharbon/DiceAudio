@@ -332,7 +332,7 @@ else
     <ScenarioGroupSettings @ref="_groupSettings" Group="_group"
                            OnDelete="DeleteGroup" OnClosed="StateHasChanged" />
 
-    <SceneEditor @ref="_sceneEditor" OnClose="OnLocalSceneEditorClosed" />
+    <SceneEditor @ref="_sceneEditor" Group="_group" OnClose="OnLocalSceneEditorClosed" />
     <ScenePicker @ref="_scenePicker" OnPicked="CopySceneFromCatalogue" OnClosed="StateHasChanged" />
 }
 

@@ -552,11 +552,18 @@
 }
 
 <AudioClipEditor @ref="_clipEditor" ShowSceneSettings="true" OnClosed="StateHasChanged" />
-<AudioPicker @ref="_audioPicker" Title="Pick layer audio" SingleSelect="true"
+<AudioPicker @ref="_audioPicker" Title="Pick layer audio" SingleSelect="true" Group="Group"
              OnPicked="OnLayerAudioPicked" OnClosed="StateHasChanged" />
 
 @code {
     [Parameter] public EventCallback OnClose { get; set; }
+
+    /// <summary>
+    /// The scenario group the scene belongs to, when it is a local scene or the
+    /// scene of a scenario item; null for a catalogue scene. The audio picker
+    /// shows the pinned items of this group.
+    /// </summary>
+    [Parameter] public DAScenarioGroup? Group { get; set; }
 
     public DAScene? Scene { get; private set; }
 

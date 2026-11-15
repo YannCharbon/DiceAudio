@@ -1576,7 +1576,7 @@ input[type="number"].da-inp::-webkit-inner-spin-button,
 .da-picker .da-row { cursor: pointer; }
 .da-picker .da-row,
 .da-picker.da-selectable .da-row {
-    grid-template-columns: 36px minmax(140px, 1.1fr) minmax(0, 1fr) 290px 28px;
+    grid-template-columns: 36px minmax(140px, 1.1fr) minmax(0, 1fr) 290px auto;
 }
 .da-picker .da-row .da-row-kind { cursor: pointer; }
 /* In a row the medallion sits in its own column instead of over artwork. */
@@ -1586,7 +1586,7 @@ input[type="number"].da-inp::-webkit-inner-spin-button,
 @media (max-width: 960px) {
     .da-picker .da-row,
     .da-picker.da-selectable .da-row {
-        grid-template-columns: 36px minmax(0, 1fr) 28px;
+        grid-template-columns: 36px minmax(0, 1fr) auto;
     }
 }
 

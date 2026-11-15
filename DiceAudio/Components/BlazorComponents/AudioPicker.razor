@@ -24,6 +24,50 @@
 
         <h2 class="da-h2" style="margin-bottom:14px;">@Title</h2>
 
+        @* Pinned items wait in their own tab while the search goes on, so the
+           final choice is made among a few candidates. Picking straight from
+           the library works exactly as before. *@
+        <div class="sap-tabs">
+            <div class="sap-tab @(_showPinned ? "" : "sap-tab-active")" @onclick="() => _showPinned = false">
+                <DaIcon Name="library-music" Size="16" />
+                All audio
+            </div>
+            <div class="sap-tab @(_showPinned ? "sap-tab-active" : "")" @onclick="() => _showPinned = true">
+                <DaIcon Name="pin" Size="16" />
+                Pinned (@PinnedItems().Count)
+            </div>
+        </div>
+
+        @if (_showPinned)
+        {
+            var pinned = PinnedItems();
+            if (pinned.Count == 0)
+            {
+                <p class="da-empty" style="padding:20px;">
+                    No pinned audio yet. Press the pin on an item in “All audio” to keep it
+                    here while you search, then make your choice from this tab.
+                </p>
+            }
+            else
+            {
+                <div class="da-irow" style="justify-content:flex-end; margin-bottom:8px;">
+                    <button type="button" class="da-btn da-btn-text da-btn-sm" @onclick="() => _pinnedIds.Clear()">
+                        <DaIcon Name="close" Size="14" />Unpin all
+                    </button>
+                </div>
+                <div class="@(_itemView == DAViewMode.Big ? "da-grid" : "da-list") da-picker"
+                     style="max-height:560px; overflow-y:auto;">
+                    @foreach (var item in pinned)
+                    {
+                        @(_itemView == DAViewMode.Big ? RenderItemCard(item) : RenderItemRow(item))
+                    }
+                </div>
+            }
+        }
+        else
+        {
+        <div>
+
         @* ── Search + kind filter ── *@
         <div class="da-irow da-irow-wrap" style="margin-bottom:10px; gap:6px;">
             @* The search field keeps its leading icon and its clear button: the
@@ -93,13 +137,23 @@
         <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-bottom:8px;">
             @if (string.IsNullOrWhiteSpace(_search))
             {
+                <button type="button" class="da-ib" title="Back" aria-label="Back"
+                        disabled="@(!CanGoBack)" @onclick="GoBack">
+                    <DaIcon Name="arrow-back" Size="18" />
+                </button>
+                <button type="button" class="da-ib" title="Forward" aria-label="Forward"
+                        disabled="@(!CanGoForward)" @onclick="GoForward">
+                    <DaIcon Name="arrow-right" Size="18" />
+                </button>
+
                 @if (_currentFolderName == ".")
                 {
-                    <span style="font-weight:bold;">Root</span>
+                    <span title="Home" style="display:inline-flex;"><DaIcon Name="home" Size="16" aria-label="Home" /></span>
                 }
                 else
                 {
-                    <span class="da-crumb" @onclick='() => _currentFolderName = "."'>Root</span>
+                    <span class="da-crumb" title="Home" style="display:inline-flex;"
+                          @onclick='() => NavigateToFolder(".")'><DaIcon Name="home" Size="16" aria-label="Home" /></span>
                     @foreach (var crumb in BreadcrumbChain())
                     {
                         var c = crumb;
@@ -110,7 +164,7 @@
                         }
                         else
                         {
-                            <span class="da-crumb" @onclick="() => _currentFolderName = c.Name">@c.Name</span>
+                            <span class="da-crumb" @onclick="() => NavigateToFolder(c.Name)">@c.Name</span>
                         }
                     }
                 }
@@ -146,6 +200,8 @@
                 @(_itemView == DAViewMode.Big ? RenderItemCard(item) : RenderItemRow(item))
             }
         </div>
+        </div>
+        }
 
         @* ── Footer ── *@
         <div style="display:flex; justify-content:flex-end; margin-top:14px;">
@@ -178,6 +234,29 @@
     .sap-search .da-inp:focus-visible { outline: none; }
     .sap-search .da-ib { width: 24px; height: 24px; }
 
+    .sap-tabs {
+        display: flex; gap: 4px;
+        border-bottom: 1px solid var(--b1);
+        margin-bottom: 12px;
+    }
+    .sap-tab {
+        display: flex; align-items: center; gap: 6px;
+        padding: 7px 14px;
+        font-size: 13px;
+        color: var(--t3);
+        border: 1px solid transparent; border-bottom: none;
+        border-radius: 8px 8px 0 0;
+        cursor: pointer; user-select: none;
+    }
+    .sap-tab:hover { background: var(--s6); color: var(--t1); }
+    .sap-tab-active {
+        background: var(--s4);
+        border-color: var(--b1);
+        color: var(--a2);
+        font-weight: bold;
+        margin-bottom: -1px;
+    }
+
 </style>
 
 @code {
@@ -203,6 +282,41 @@
     }
 
     private string _currentFolderName = ".";
+
+    // Folder history for the Back and Forward buttons, as in the explorer.
+    private readonly List<string> _history = new();
+    private int _historyIndex = -1;
+
+    private bool CanGoBack    => _historyIndex > 0;
+    private bool CanGoForward => _historyIndex < _history.Count - 1;
+
+    /// <summary>
+    /// The scenario group the picker works for. Its pinned items are its own:
+    /// another group starts with an empty shortlist.
+    /// </summary>
+    [Parameter] public DAScenarioGroup? Group { get; set; }
+
+    /// <summary>
+    /// Items pinned while searching, per scenario group, in the order they were
+    /// pinned. Kept for the whole session and shared by every picker of a group,
+    /// so a shortlist made for one layer is still there for the next one. Pickers
+    /// opened outside any group — for a catalogue scene — share the entry under
+    /// Guid.Empty. Never saved to disk.
+    /// </summary>
+    private static readonly Dictionary<Guid, List<Guid>> _pinsByGroup = new();
+    private bool _showPinned;
+
+    private List<Guid> _pinnedIds
+    {
+        get
+        {
+            var key = Group?.Id ?? Guid.Empty;
+            if (!_pinsByGroup.TryGetValue(key, out var pins))
+                _pinsByGroup[key] = pins = new List<Guid>();
+            return pins;
+        }
+    }
+
     private string _search = "";
     private bool _filterOpen;
     private readonly List<string> _filterTags = new();
@@ -216,7 +330,10 @@
         _folderView = DAViewPrefs.FolderView;
         _itemView   = DAViewPrefs.ItemView;
         _sort       = DAViewPrefs.Sort;
-        _currentFolderName = ".";
+        _history.Clear();
+        _historyIndex = -1;
+        NavigateToFolder(".");
+        _showPinned = false;
         _search = "";
         _filterOpen = false;
         _filterTags.Clear();
@@ -232,6 +349,58 @@
         StateHasChanged();
         await OnClosed.InvokeAsync();
     }
+
+    private void NavigateToFolder(string folderName)
+    {
+        if (_historyIndex < 0 || _history[_historyIndex] != folderName)
+        {
+            // A new place drops the forward entries, as a browser does.
+            if (_historyIndex < _history.Count - 1)
+                _history.RemoveRange(_historyIndex + 1, _history.Count - _historyIndex - 1);
+            _history.Add(folderName);
+            _historyIndex = _history.Count - 1;
+        }
+        _currentFolderName = folderName;
+    }
+
+    private void GoBack()
+    {
+        if (!CanGoBack) return;
+        _historyIndex--;
+        _currentFolderName = _history[_historyIndex];
+    }
+
+    private void GoForward()
+    {
+        if (!CanGoForward) return;
+        _historyIndex++;
+        _currentFolderName = _history[_historyIndex];
+    }
+
+    bool IsPinned(DAAudioItem item) => _pinnedIds.Contains(item.Id);
+
+    void TogglePin(DAAudioItem item)
+    {
+        if (!_pinnedIds.Remove(item.Id)) _pinnedIds.Add(item.Id);
+    }
+
+    /// The pinned items that still exist, in pinning order.
+    List<DAAudioItem> PinnedItems() =>
+        _pinnedIds.Select(id => DAService.AudioItems.FirstOrDefault(a => a.Id == id))
+                  .OfType<DAAudioItem>()
+                  .ToList();
+
+    /// The pin of a card or a row. It never picks the item: the click stops here.
+    RenderFragment RenderPinButton(DAAudioItem item) => __builder =>
+    {
+        var pinned = IsPinned(item);
+        <button type="button" class="da-ib"
+                title="@(pinned ? "Unpin" : "Pin, to choose among the pinned items later")"
+                aria-label="@(pinned ? "Unpin" : "Pin")"
+                @onclick="() => TogglePin(item)" @onclick:stopPropagation="true">
+            <DaIcon Name="pin" Size="17" Filled="@pinned" Class="@(pinned ? "da-i-accent" : null)" />
+        </button>
+    };
 
     // Ancestor chain (root-most first) down to the current folder, for breadcrumbs.
     private List<DAVirtualAudioFolder> BreadcrumbChain() =>
@@ -286,6 +455,9 @@
                             Not downloaded
                         </div>
                     }
+                    <div class="da-acts" style="justify-content:flex-end;">
+                        @RenderPinButton(item)
+                    </div>
                 </div>
             </article>;
     };
@@ -322,23 +494,22 @@
                     </div>
                 }
             </div>
-            @if (!SingleSelect)
-            {
-                <span class="da-pickmark">
-                    <DaIcon Name="check" Size="17" />
-                </span>
-            }
-            else
-            {
-                <span></span>
-            }
+            <span class="da-acts">
+                @RenderPinButton(item)
+                @if (!SingleSelect)
+                {
+                    <span class="da-pickmark">
+                        <DaIcon Name="check" Size="17" />
+                    </span>
+                }
+            </span>
         </div>;
     };
 
     RenderFragment RenderFolderRow(DAVirtualAudioFolder folder) => __builder =>
     {
         @* The whole row opens the folder, padding included. *@
-        <div class="da-row da-folder-row" @onclick="() => _currentFolderName = folder.Name">
+        <div class="da-row da-folder-row" @onclick="() => NavigateToFolder(folder.Name)">
             <button type="button" class="da-folder-tile" title="@folder.Name">
                 <DaIcon Name="folder" Size="19" />
             </button>
@@ -385,7 +556,7 @@
     private RenderFragment RenderFolderCard(DAVirtualAudioFolder folder) => __builder =>
     {
         <article class="da-card da-folder">
-            <div class="da-hero" title="@folder.Name" @onclick="() => _currentFolderName = folder.Name">
+            <div class="da-hero" title="@folder.Name" @onclick="() => NavigateToFolder(folder.Name)">
                 <DaIcon Name="folder" Size="38" Stroke="1.4" />
             </div>
             <div class="da-body"><b>@folder.Name</b></div>

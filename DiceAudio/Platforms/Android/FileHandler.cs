@@ -55,7 +55,7 @@ namespace DiceAudio
             }
         }
 
-        public async Task<byte[]> LoadFileAsync()
+        public async Task<byte[]?> LoadFileAsync()
         {
             var intent = new Intent(Intent.ActionGetContent);
             intent.SetType("*/*");

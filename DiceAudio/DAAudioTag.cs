@@ -108,9 +108,9 @@ namespace DiceAudio
             return this.Equals(obj as DAAudioTag);
         }
 
-        public bool Equals(DAAudioTag tag)
+        public bool Equals(DAAudioTag? tag)
 		{
-            if (tag.Name == this.Name)
+            if (tag is not null && tag.Name == this.Name)
             {
                 return true;
             }
@@ -118,9 +118,6 @@ namespace DiceAudio
             return false;
 		}
 
-        public override int GetHashCode()
-        {
-            throw new NotImplementedException();
-        }
+        public override int GetHashCode() => Name?.GetHashCode() ?? 0;
     }
 }

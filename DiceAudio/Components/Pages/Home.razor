@@ -289,7 +289,10 @@
             StateHasChanged();
         }
 
-        AudioService.SaveAudioItemListAsync();
+        // Not awaited, as before: the save runs in the background and must not
+        // hold the page. It has saved the library after every render of this
+        // page since it was written; the discard only says so.
+        _ = AudioService.SaveAudioItemListAsync();
     }
 
     private void HandleWelcomeMessageModalClose(bool result)

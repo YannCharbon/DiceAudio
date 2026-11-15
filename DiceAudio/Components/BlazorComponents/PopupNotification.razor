@@ -62,8 +62,8 @@
 
 @code {
     private bool _showModal = false;
-    private string Title { get; set; }
-    private string Message { get; set; }
+    private string Title { get; set; } = string.Empty;
+    private string Message { get; set; } = string.Empty;
     private PopupNotificationService.Type Type { get; set; }
     private Timer _timer = new Timer(3000);
 
@@ -85,7 +85,7 @@
         StateHasChanged();
     }
 
-    private void OnTimerEvent(Object source, ElapsedEventArgs e)
+    private void OnTimerEvent(object? source, ElapsedEventArgs e)
     {
         _timer.Enabled = false;
         Hide();

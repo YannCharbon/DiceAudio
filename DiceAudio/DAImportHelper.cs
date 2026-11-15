@@ -37,7 +37,8 @@ namespace DiceAudio
                     PickerTitle = "Pick audio files to import",
                     FileTypes = fileTypes,
                 });
-                return results.Select(r => r.FullPath).Where(IsAudioFile).ToList();
+                if (results == null) return Array.Empty<string>();
+                return results.OfType<FileResult>().Select(r => r.FullPath).Where(IsAudioFile).ToList();
             }
             catch
             {

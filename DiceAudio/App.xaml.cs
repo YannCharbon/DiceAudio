@@ -17,7 +17,7 @@ namespace DiceAudio
         {
             InitializeComponent();
 
-            Current.On<Microsoft.Maui.Controls.PlatformConfiguration.Android>().UseWindowSoftInputModeAdjust(WindowSoftInputModeAdjust.Resize);
+            On<Microsoft.Maui.Controls.PlatformConfiguration.Android>().UseWindowSoftInputModeAdjust(WindowSoftInputModeAdjust.Resize);
         }
 
         // Replaces the deprecated MainPage assignment: MAUI builds the root page

@@ -17,7 +17,8 @@ namespace DiceAudio
     public interface IFileHandler
     {
         Task SaveFileAsync(string fileName, byte[] data);
-        Task<byte[]> LoadFileAsync();
+        /// <summary>Reads a file the user picks; null when they cancel.</summary>
+        Task<byte[]?> LoadFileAsync();
 
         /// <summary>
         /// Asks where to save a file of the given type, then lets

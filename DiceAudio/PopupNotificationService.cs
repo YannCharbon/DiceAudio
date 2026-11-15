@@ -18,8 +18,8 @@ namespace DiceAudio
     {
         public enum Type { SUCCESS, FAILURE }
 
-        public event Action<string, string, Type, int> OnShow;
-        public event Action OnClose;
+        public event Action<string, string, Type, int>? OnShow;
+        public event Action? OnClose;
 
         public void Show(string title, string message, Type type, int durationMs)
         {

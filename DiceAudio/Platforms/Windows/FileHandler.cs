@@ -26,8 +26,7 @@ namespace DiceAudio
             picker.FileTypeChoices.Add("All Files", new[] { "." });
             picker.SuggestedFileName = fileName;
 
-            var hwnd = ((MauiWinUIWindow)App.Current.Windows[0].Handler.PlatformView).WindowHandle;
-            WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
+            WinRT.Interop.InitializeWithWindow.Initialize(picker, MainWindowHandle());
 
             var file = await picker.PickSaveFileAsync();
             if (file != null)
@@ -47,8 +46,7 @@ namespace DiceAudio
             };
             picker.FileTypeChoices.Add(typeLabel, new List<string> { extension });
 
-            var hwnd = ((MauiWinUIWindow)App.Current!.Windows[0].Handler!.PlatformView!).WindowHandle;
-            WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
+            WinRT.Interop.InitializeWithWindow.Initialize(picker, MainWindowHandle());
 
             var file = await picker.PickSaveFileAsync();
             if (file == null) return false;
@@ -69,8 +67,7 @@ namespace DiceAudio
             };
             picker.FileTypeChoices.Add(typeLabel, new List<string> { extension });
 
-            var hwnd = ((MauiWinUIWindow)App.Current!.Windows[0].Handler!.PlatformView!).WindowHandle;
-            WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
+            WinRT.Interop.InitializeWithWindow.Initialize(picker, MainWindowHandle());
 
             var file = await picker.PickSaveFileAsync();
             return file == null || string.IsNullOrEmpty(file.Path) ? null : file.Path;
@@ -84,8 +81,7 @@ namespace DiceAudio
             };
             picker.FileTypeFilter.Add(extension);
 
-            var hwnd = ((MauiWinUIWindow)App.Current!.Windows[0].Handler!.PlatformView!).WindowHandle;
-            WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
+            WinRT.Interop.InitializeWithWindow.Initialize(picker, MainWindowHandle());
 
             var file = await picker.PickSingleFileAsync();
             if (file == null) return null;
@@ -94,7 +90,7 @@ namespace DiceAudio
             return new DAPickedFile(file.Name, string.IsNullOrEmpty(file.Path) ? null : file.Path, stream);
         }
 
-        public async Task<byte[]> LoadFileAsync()
+        public async Task<byte[]?> LoadFileAsync()
         {
             var picker = new FileOpenPicker
             {
@@ -103,8 +99,7 @@ namespace DiceAudio
 
             picker.FileTypeFilter.Add("*");
 
-            var hwnd = ((MauiWinUIWindow)App.Current.Windows[0].Handler.PlatformView).WindowHandle;
-            WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
+            WinRT.Interop.InitializeWithWindow.Initialize(picker, MainWindowHandle());
 
             var file = await picker.PickSingleFileAsync();
             if (file != null)
@@ -121,5 +116,14 @@ namespace DiceAudio
 
             return null;
         }
+
+        /// <summary>
+        /// The window the pickers belong to: a WinUI picker of an unpackaged app
+        /// must be given one, or it throws.
+        /// </summary>
+        private static IntPtr MainWindowHandle() =>
+            App.Current?.Windows.FirstOrDefault()?.Handler?.PlatformView is MauiWinUIWindow window
+                ? window.WindowHandle
+                : throw new InvalidOperationException("The app window is not ready, so no file picker can be shown.");
     }
 }

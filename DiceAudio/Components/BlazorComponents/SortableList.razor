@@ -37,6 +37,13 @@
     [Parameter]
     public EventCallback<(int oldIndex, int newIndex)> OnRemove { get; set; }
 
+    /// <summary>
+    /// An item dragged out of this list into another list of the same group:
+    /// its index here, its index there, and the id of the list it went to.
+    /// </summary>
+    [Parameter]
+    public EventCallback<(int oldIndex, int newIndex, string targetId)> OnTransfer { get; set; }
+
     [Parameter]
     public string Id { get; set; } = Guid.NewGuid().ToString();
 
@@ -85,10 +92,11 @@
     }
 
     [JSInvokable]
-    public void OnRemoveJS(int oldIndex, int newIndex)
+    public void OnRemoveJS(int oldIndex, int newIndex, string? targetId)
     {
         // remove the item from the list
         OnRemove.InvokeAsync((oldIndex, newIndex));
+        OnTransfer.InvokeAsync((oldIndex, newIndex, targetId ?? string.Empty));
     }
 
     public void Dispose() => selfReference?.Dispose();

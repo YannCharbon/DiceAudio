@@ -152,16 +152,19 @@
     <div class="sc-scroll">
         @if (_player != null)
         {
+            @* Every scenario of the group shares one drag group, so a card can be
+               dropped into another scenario as well as moved within its own. *@
             <SortableList T="DAScenarioItem"
                           Items="Scenario.Items"
-                          Id="@($"sc-items-{Scenario.Id}")"
-                          Group="@($"scenario-items-{Scenario.Id}")"
+                          Id="@($"{ItemsListIdPrefix}{Scenario.Id}")"
+                          Group="@($"scenario-items-{Group?.Id ?? Scenario.Id}")"
                           Class="sc-items-row"
                           Handle=".si-drag-handle"
-                          OnUpdate="OnItemsReordered">
+                          OnUpdate="OnItemsReordered"
+                          OnTransfer="OnItemTransferred">
                 <SortableItemTemplate>
-                    <div class="si-drag-item">
-                        <div class="si-drag-handle" title="Drag to reorder">
+                    <div class="si-drag-item" id="@($"si-{context.Id}")">
+                        <div class="si-drag-handle" title="Drag to reorder, or to move into another scenario">
                             <DaIcon Name="drag" Size="18" />
                         </div>
                         <ScenarioItemComp ScenarioItem="context"
@@ -340,6 +343,31 @@
         Scenario.Items.Insert(newIndex, item);
         DAService.RequestScenarioGroupsSave();
         StateHasChanged();
+    }
+
+    /// <summary>
+    /// An item was dropped into another scenario of the group. If it was
+    /// playing here, it stops: it now belongs to the other scenario's player.
+    /// </summary>
+    async Task OnItemTransferred((int oldIndex, int newIndex, string targetId) move)
+    {
+        var (oldIndex, newIndex, targetId) = move;
+        if (Group == null || !targetId.StartsWith(ItemsListIdPrefix)
+            || !Guid.TryParse(targetId[ItemsListIdPrefix.Length..], out var targetScenarioId))
+            return;
+
+        var target = Group.Scenarios.FirstOrDefault(s => s.Id == targetScenarioId);
+        if (target == null || target == Scenario) return;
+        if (oldIndex < 0 || oldIndex >= Scenario.Items.Count) return;
+
+        var item = Scenario.Items[oldIndex];
+        Scenario.Items.RemoveAt(oldIndex);
+        target.Items.Insert(Math.Clamp(newIndex, 0, target.Items.Count), item);
+
+        _player?.Initialize();
+        Coordinator.GetOrCreateScenarioPlayer(target).Initialize();
+        DAService.RequestScenarioGroupsSave();
+        await OnItemMovedOut.InvokeAsync();
     }
 
     void OnItemEditorClosed()

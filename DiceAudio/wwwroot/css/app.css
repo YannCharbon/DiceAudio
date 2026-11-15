@@ -1671,6 +1671,10 @@ input[type="number"].da-inp::-webkit-inner-spin-button,
 .da-btn:disabled { opacity: .45; cursor: default; }
 .da-btn:disabled:hover { background: transparent; border-color: var(--ctl); }
 
+/* Set by SortableList while an item is carried: the drag must not select the
+   text it passes over. */
+body.da-dragging, body.da-dragging * { -webkit-user-select: none; user-select: none; }
+
 /* An edition body is a form, and a form reads as rows. Without an explicit
    row-gap the wrapped lines sat flush against each other while the unwrapped
    ones had the flex gap, which is where the ragged look came from. */

@@ -145,11 +145,17 @@
 
                         @* A layer with no file yet keeps the warning tint the
                            Color.Warning button carried. *@
+                        @* A long file name is cut with an ellipsis inside the button
+                           rather than spilling over Settings and Delete; the full
+                           name stays in the tooltip. *@
                         <button type="button" class="da-btn da-btn-out"
-                                style="@($"flex:1; min-width:220px; text-transform:none; justify-content:flex-start;{(audioItem == null ? " color:var(--warn); border-color:var(--warn);" : "")}")"
+                                style="@($"flex:1; min-width:220px; overflow:hidden; text-transform:none; justify-content:flex-start;{(audioItem == null ? " color:var(--warn); border-color:var(--warn);" : "")}")"
+                                title="@(audioItem?.Name)"
                                 @onclick="() => OpenAudioPicker(l)">
                             <DaIcon Name="@(audioItem != null ? KindIconName(audioItem.Kind) : "library-music")" Size="16" />
-                            @(audioItem?.Name ?? "Pick audio file…")
+                            <span style="min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                                @(audioItem?.Name ?? "Pick audio file…")
+                            </span>
                         </button>
 
                         <button type="button" class="da-btn da-btn-out"

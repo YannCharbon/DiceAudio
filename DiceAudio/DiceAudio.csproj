@@ -70,6 +70,17 @@
       </Content>
     </ItemGroup>
 
+    <!-- DiceUpdater, the updater shared by the apps of the ecosystem: a git
+         submodule at the root of this repository (see "Build from source" in
+         the README to fetch it).
+         DiceUpdaterRoot may point elsewhere, to work on both at once. -->
+    <PropertyGroup>
+        <DiceUpdaterRoot Condition="'$(DiceUpdaterRoot)' == ''">$(MSBuildThisFileDirectory)..\DiceUpdater\</DiceUpdaterRoot>
+    </PropertyGroup>
+    <ItemGroup>
+        <ProjectReference Include="$(DiceUpdaterRoot)src\DiceUpdater.Ui\DiceUpdater.Ui.csproj" />
+    </ItemGroup>
+
     <!-- NuGet packages -->
     <ItemGroup>
         <PackageReference Include="BootstrapBlazor" Version="9.2.8" />

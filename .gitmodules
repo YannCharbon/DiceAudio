@@ -1,0 +1,3 @@
+[submodule "DiceUpdater"]
+	path = DiceUpdater
+	url = https://github.com/YannCharbon/DiceUpdater.git

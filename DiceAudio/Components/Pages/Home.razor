@@ -20,8 +20,11 @@
    want. Both are one click from here. *@
 
 <GenericModal TContent="WelcomeMessage" OnClose="HandleWelcomeMessageModalClose" @ref="WelcomeMessageModalRef">
-    <WelcomeMessage NewVersion="_newVersion" UpdateAvailable="_updateAvailable" UpdateInfos="_updateInfos" />
+    <WelcomeMessage NewVersion="_newVersion" />
 </GenericModal>
+
+@* Offers a newer version by itself, and installs it (DiceUpdater). *@
+<UpdateDialog />
 
 <div class="da-home">
 
@@ -159,8 +162,6 @@
     private GenericModal<WelcomeMessage>? WelcomeMessageModalRef;
 
     private bool _newVersion = false;
-    private bool _updateAvailable = false;
-    private GitHubRelease? _updateInfos = null;
 
     /// One line of the "now playing" list: the player, the group it belongs to
     /// (null while a scenario is detached) and the line of detail under the name.
@@ -273,25 +274,13 @@
         {
             string lastKnownVersion = LocalPreferences.Get("LastKnownVersion", "-1");
 
-            // The service decides whether to go to the network; this only reads
-            // the conclusion. A failed check leaves the last known release in
-            // place rather than reporting nothing.
-            var status = await AudioService.CheckUpdateAsync();
-            _updateInfos = status.Release;
-
-            if (status.State == DAUpdateCheckState.UpdateAvailable && _updateInfos != null)
-            {
-                string lastShown = LocalPreferences.Get("LastShowedNewVersion", "-1");
-                _updateAvailable = lastShown != _updateInfos.tag_name && lastShown != "-1";
-            }
-
             if (lastKnownVersion != AudioService.GetVersion())
             {
                 _newVersion = true;
             }
 
             // Show the modal if necessary
-            if (lastKnownVersion == "-1" || _newVersion || _updateAvailable)
+            if (lastKnownVersion == "-1" || _newVersion)
             {
                 WelcomeMessageModalRef?.Show();
             }
@@ -306,10 +295,6 @@
     private void HandleWelcomeMessageModalClose(bool result)
     {
         LocalPreferences.Set("LastKnownVersion", AudioService.GetVersion());
-        if (_updateInfos != null)
-        {
-            LocalPreferences.Set("LastShowedNewVersion", _updateInfos.tag_name);
-        }
     }
 
     public void Dispose()

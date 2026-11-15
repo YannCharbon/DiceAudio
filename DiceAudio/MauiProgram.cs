@@ -8,6 +8,7 @@
 
 using DiceAudio.Integrations;
 using DiceAudio.Storage;
+using DiceUpdater;
 using Microsoft.Extensions.Logging;
 using Microsoft.Maui.LifecycleEvents;
 using MudBlazor.Services;
@@ -81,47 +82,7 @@ namespace DiceAudio
                             WebTitleBar.Attach(window);
 
                             // Attach to the Closing event and use the service provider
-                            _appWindow.Closing += (s, e) =>
-                            {
-                                // A yt-dlp left running would outlive the app and
-                                // keep writing into the audio folder.
-                                try { ServiceProvider.GetRequiredService<DADownloadQueue>().CancelAll(); }
-                                catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"Stopping the downloads failed: {ex.Message}"); }
-
-                                // The marker says who wrote the folder last (spec §5.4).
-                                var dataFolder = ServiceProvider.GetRequiredService<DataFolderService>();
-                                if (dataFolder.IsLoaded)
-                                {
-                                    _ = dataFolder.WriteMarkerAsync();
-                                }
-
-                                var diceService = ServiceProvider.GetRequiredService<DiceAudioService>();
-                                if (diceService != null)
-                                {
-                                    // Block until every write is on disk, including saves
-                                    // started elsewhere just before (FlushAsync), but never
-                                    // more than 10 s: a drive that does not answer must not
-                                    // stop the window from closing. Task.Run keeps the
-                                    // continuations off the UI context so Wait can't deadlock.
-                                    try
-                                    {
-                                        if (!Task.Run(() => diceService.SaveEverythingAsync()).Wait(TimeSpan.FromSeconds(10)))
-                                            System.Diagnostics.Debug.WriteLine("Save-on-close did not finish within 10 s.");
-                                    }
-                                    catch (Exception ex)
-                                    {
-                                        System.Diagnostics.Debug.WriteLine($"Save-on-close failed: {ex.Message}");
-                                    }
-                                }
-
-                                // A save refused because the file changed on another
-                                // computer: the user's version is kept next to it.
-                                try { ServiceProvider.GetRequiredService<DAExternalChanges>().KeepUnsavedVersions(); }
-                                catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"Keeping the unsaved versions failed: {ex.Message}"); }
-
-                                // Last: the lock says the folder is open until everything is written.
-                                dataFolder.ReleaseLock();
-                            };
+                            _appWindow.Closing += (s, e) => SaveOnClose();
                         });
                     });
 #endif
@@ -214,6 +175,27 @@ namespace DiceAudio
             builder.Services.AddSingleton(sp => new DataFolderLock(store, () => dataLocation.Root, "DiceAudio", dataLocation.MachineName,
                                                                    sp.GetRequiredService<DiceAudioService>().GetVersion()));
 
+            // Updates come from the shared updater of the ecosystem (DiceUpdater).
+            // A debug run can read them from a local folder served over HTTP
+            // (DICE_UPDATE_FEED) to try an update without publishing a release.
+#if DEBUG
+            string? updateFeed = Environment.GetEnvironmentVariable("DICE_UPDATE_FEED");
+#else
+            string? updateFeed = null;
+#endif
+            builder.Services.AddDiceUpdater(new UpdaterOptions
+            {
+                AppName = "DiceAudio",
+                Repository = "YannCharbon/DiceAudio",
+                CurrentVersion = typeof(MauiProgram).Assembly.GetName().Version ?? new Version(0, 0, 0),
+                // DiceAudio is in English only for now.
+                Language = () => "en",
+                FeedUrl = string.IsNullOrWhiteSpace(updateFeed) ? null : new Uri(updateFeed),
+                PrepareForExit = () => Task.Run(SaveOnClose),
+                Exit = () => MainThread.BeginInvokeOnMainThread(() => Application.Current?.Quit()),
+                OpenUri = uri => Launcher.Default.OpenAsync(uri),
+            });
+
             var app = builder.Build();
             ServiceProvider = app.Services; // Assign the root service provider
 
@@ -243,5 +225,62 @@ namespace DiceAudio
             return Environment.MachineName;
 #endif
         }
+
+        /// <summary>
+        /// Everything the app does when its window closes: stops the downloads,
+        /// saves and releases the data folder, then lets an update chosen for the
+        /// closing install itself. Also run by "Update now" before it closes the
+        /// app, which may or may not raise Closing again: it only runs once.
+        /// </summary>
+        internal static void SaveOnClose()
+        {
+            if (Interlocked.Exchange(ref _closingDone, 1) == 1) return;
+
+            // A yt-dlp left running would outlive the app and
+            // keep writing into the audio folder.
+            try { ServiceProvider.GetRequiredService<DADownloadQueue>().CancelAll(); }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"Stopping the downloads failed: {ex.Message}"); }
+
+            // The marker says who wrote the folder last (spec §5.4).
+            var dataFolder = ServiceProvider.GetRequiredService<DataFolderService>();
+            if (dataFolder.IsLoaded)
+            {
+                _ = dataFolder.WriteMarkerAsync();
+            }
+
+            var diceService = ServiceProvider.GetRequiredService<DiceAudioService>();
+            if (diceService != null)
+            {
+                // Block until every write is on disk, including saves
+                // started elsewhere just before (FlushAsync), but never
+                // more than 10 s: a drive that does not answer must not
+                // stop the window from closing. Task.Run keeps the
+                // continuations off the UI context so Wait can't deadlock.
+                try
+                {
+                    if (!Task.Run(() => diceService.SaveEverythingAsync()).Wait(TimeSpan.FromSeconds(10)))
+                        System.Diagnostics.Debug.WriteLine("Save-on-close did not finish within 10 s.");
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Save-on-close failed: {ex.Message}");
+                }
+            }
+
+            // A save refused because the file changed on another
+            // computer: the user's version is kept next to it.
+            try { ServiceProvider.GetRequiredService<DAExternalChanges>().KeepUnsavedVersions(); }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"Keeping the unsaved versions failed: {ex.Message}"); }
+
+            // Last: the lock says the folder is open until everything is written.
+            dataFolder.ReleaseLock();
+
+            // After everything is saved: an update chosen for the closing starts
+            // now, and waits for the app to be gone before it touches its files.
+            try { ServiceProvider.GetRequiredService<UpdateService>().OnAppClosing(); }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"Starting the update failed: {ex.Message}"); }
+        }
+
+        private static int _closingDone;
     }
 }

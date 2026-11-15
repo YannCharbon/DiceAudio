@@ -24,6 +24,9 @@ jobs:
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
+      with:
+        # DiceUpdater, the updater shared by the apps of the ecosystem.
+        submodules: true
 
     - name: Setup .NET SDK
       uses: actions/setup-dotnet@v4
@@ -147,6 +150,22 @@ jobs:
           -p:PublishReadyToRun=true `
           -o ./publish/windows
 
+    - name: Publish DiceUpdater
+      shell: pwsh
+      run: |
+        $ErrorActionPreference = "Stop"
+
+        # The program that replaces the app's files during an update. It ships
+        # beside the app executable, so the next step signs it with the app:
+        # an update is only installed when both carry the same signature.
+        dotnet publish DiceUpdater/src/DiceUpdater.Swap/DiceUpdater.Swap.csproj `
+          -c Release `
+          -o ./publish/windows
+
+        if (-not (Test-Path ./publish/windows/DiceUpdater.exe)) {
+          throw "DiceUpdater.exe was not published."
+        }
+
     - name: Decode and Save Certificate PFX
       shell: pwsh
       run: |
@@ -242,6 +261,25 @@ jobs:
     #     Copy-Item -Force $apkFile.FullName $releaseApkPath
 
     #     "apk_file=$releaseApkPath" >> $env:GITHUB_ENV
+
+    - name: Write update manifest
+      shell: pwsh
+      run: |
+        $ErrorActionPreference = "Stop"
+
+        # update.json tells the installed apps what the latest release holds.
+        # They read it from releases/latest/download/update.json, a plain
+        # download rather than the GitHub API, which has an hourly quota.
+        # A manual run has no tag; it gets the same placeholder version as
+        # its AssemblyVersion.
+        $version = if ($env:GITHUB_REF -like "refs/tags/*") { "${{ env.tag_version }}" } else { "999.999.999" }
+
+        ./DiceUpdater/tools/New-UpdateManifest.ps1 `
+          -App DiceAudio `
+          -Version $version `
+          -Notes RELEASE_NOTES.md `
+          -Package @{ 'windows-x64' = "${{ env.zip_path }}" } `
+          -OutFile ./publish/release/update.json
 
     - name: Upload Build Artifacts
       uses: actions/upload-artifact@v4

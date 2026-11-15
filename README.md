@@ -196,16 +196,21 @@ There is no installer and no account to create. The application stores its data 
 Get the latest build here: [![Latest Release](https://img.shields.io/github/v/release/YannCharbon/DiceAudio?style=for-the-badge)](https://github.com/YannCharbon/DiceAudio/releases/latest)
 
 - **Windows**: download the ZIP from the latest release, extract it anywhere and run `DiceAudio.exe`. You
-  can pin it to the start menu if you want it close.
+  can pin it to the start menu if you want it close. From then on, DiceAudio tells you when a new version is
+  out and installs it itself, right away or when you next close it.
 - **Android**: the app is currently not available for mobile. This might come in the future.
 
 ## Build from source
+
+The updater shared by the apps of the ecosystem, [DiceUpdater](https://github.com/YannCharbon/DiceUpdater),
+is a git submodule of this repository: clone with `--recurse-submodules`, or run `git submodule update --init`
+in an existing clone.
 
 You need the [.NET 10 SDK](https://dotnet.microsoft.com/download) and the MAUI workloads installed.
 Everything else is restored from NuGet. The solution also opens in Visual Studio.
 
 ```bash
-git clone https://github.com/YannCharbon/DiceAudio.git
+git clone --recurse-submodules https://github.com/YannCharbon/DiceAudio.git
 cd DiceAudio
 dotnet workload install maui-windows maui-android
 dotnet publish DiceAudio/DiceAudio.csproj -f net10.0-windows10.0.19041.0 -c Release -p:RuntimeIdentifierOverride=win10-x64 -p:WindowsPackageType=None -p:IncludeAllContentForSelfExtract=true -p:PublishReadyToRun=true -p:IncludeNativeLibrariesForSelfExtract=true

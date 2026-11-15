@@ -303,13 +303,13 @@
             <h2>Installation</h2>
             <p class="lead">Aucun installateur ni compte n'est nécessaire. L'application enregistre ses données sur votre machine.</p>
             <ul class="plain">
-                <li><strong>Windows</strong> : téléchargez le ZIP de la dernière version, extrayez-le à l'emplacement de votre choix, puis lancez <span class="code-style">DiceAudio.exe</span>. Vous pouvez ensuite l'épingler au menu Démarrer pour y accéder plus facilement.</li>
+                <li><strong>Windows</strong> : téléchargez le ZIP de la dernière version, extrayez-le à l'emplacement de votre choix, puis lancez <span class="code-style">DiceAudio.exe</span>. Vous pouvez ensuite l'épingler au menu Démarrer pour y accéder plus facilement. Par la suite, DiceAudio vous signale chaque nouvelle version et l'installe lui-même, immédiatement ou à la prochaine fermeture de l'application.</li>
                 <li><strong>Android</strong> : l'application n'est pas encore disponible sur mobile, mais une version pourrait voir le jour plus tard.</li>
             </ul>
 
             <h2 style="margin-top:34px;">Compiler depuis les sources</h2>
             <p class="lead">Le SDK .NET 10 et les workloads MAUI doivent être installés. Les autres dépendances sont récupérées automatiquement depuis NuGet.</p>
-<pre><code>git clone https://github.com/YannCharbon/DiceAudio.git
+<pre><code>git clone --recurse-submodules https://github.com/YannCharbon/DiceAudio.git
 dotnet workload install maui-windows maui-android
 dotnet publish DiceAudio/DiceAudio.csproj -f net10.0-windows10.0.19041.0 -c Release -p:RuntimeIdentifierOverride=win10-x64 -p:WindowsPackageType=None -p:IncludeAllContentForSelfExtract=true -p:PublishReadyToRun=true -p:IncludeNativeLibrariesForSelfExtract=true</code></pre>
         </div>

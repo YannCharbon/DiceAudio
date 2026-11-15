@@ -8,6 +8,7 @@
 
 @inject DAPlaybackCoordinator Coordinator
 @inject DABundleExportService Exports
+@inject IJSRuntime JS
 @implements IDisposable
 
 <style>
@@ -171,13 +172,15 @@
                                           OnRequestPlay="_player.PlayItemAsync"
                                           OnRequestPlayAtCue="_player.PlayItemAtCueAsync"
                                           DeleteItem="DeleteItem"
+                                          DuplicateItem="DuplicateItem"
                                           OnEditorClosed="OnItemEditorClosed" />
                     </div>
                 </SortableItemTemplate>
             </SortableList>
         }
 
-        <div style="display:flex; flex-direction:column; gap:8px; justify-content:center;
+        <div id="@($"sc-add-{Scenario.Id}")"
+             style="display:flex; flex-direction:column; gap:8px; justify-content:center;
                     padding:16px 20px; flex-shrink:0;">
             <button type="button" class="da-btn da-btn-fill" @onclick="CreateNewItem">
                 <DaIcon Name="add" Size="16" />
@@ -227,7 +230,22 @@
     [Parameter] public Action<DAScenario, bool>? MoveScenario { get; set; }
     [Parameter] public Action<DAScenario>? DeleteScenario { get; set; }
 
+    /// <summary>
+    /// Raised when an item left this scenario for another one, so the page
+    /// redraws the scenario that received it too.
+    /// </summary>
+    [Parameter] public EventCallback OnItemMovedOut { get; set; }
+
+    private const string ItemsListIdPrefix = "sc-items-";
+
     private DAScenarioPlayer? _player;
+
+    /// What to bring into view once drawn: the add buttons after an item added
+    /// at the end — they sit right of it, so both show — or a duplicated item,
+    /// which lands mid-row.
+    private string? _scrollToElementId;
+
+    private string AddButtonsId => $"sc-add-{Scenario.Id}";
 
     /// Whether the "From preset" popover is showing.
     private bool _presetMenuOpen;
@@ -250,9 +268,11 @@
 
     void CreateNewItem()
     {
-        Scenario.Items.Add(new DAScenarioItem());
+        var item = new DAScenarioItem();
+        Scenario.Items.Add(item);
         _player?.Initialize();   // reconciles; never interrupts playback
         DAService.RequestScenarioGroupsSave();
+        _scrollToElementId = AddButtonsId;
         StateHasChanged();
     }
 
@@ -264,7 +284,36 @@
         Scenario.Items.Add(item);
         _player?.Initialize();
         DAService.RequestScenarioGroupsSave();
+        _scrollToElementId = AddButtonsId;
         StateHasChanged();
+    }
+
+    /// <summary>
+    /// Inserts a copy of the item right after it. The copy has fresh ids and its
+    /// own embedded scene, but a group-local scene stays shared, as it would be
+    /// for any other item of the group that picked it.
+    /// </summary>
+    void DuplicateItem(DAScenarioItem item)
+    {
+        var copy = DAPreset.FromScenarioItem(item).ToScenarioItem();
+        if (copy == null) return;
+        copy.Name = item.Name + " (copy)";
+        copy.LocalSceneId = item.LocalSceneId;
+
+        int index = Scenario.Items.IndexOf(item);
+        Scenario.Items.Insert(index < 0 ? Scenario.Items.Count : index + 1, copy);
+        _player?.Initialize();
+        DAService.RequestScenarioGroupsSave();
+        _scrollToElementId = $"si-{copy.Id}";
+        StateHasChanged();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_scrollToElementId is not string id) return;
+        _scrollToElementId = null;
+        try { await JS.InvokeVoidAsync("scrollIntoViewById", id); }
+        catch (JSDisconnectedException) { }
     }
 
     void DeleteItem(DAScenarioItem item)

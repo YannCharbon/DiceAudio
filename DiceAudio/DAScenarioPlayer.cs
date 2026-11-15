@@ -123,6 +123,10 @@ namespace DiceAudio
                 else
                 {
                     var player = new DAScenarioItemPlayer(_audioManager, _service, item, Bus);
+                    // The card draws its sound effect buttons from the resolved
+                    // list, so an item that arrives already filled — duplicated,
+                    // from a preset, dragged in — must show them at once.
+                    player.EnsureSoundsResolved();
                     player.PlayStateChanged += OnItemPlayStateChanged;
                     _itemPlayers[item.Id] = player;
                 }

@@ -108,6 +108,10 @@
         <button type="button" class="da-ib" title="Edit" aria-label="Edit" @onclick="OpenEditor">
             <DaIcon Name="edit" Size="16" />
         </button>
+        <button type="button" class="da-ib" title="Duplicate" aria-label="Duplicate"
+                @onclick="() => DuplicateItem?.Invoke(ScenarioItem)">
+            <DaIcon Name="copy" Size="16" />
+        </button>
         @if (Group != null)
         {
             <button type="button" class="da-ib" title="Export" aria-label="Export"
@@ -135,6 +139,7 @@
     [Parameter] public Func<DAScenarioItem, Task>? OnRequestPlay { get; set; }
     [Parameter] public Func<DAScenarioItem, int, Task>? OnRequestPlayAtCue { get; set; }
     [Parameter] public Action<DAScenarioItem>? DeleteItem { get; set; }
+    [Parameter] public Action<DAScenarioItem>? DuplicateItem { get; set; }
     [Parameter] public Action? OnEditorClosed { get; set; }
 
     /// <summary>

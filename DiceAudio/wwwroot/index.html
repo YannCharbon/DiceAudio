@@ -63,6 +63,16 @@
                 });
             }
         }
+
+        // Brings an element fully into view inside whatever scrolls it, sideways
+        // included: a new scenario item lands at the end of a row that may
+        // already overflow.
+        function scrollIntoViewById(id) {
+            var element = document.getElementById(id);
+            if (element) {
+                element.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+            }
+        }
     </script>
 
     <div class="status-bar-safe-area"></div>
